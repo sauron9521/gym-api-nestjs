@@ -1,0 +1,16 @@
+enum Role {
+  USER
+  ADMIN
+  CUSTOMER
+  STAFF
+}
+
+model Users {
+  id            String  @id @default(uuid(4))
+  email         String  @unique()
+  emailVerified Boolean @default(false) @map("email_verified")
+  passHash      String  @map("pass_hash")
+  role          Role    @default(USER)
+
+  @@map("users")
+}

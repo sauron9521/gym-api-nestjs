@@ -6,9 +6,3 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-
-model User {
-  id       String @id @default(uuid(4))
-  email    String @unique
-  passHash String
-}
