@@ -1,10 +1,7 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
-import { Hasher } from '../../common/security/hasher.js';
-import { ViewUserDto } from '../users/dto/view-user.dto.js';
-import { UsersRepository } from '../users/users.repository.js';
-
-import * as bcrypt from 'bcrypt';
+import { ViewUserDto } from '../../users/dto/view-user.dto.js';
+import { UsersRepository } from '../../users/users.repository.js';
 
 @Injectable()
 export class CredentialsService {

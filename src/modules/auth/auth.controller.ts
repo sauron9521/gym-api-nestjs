@@ -5,9 +5,9 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CredentialsService } from './credentials.service.js';
 import { Public, SignInService } from '@nestjs/authentication';
 import { SingInDto, SingUpDto } from './dto/auth.dto.js';
+import { CredentialsService } from './services/credentials.service.js';
 
 @Public()
 @Controller('auth')
