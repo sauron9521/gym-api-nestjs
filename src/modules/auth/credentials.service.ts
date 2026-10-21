@@ -1,11 +1,10 @@
 import { PasswordHasher } from '@nestjs/authentication';
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { Hasher } from '../../common/security/hasher.js';
 import { ViewUserDto } from '../users/dto/view-user.dto.js';
 import { UsersRepository } from '../users/users.repository.js';
+
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class CredentialsService {
@@ -16,32 +15,35 @@ export class CredentialsService {
 
   async registry(email: string, password: string): Promise<ViewUserDto> {
     await this.usersRepository.checkEmail(email);
-
     const hashedPassword = await this.passwordHasher.hash(password);
 
-    const user = await this.usersRepository.create({
+    return await this.usersRepository.create({
       email,
       password: hashedPassword,
     });
-
-    return { ...user };
   }
 
   async verify(email: string, password: string): Promise<ViewUserDto | null> {
-    const found = await this.usersRepository.findCredentials(email);
-    const valid = await this.passwordHasher.verify(password, found?.passHash);
+    const data = await this.usersRepository.findCredentials(email);
+    const valid = await this.checkPassword(password, data?.passHash);
 
-    console.log(valid);
-    if (!found || !valid) {
-      throw new NotFoundException('Invalid credentials');
+    if (!data || !valid) {
+      return null;
     }
-    if (this.passwordHasher.needsRehash(found.passHash)) {
+    if (this.passwordHasher.needsRehash(data.passHash)) {
       await this.usersRepository.updatePassHash(
-        found.id,
+        data.id,
         await this.passwordHasher.hash(password),
       );
     }
 
-    return found;
+    return { ...data };
+  }
+
+  private async checkPassword(
+    password: string,
+    storePassword: string | undefined,
+  ): Promise<boolean> {
+    return this.passwordHasher.verify(password, storePassword);
   }
 }

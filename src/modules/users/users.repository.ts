@@ -4,10 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Hasher } from '../../common/security/hasher.js';
 import { PrismaService } from '../../prisma/index.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
-
+import { SingUpDto } from '../auth/dto/auth.dto.js';
 import { ViewUserDto } from './dto/view-user.dto.js';
 import type { Users } from './../../generated/prisma/client.js';
 
@@ -15,16 +13,12 @@ import type { Users } from './../../generated/prisma/client.js';
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createUserDto: CreateUserDto): Promise<ViewUserDto> {
-    const { email, password } = createUserDto;
-    await this.checkEmail(email);
-
-    const hashedPassword = await Hasher.hash(password);
-
+  async create(singUpDto: SingUpDto): Promise<ViewUserDto> {
+    const { email, password } = singUpDto;
     const user = await this.prisma.users.create({
       data: {
         email,
-        passHash: hashedPassword,
+        passHash: password,
       },
       omit: {
         passHash: true,
@@ -34,8 +28,11 @@ export class UsersRepository {
     return { ...user };
   }
 
-  async findUserByEmail(email: string): Promise<ViewUserDto | null> {
-    const user = await this.prisma.users.findUnique({ where: { email } });
+  async findUserByEmail(email: string): Promise<ViewUserDto> {
+    const user = await this.prisma.users.findUnique({
+      where: { email },
+      omit: { passHash: true },
+    });
 
     if (!user) {
       throw new NotFoundException('User by email not found');
@@ -45,7 +42,10 @@ export class UsersRepository {
   }
 
   async findUserById(id: string): Promise<ViewUserDto> {
-    const user = await this.prisma.users.findUnique({ where: { id } });
+    const user = await this.prisma.users.findUnique({
+      where: { id },
+      omit: { passHash: true },
+    });
     if (!user) {
       throw new NotFoundException('User by id not found');
     }
@@ -58,7 +58,7 @@ export class UsersRepository {
       where: { email },
     });
     if (!credentials) {
-      throw new NotFoundException('User by email not found');
+      throw new NotFoundException('Invalid credentials');
     }
 
     return { ...credentials };
@@ -76,7 +76,6 @@ export class UsersRepository {
       where: { email },
       select: { id: true, email: true },
     });
-    console.log(user, 'user');
     if (user?.email === email) {
       throw new ConflictException('User with the same email already exists');
     }

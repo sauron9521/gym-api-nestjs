@@ -8,9 +8,13 @@ export class Hasher {
     return bcrypt.hash(password, SALT_ON_ROUNDS);
   }
 
-  public static async verify(hash: string, password: string): Promise<boolean> {
+  public static async verify(
+    password: string,
+    hash: string | undefined,
+  ): Promise<boolean> {
     try {
-      return await bcrypt.compare(hash, password);
+      if (!hash) return false;
+      return await bcrypt.compare(password, hash);
     } catch (error) {
       console.error(error);
       return false;
