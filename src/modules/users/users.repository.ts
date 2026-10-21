@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -59,7 +58,7 @@ export class UsersRepository {
       select: { id: true },
     });
     if (user) {
-      throw new BadRequestException('User with the same email already exists');
+      throw new ConflictException('User with the same email already exists');
     }
   }
 }

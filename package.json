@@ -23,7 +23,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "docker:start": "docker compose up -d"
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.1",
