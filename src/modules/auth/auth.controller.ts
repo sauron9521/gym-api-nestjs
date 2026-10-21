@@ -28,13 +28,15 @@ export class AuthController {
 
   @Post('sing-in')
   @HttpCode(200)
-  async singIn(@Body() singInDto: SingInDto) {
+  async singIn(@Body() body: SingInDto) {
     const user = await this.credentialsService.verify(
-      singInDto.email,
-      singInDto.password,
+      body.email,
+      body.password,
     );
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        'Invalid credentials! Wrong email or password.',
+      );
     }
 
     const { session } = await this.singInService.signIn(user.id, {
