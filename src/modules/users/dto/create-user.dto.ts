@@ -1,10 +1,4 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsNotEmpty,
-  IsString,
-  IsStrongPassword,
-} from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsStrongPassword } from 'class-validator';
 import { Role } from '../../../generated/prisma/client.js';
 
 export class CreateUserDto {

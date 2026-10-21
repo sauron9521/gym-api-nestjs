@@ -1,17 +1,45 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { CreateUserDto } from '../users/dto/create-user.dto.js';
-import { AuthService } from './auth.service.js';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { CredentialsService } from './credentials.service.js';
+import { Public, SignInService } from '@nestjs/authentication';
+import { SingInDto, SingUpDto } from './dto/auth.dto.js';
 
+@Public()
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-  @Post('sign-in')
-  async login() {}
+  constructor(
+    private readonly credentialsService: CredentialsService,
+    private readonly singInService: SignInService,
+  ) {}
 
-  @Post('register')
-  async register(@Body() body: CreateUserDto) {
-    const user = await this.authService.register(body);
-
+  @Post('sing-up')
+  async singUp(@Body() singUpDto: SingUpDto) {
+    const user = await this.credentialsService.registry(
+      singUpDto.email,
+      singUpDto.password,
+    );
     return { ...user };
+  }
+
+  @Post('sing-in')
+  @HttpCode(200)
+  async singIn(@Body() singInDto: SingInDto) {
+    const user = await this.credentialsService.verify(
+      singInDto.email,
+      singInDto.password,
+    );
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const { session } = await this.singInService.signIn(user.id, {
+      method: 'password',
+    });
+    return { mfaRequired: session.mfa === 'pending' };
   }
 }

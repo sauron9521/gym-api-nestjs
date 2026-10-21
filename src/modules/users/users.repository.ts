@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/index.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 
 import { ViewUserDto } from './dto/view-user.dto.js';
+import type { Users } from './../../generated/prisma/client.js';
 
 @Injectable()
 export class UsersRepository {
@@ -33,7 +34,7 @@ export class UsersRepository {
     return { ...user };
   }
 
-  async findUserByEmail(email: string): Promise<ViewUserDto> {
+  async findUserByEmail(email: string): Promise<ViewUserDto | null> {
     const user = await this.prisma.users.findUnique({ where: { email } });
 
     if (!user) {
@@ -52,12 +53,31 @@ export class UsersRepository {
     return { ...user };
   }
 
+  async findCredentials(email: string): Promise<Users | null> {
+    const credentials = await this.prisma.users.findUnique({
+      where: { email },
+    });
+    if (!credentials) {
+      throw new NotFoundException('User by email not found');
+    }
+
+    return { ...credentials };
+  }
+
+  async updatePassHash(id: string, passHash: string): Promise<void> {
+    await this.prisma.users.update({
+      where: { id },
+      data: { passHash },
+    });
+  }
+
   async checkEmail(email: string): Promise<void> {
     const user = await this.prisma.users.findUnique({
       where: { email },
-      select: { id: true },
+      select: { id: true, email: true },
     });
-    if (user) {
+    console.log(user, 'user');
+    if (user?.email === email) {
       throw new ConflictException('User with the same email already exists');
     }
   }
