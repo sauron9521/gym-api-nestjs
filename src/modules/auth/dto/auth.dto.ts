@@ -12,3 +12,16 @@ export class SingUpDto {
   @IsStrongPassword()
   password: string;
 }
+
+export class EmailDto {
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  token: string;
+
+  @IsStrongPassword()
+  password: string;
+}

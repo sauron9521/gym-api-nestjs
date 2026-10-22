@@ -5,7 +5,11 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Public, SignInService } from '@nestjs/authentication';
+import {
+  EmailVerificationService,
+  Public,
+  SignInService,
+} from '@nestjs/authentication';
 import { SingInDto, SingUpDto } from './dto/auth.dto.js';
 import { CredentialsService } from './services/credentials.service.js';
 
@@ -15,6 +19,7 @@ export class AuthController {
   constructor(
     private readonly credentialsService: CredentialsService,
     private readonly singInService: SignInService,
+    private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   @Post('sing-up')
@@ -23,6 +28,8 @@ export class AuthController {
       singUpDto.email,
       singUpDto.password,
     );
+    await this.singInService.signIn(user.id, { method: 'password' });
+    await this.emailVerificationService.send(user);
     return { ...user };
   }
 

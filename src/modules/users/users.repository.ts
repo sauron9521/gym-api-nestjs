@@ -80,4 +80,18 @@ export class UsersRepository {
       throw new ConflictException('User with the same email already exists');
     }
   }
+
+  async markEmailVerified(userId: string, email: string): Promise<boolean> {
+    const user = await this.findUserById(userId);
+
+    if (user.email !== email) {
+      return false;
+    }
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { emailVerified: true },
+      omit: { passHash: true },
+    });
+    return true;
+  }
 }
