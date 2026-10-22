@@ -11,7 +11,7 @@ import {
   HttpCode,
   Post,
 } from '@nestjs/common';
-import type { ViewUserDto } from '../users/dto/view-user.dto.js';
+import type { ViewUserDto } from '../../users/dto/view-user.dto.js';
 
 @Controller('auth/email')
 export class EmailVerificationController {

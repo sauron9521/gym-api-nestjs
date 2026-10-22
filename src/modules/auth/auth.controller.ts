@@ -11,7 +11,7 @@ import {
   SignInService,
 } from '@nestjs/authentication';
 import { SingInDto, SingUpDto } from './dto/auth.dto.js';
-import { CredentialsService } from './services/credentials.service.js';
+import { CredentialsService } from './services/index.js';
 
 @Public()
 @Controller('auth')
