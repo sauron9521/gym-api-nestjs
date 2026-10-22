@@ -13,8 +13,7 @@ import type { Users } from './../../generated/prisma/client.js';
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(singUpDto: SingUpDto): Promise<ViewUserDto> {
-    const { email, password } = singUpDto;
+  async create(email: string, password: string): Promise<ViewUserDto> {
     const user = await this.prisma.users.create({
       data: {
         email,
@@ -33,7 +32,6 @@ export class UsersRepository {
       where: { email },
       omit: { passHash: true },
     });
-
     if (!user) {
       throw new NotFoundException('User by email not found');
     }
