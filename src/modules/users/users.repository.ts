@@ -53,14 +53,9 @@ export class UsersRepository {
   }
 
   async findCredentials(email: string): Promise<Users | null> {
-    const credentials = await this.prisma.users.findUnique({
+    return this.prisma.users.findUnique({
       where: { email },
     });
-    if (!credentials) {
-      throw new NotFoundException('Invalid credentials');
-    }
-
-    return { ...credentials };
   }
 
   async updatePassHash(id: string, passHash: string): Promise<void> {
