@@ -10,6 +10,7 @@ import {
   Public,
   SignInService,
 } from '@nestjs/authentication';
+import { Throttle } from '@nestjs/throttler';
 import { SingInDto, SingUpDto } from './dto/auth.dto.js';
 import { CredentialsService } from './services/index.js';
 
@@ -30,6 +31,7 @@ export class AuthController {
     return { ...user };
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('sing-in')
   @HttpCode(200)
   async singIn(@Body() body: SingInDto) {

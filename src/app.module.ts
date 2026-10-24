@@ -1,22 +1,21 @@
-import { AuthenticationModule } from '@nestjs/authentication';
+import { join } from 'node:path';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthenticationModule } from '@nestjs/authentication';
 import {
   FileTemplateEngine,
   LogMailTransport,
   MailModule,
   SmtpTransport,
 } from '@nestjs/mail';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/index.js';
 import { PrismaModule } from './prisma/index.js';
-import { join } from 'node:path';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
     AuthenticationModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -28,6 +27,10 @@ import { join } from 'node:path';
           url: `${config.getOrThrow<string>('APP_URL')}/reset-password`,
         },
       }),
+    }),
+    AuthModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
     }),
     MailModule.forRootAsync({
       inject: [ConfigService],
@@ -44,10 +47,23 @@ import { join } from 'node:path';
       }),
     }),
     PrismaModule,
-    AuthModule,
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 10,
+        },
+      ],
+    }),
     UsersModule,
   ],
   controllers: [],
-  providers: [ConfigService],
+  providers: [
+    ConfigService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

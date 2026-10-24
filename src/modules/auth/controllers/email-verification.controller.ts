@@ -11,6 +11,7 @@ import {
   HttpCode,
   Post,
 } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { ViewUserDto } from '../../users/dto/view-user.dto.js';
 
 @Controller('auth/email')
@@ -30,6 +31,7 @@ export class EmailVerificationController {
     return { email: verified.email, emailVerified: true };
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('verification')
   @HttpCode(202)
   async resend(@CurrentUser() user: ViewUserDto): Promise<void> {
