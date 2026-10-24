@@ -35,8 +35,8 @@ export class CredentialsService {
         await this.passwordHasher.hash(password),
       );
     }
-
-    return { ...data };
+    const { passHash, ...user } = data;
+    return { ...user };
   }
 
   private async checkPassword(
