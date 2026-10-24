@@ -2,6 +2,7 @@ import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
 import { ViewUserDto } from '../../users/dto/view-user.dto.js';
 import { UsersRepository } from '../../users/users.repository.js';
+import { SingUpDto } from '../dto/auth.dto.js';
 
 @Injectable()
 export class CredentialsService {
@@ -10,12 +11,13 @@ export class CredentialsService {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async registry(email: string, password: string): Promise<ViewUserDto> {
+  async registry(singUpDto: SingUpDto): Promise<ViewUserDto> {
+    const { email, password } = singUpDto;
     await this.usersRepository.checkEmail(email);
     const hashedPassword = await this.passwordHasher.hash(password);
 
     return await this.usersRepository.create({
-      email,
+      email: email,
       password: hashedPassword,
     });
   }

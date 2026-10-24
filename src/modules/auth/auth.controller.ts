@@ -24,10 +24,7 @@ export class AuthController {
 
   @Post('sing-up')
   async singUp(@Body() singUpDto: SingUpDto) {
-    const user = await this.credentialsService.registry(
-      singUpDto.email,
-      singUpDto.password,
-    );
+    const user = await this.credentialsService.registry(singUpDto);
     await this.singInService.signIn(user.id, { method: 'password' });
     await this.emailVerificationService.send(user);
     return { ...user };

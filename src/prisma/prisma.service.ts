@@ -8,7 +8,6 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import 'dotenv/config'; //Without this, doesn't work!!
 
-@Global()
 @Injectable()
 export class PrismaService
   extends PrismaClient

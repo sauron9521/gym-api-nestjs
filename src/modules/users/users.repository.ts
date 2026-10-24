@@ -13,7 +13,8 @@ import type { Users } from './../../generated/prisma/client.js';
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(email: string, password: string): Promise<ViewUserDto> {
+  async create(singUpDto: SingUpDto): Promise<ViewUserDto> {
+    const { email, password } = singUpDto;
     const user = await this.prisma.users.create({
       data: {
         email,
