@@ -1,4 +1,9 @@
-import { IsEmail, IsStrongPassword, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsStrongPassword,
+  IsString,
+  IsNotEmpty,
+} from 'class-validator';
 
 export class SingInDto {
   @IsEmail()
@@ -16,6 +21,12 @@ export class SingUpDto {
 export class EmailDto {
   @IsEmail()
   email: string;
+}
+
+export class VerificationTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
 }
 
 export class ResetPasswordDto {

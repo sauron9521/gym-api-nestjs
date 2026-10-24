@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { ViewUserDto } from '../../users/dto/view-user.dto.js';
+import { VerificationTokenDto } from '../dto/auth.dto.js';
 
 @Controller('auth/email')
 export class EmailVerificationController {
@@ -23,7 +24,7 @@ export class EmailVerificationController {
   @Public()
   @Post('verify')
   @HttpCode(200)
-  async verifyEmail(@Body() body: { token: string }) {
+  async verifyEmail(@Body() body: VerificationTokenDto) {
     const verified = await this.emailVerificationService.verify(body.token);
     if (!verified) {
       throw new BadRequestException('Invalid or expired link');

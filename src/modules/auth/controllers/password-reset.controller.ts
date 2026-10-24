@@ -18,7 +18,7 @@ export class PasswordResetController {
   @Post('forgot')
   @HttpCode(202)
   async forgot(@Body() body: EmailDto): Promise<void> {
-    this.passwordResetService.request(body.email);
+    return this.passwordResetService.request(body.email);
   }
 
   @Post('reset')

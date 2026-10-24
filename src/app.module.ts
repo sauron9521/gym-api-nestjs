@@ -35,9 +35,9 @@ import { PrismaModule } from './prisma/index.js';
     MailModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        transport: process.env.SMTP_URL
+        transport: config.getOrThrow<string>('SMTP_URL')
           ? new SmtpTransport({
-              url: config.getOrThrow<string>('APP_URL'),
+              url: config.getOrThrow<string>('SMTP_URL'),
             })
           : new LogMailTransport(),
         templates: new FileTemplateEngine({
@@ -59,7 +59,6 @@ import { PrismaModule } from './prisma/index.js';
   ],
   controllers: [],
   providers: [
-    ConfigService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

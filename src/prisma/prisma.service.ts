@@ -7,7 +7,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
-import 'dotenv/config'; //Without this, doesn't work!!
 
 @Injectable()
 export class PrismaService
