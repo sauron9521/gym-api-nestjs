@@ -1,5 +1,6 @@
 import { AuthenticationModule } from '@nestjs/authentication';
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import {
   FileTemplateEngine,
   LogMailTransport,
@@ -13,17 +14,28 @@ import { join } from 'node:path';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     AuthenticationModule.forRootAsync({
-      useFactory: () => ({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
         session: { absoluteTtl: '7d', idleTtl: '1d' },
-        emailVerification: { url: `${process.env.APP_URL}/verify-email` },
-        passwordReset: { url: `${process.env.APP_URL}/reset-password` },
+        emailVerification: {
+          url: `${config.getOrThrow<string>('APP_URL')}/verify-email`,
+        },
+        passwordReset: {
+          url: `${config.getOrThrow<string>('APP_URL')}/reset-password`,
+        },
       }),
     }),
     MailModule.forRootAsync({
-      useFactory: () => ({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
         transport: process.env.SMTP_URL
-          ? new SmtpTransport({ url: process.env.SMTP_URL })
+          ? new SmtpTransport({
+              url: config.getOrThrow<string>('APP_URL'),
+            })
           : new LogMailTransport(),
         templates: new FileTemplateEngine({
           dir: join(import.meta.dirname, 'mail/templates'),
@@ -36,6 +48,6 @@ import { join } from 'node:path';
     UsersModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [ConfigService],
 })
 export class AppModule {}

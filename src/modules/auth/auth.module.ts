@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { UsersModule } from '../users/users.module.js';
-import { UsersRepository } from '../users/users.repository.js';
 import { AuthController } from './auth.controller.js';
 import {
   EmailVerificationController,
@@ -23,7 +22,6 @@ import { CredentialsService } from './services/index.js';
   ],
   providers: [
     SessionAuth,
-    UsersRepository,
     CredentialsService,
     EmailVerificationMailer,
     PasswordResetMailer,
