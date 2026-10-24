@@ -31,6 +31,7 @@ export class VerificationTokenDto {
 
 export class ResetPasswordDto {
   @IsString()
+  @IsNotEmpty()
   token: string;
 
   @IsStrongPassword()
