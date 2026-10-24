@@ -11,7 +11,7 @@ import {
   HttpCode,
   Post,
 } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import type { ViewUserDto } from '../../users/dto/view-user.dto.js';
 
 @Controller('auth/email')
