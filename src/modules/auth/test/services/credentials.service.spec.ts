@@ -1,9 +1,9 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { randomUUID } from 'node:crypto';
-import type { ViewUserDto } from '../../users/dto/view-user.dto.js';
-import type { Users } from '../../../generated/prisma/client.js';
-import { UsersRepository } from '../../users/users.repository.js';
-import { CredentialsService } from './credentials.service.js';
+import type { ViewUserDto } from '../../../users/dto/view-user.dto.js';
+import type { Users } from '../../../../generated/prisma/client.js';
+import { UsersRepository } from '../../../users/users.repository.js';
+import { CredentialsService } from '../../services/index.js';
 
 describe('Credentials service', () => {
   let service: CredentialsService;
