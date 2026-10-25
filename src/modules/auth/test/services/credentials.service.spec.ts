@@ -81,7 +81,7 @@ describe('Credentials service', () => {
       } as unknown as Users;
 
       userRepository.findCredentials.mockResolvedValue(user);
-      passwordHasher.hash.mockResolvedValue(false);
+      passwordHasher.verify.mockResolvedValue(false);
 
       const result = await service.verify(
         'test@example.com',
@@ -143,7 +143,7 @@ describe('Credentials service', () => {
       passwordHasher.hash.mockResolvedValue('new-hash');
 
       const result = await service.verify(
-        'test@emaple.com',
+        'test@exmaple.com',
         'StrongPassword123!',
       );
 

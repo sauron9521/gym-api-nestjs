@@ -138,4 +138,73 @@ describe('UsersRepository', () => {
       expect(prisma.users.update).not.toHaveBeenCalled();
     });
   });
+
+  describe('findUserById', () => {
+    it('should return a user when found', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'test@example.com',
+      } as ViewUserDto;
+
+      prisma.users.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findUserById('user-1');
+
+      expect(prisma.users.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        omit: { passHash: true },
+      });
+      expect(result).toEqual(user);
+      expect(result).not.toHaveProperty('passHash');
+    });
+
+    it('should throw NotFoundException when user is missing', async () => {
+      prisma.users.findUnique.mockResolvedValue(null);
+
+      await expect(repository.findUserById('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findCredentials', () => {
+    it('should return credentials when user exists', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'test@example.com',
+        passHash: 'hashed-password',
+      };
+
+      prisma.users.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findCredentials(user.email);
+
+      expect(prisma.users.findUnique).toHaveBeenCalledWith({
+        where: { email: user.email },
+      });
+      expect(result).toEqual(user);
+      expect(result?.passHash).toBe('hashed-password');
+    });
+
+    it('should return null when user is missing', async () => {
+      prisma.users.findUnique.mockResolvedValue(null);
+
+      const result = await repository.findCredentials('missing@example.com');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('updatePassHash', () => {
+    it('should update the password hash', async () => {
+      prisma.users.update.mockResolvedValue({});
+
+      await repository.updatePassHash('user-1', 'new-hash');
+
+      expect(prisma.users.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { passHash: 'new-hash' },
+      });
+    });
+  });
 });

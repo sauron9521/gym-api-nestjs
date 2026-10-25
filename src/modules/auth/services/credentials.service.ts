@@ -36,8 +36,7 @@ export class CredentialsService {
       );
     }
 
-    //TODO Unused variable passHash, need rework returning types
-    const { passHash, ...user } = data;
+    const { passHash: _passHash, ...user } = data;
     return { ...user };
   }
 
