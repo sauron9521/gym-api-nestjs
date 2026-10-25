@@ -8,5 +8,8 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
+    coverage: {
+      exclude: ['generated/**', '**/index.ts'],
+    },
   },
 });
