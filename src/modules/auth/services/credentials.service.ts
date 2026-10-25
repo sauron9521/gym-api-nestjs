@@ -35,6 +35,8 @@ export class CredentialsService {
         await this.passwordHasher.hash(password),
       );
     }
+
+    //TODO Unused variable passHash, need rework returning types
     const { passHash, ...user } = data;
     return { ...user };
   }
