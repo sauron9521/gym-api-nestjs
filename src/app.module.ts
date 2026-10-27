@@ -19,6 +19,12 @@ import { PrismaModule } from './prisma/index.js';
     AuthenticationModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
+        accessToken: {
+          key: process.env.JWT_SECRET!,
+          issuer: 'http://localhost:3000',
+          audience: 'mobile-app',
+          ttl: '15m',
+        },
         session: { absoluteTtl: '7d', idleTtl: '1d' },
         emailVerification: {
           url: `${config.getOrThrow<string>('APP_URL')}/verify-email`,
@@ -28,6 +34,7 @@ import { PrismaModule } from './prisma/index.js';
         },
       }),
     }),
+    AuthenticationModule.forRoot(),
     AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
