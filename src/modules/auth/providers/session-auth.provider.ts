@@ -18,6 +18,6 @@ export class SessionAuth extends SessionCookieProvider<ViewUserDto> {
   }
 
   validate(session: SessionRecord) {
-    return this.usersRepository.findUserById(session.id);
+    return this.usersRepository.findUserById(session.userId);
   }
 }

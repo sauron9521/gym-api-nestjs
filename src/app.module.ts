@@ -20,7 +20,7 @@ import { PrismaModule } from './prisma/index.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         accessToken: {
-          key: process.env.JWT_SECRET!,
+          key: config.getOrThrow<string>('JWT_SECRET'),
           issuer: 'http://localhost:3000',
           audience: 'mobile-app',
           ttl: '15m',

@@ -17,7 +17,6 @@ export class JwtAuth extends JwtBearerProvider<any> {
   }
 
   validate({ sub }: JwtClaims) {
-    console.log(sub);
     return sub ? this.usersRepository.findUserById(sub) : null;
   }
 }
