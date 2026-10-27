@@ -6,6 +6,9 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     globals: true,
+    env: {
+      JWT_SECRET: 'cAJVaf+PZ/XsS8My+YtdamtYlm2msoU2tVeCN3mQomc',
+    },
     root: './',
     include: ['**/*.spec.ts'],
     coverage: {
