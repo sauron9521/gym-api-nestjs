@@ -14,10 +14,10 @@ export class SessionAuth extends SessionCookieProvider<ViewUserDto> {
     registry: AuthenticationRegistry,
   ) {
     super();
-    registry.registerProvider(this);
+    registry.registerProvider(this, { order: 1 });
   }
 
   validate(session: SessionRecord) {
-    return this.usersRepository.findUserById(session.id);
+    return this.usersRepository.findUserById(session.userId);
   }
 }

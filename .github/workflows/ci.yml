@@ -31,6 +31,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gym_app_test?schema=public
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gym_app_test?schema=public
       APP_URL: http://localhost:3000
+      JWT_SECRET: xjYwwAdHREaWbPRsTFQikrf0jnu4enSyEfthz+evnJo
 
     steps:
       - name: Checkout repository

@@ -12,6 +12,8 @@ import {
 } from './mailers/index.js';
 import { SessionAuth } from './providers/index.js';
 import { CredentialsService } from './services/index.js';
+import { TokensController } from './controllers/tokens.controller.js';
+import { JwtAuth } from './providers/jwt-auth.provider.js';
 
 @Module({
   imports: [UsersModule],
@@ -19,11 +21,13 @@ import { CredentialsService } from './services/index.js';
     AuthController,
     PasswordResetController,
     EmailVerificationController,
+    TokensController,
   ],
   providers: [
     SessionAuth,
     CredentialsService,
     EmailVerificationMailer,
+    JwtAuth,
     PasswordResetMailer,
   ],
 })

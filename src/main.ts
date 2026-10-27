@@ -6,7 +6,10 @@ import { AppModule } from './app.module.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
-  app.enableCors();
+  app.enableCors({
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+  });
+  app.enableCsrfProtection();
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
