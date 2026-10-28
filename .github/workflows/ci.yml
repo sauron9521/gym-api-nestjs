@@ -49,6 +49,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Prisma Schema
+        run: npm run db:validate
+
       - name: Generate Prisma Client
         run: npx prisma generate --config prisma7.config.ts
 

@@ -6,14 +6,6 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "oxlint --type-aware"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --check"
-    ]
-  },
   "scripts": {
     "build": "nest build",
     "deploy": "nest deploy",
@@ -32,6 +24,7 @@
     "db:migrate:dev": "prisma migrate dev --config prisma7.config.ts",
     "db:migrate:deploy": "prisma migrate deploy --config prisma7.config.ts",
     "db:migrate:status": "prisma migrate status --config prisma7.config.ts",
+    "db:validate": "prisma validate --config prisma7.config.ts",
     "db:reset": "prisma migrate reset --config prisma7.config.ts --force",
     "db:seed": "prisma db seed --config prisma7.config.ts",
     "db:generate": "prisma generate --config prisma7.config.ts",
@@ -78,6 +71,14 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "oxlint --type-aware"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --check"
+    ]
   },
   "allowScripts": {
     "@prisma/engines@7.10.1": true,
