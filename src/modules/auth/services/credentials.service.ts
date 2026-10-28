@@ -1,8 +1,8 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
-import { ViewUserDto } from '../../users/dto/view-user.dto.js';
 import { UsersRepository } from '../../users/users.repository.js';
 import { SingUpDto } from '../dto/auth.dto.js';
+import { UserResponse } from '../../users/dto/response-user.js';
 
 @Injectable()
 export class CredentialsService {
@@ -11,32 +11,31 @@ export class CredentialsService {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async registry(singUpDto: SingUpDto): Promise<ViewUserDto> {
-    const { email, password } = singUpDto;
-    await this.usersRepository.checkEmail(email);
-    const hashedPassword = await this.passwordHasher.hash(password);
+  async registry(dto: SingUpDto): Promise<UserResponse> {
+    await this.usersRepository.checkEmail(dto.email);
+    const hashedPassword = await this.passwordHasher.hash(dto.password);
 
     return await this.usersRepository.create({
-      email: email,
-      password: hashedPassword,
+      email: dto.email,
+      passwordHash: hashedPassword,
     });
   }
 
-  async verify(email: string, password: string): Promise<ViewUserDto | null> {
+  async verify(email: string, password: string): Promise<UserResponse | null> {
     const data = await this.usersRepository.findCredentials(email);
-    const valid = await this.checkPassword(password, data?.passHash);
+    const valid = await this.checkPassword(password, data?.passwordHash);
 
     if (!data || !valid) {
       return null;
     }
-    if (this.passwordHasher.needsRehash(data.passHash)) {
+    if (this.passwordHasher.needsRehash(data.passwordHash)) {
       await this.usersRepository.updatePassHash(
         data.id,
         await this.passwordHasher.hash(password),
       );
     }
 
-    const { passHash: _passHash, ...user } = data;
+    const { passwordHash: _passHash, ...user } = data;
     return { ...user };
   }
 

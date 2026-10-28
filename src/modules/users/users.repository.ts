@@ -3,88 +3,96 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { PrismaService } from '../../prisma/index.js';
-import { SingUpDto } from '../auth/dto/auth.dto.js';
-import { ViewUserDto } from './dto/view-user.dto.js';
-import type { Users } from './../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
+
+export const userSelect = {
+  id: true,
+  email: true,
+  emailVerified: true,
+  role: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.UserSelect;
+
+export const userSelectWithCredentials = {
+  id: true,
+  email: true,
+  passwordHash: true,
+  emailVerified: true,
+  role: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.UserSelect;
 
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(singUpDto: SingUpDto): Promise<ViewUserDto> {
-    const { email, password } = singUpDto;
-    const user = await this.prisma.users.create({
-      data: {
-        email,
-        passHash: password,
-      },
-      omit: {
-        passHash: true,
-      },
+  async create(email: string, passwordHash: string) {
+    return this.prisma.user.create({
+      data: { email, passwordHash },
+      select: userSelect,
     });
-
-    return { ...user };
   }
 
-  async findUserByEmail(email: string): Promise<ViewUserDto> {
-    const user = await this.prisma.users.findUnique({
+  async findUserByEmail(email: string) {
+    return this.prisma.user.findUnique({
       where: { email },
-      omit: { passHash: true },
+      select: userSelect,
     });
-    if (!user) {
-      throw new NotFoundException('User by email not found');
-    }
-
-    return { ...user };
   }
 
-  async findUserById(id: string): Promise<ViewUserDto> {
-    const user = await this.prisma.users.findUnique({
+  async findUserById(id: string) {
+    return this.prisma.user.findUnique({
       where: { id },
-      omit: { passHash: true },
+      select: userSelect,
     });
-    if (!user) {
-      throw new NotFoundException('User by id not found');
-    }
-
-    return { ...user };
   }
 
-  async findCredentials(email: string): Promise<Users | null> {
-    return this.prisma.users.findUnique({
+  async findCredentials(email: string) {
+    return this.prisma.user.findUnique({
       where: { email },
+      select: userSelectWithCredentials,
     });
   }
 
-  async updatePassHash(id: string, passHash: string): Promise<void> {
-    await this.prisma.users.update({
+  async updatePassHash(id: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({
       where: { id },
-      data: { passHash },
+      data: { passwordHash },
+      select: userSelect,
     });
   }
 
+  // relocation SERVICE AUTH?
   async checkEmail(email: string): Promise<void> {
-    const user = await this.prisma.users.findUnique({
-      where: { email },
-      select: { id: true, email: true },
-    });
+    const user = await this.findUserByEmail(email);
     if (user?.email === email) {
       throw new ConflictException('User with the same email already exists');
     }
   }
 
+  // relocation SERVICE AUTH?
   async markEmailVerified(userId: string, email: string): Promise<boolean> {
     const user = await this.findUserById(userId);
+    if (!user) {
+      throw new NotFoundException();
+    }
 
     if (user.email !== email) {
       return false;
     }
-    await this.prisma.users.update({
+    await this.prisma.user.update({
       where: { id: userId },
       data: { emailVerified: true },
-      omit: { passHash: true },
+      select: {
+        id: true,
+        email: true,
+        emailVerified: true,
+      },
     });
     return true;
   }

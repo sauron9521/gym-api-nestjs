@@ -35,7 +35,7 @@ export class PasswordResetMailer extends PasswordResetHandler {
       found && {
         id: found.id,
         email: found.email,
-        passwordHash: found.passHash,
+        passwordHash: found.passwordHash,
       }
     );
   }

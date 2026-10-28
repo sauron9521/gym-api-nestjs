@@ -12,8 +12,8 @@ import {
   Post,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { ViewUserDto } from '../../users/dto/view-user.dto.js';
 import { VerificationTokenDto } from '../dto/auth.dto.js';
+import type { UserResponse } from '../../users/dto/response-user.js';
 
 @Controller('auth/email')
 export class EmailVerificationController {
@@ -35,7 +35,7 @@ export class EmailVerificationController {
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('verification')
   @HttpCode(202)
-  async resend(@CurrentUser() user: ViewUserDto): Promise<void> {
+  async resend(@CurrentUser() user: UserResponse): Promise<void> {
     if (user.emailVerified) {
       throw new ConflictException('Email address already verified');
     }
