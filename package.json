@@ -20,11 +20,16 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "db:migrate": "prisma migrate deploy",
-    "db:reset": "prisma migrate reset --force",
-    "db:seed": "prisma db seed",
-    "db:generate": "prisma generate",
-    "docker:start": "docker compose up -d"
+    "db:migrate": "prisma migrate deploy --config prisma7.config.ts",
+    "db:migrate:dev": "prisma migrate dev --config prisma7.config.ts",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma7.config.ts",
+    "db:migrate:status": "prisma migrate status --config prisma7.config.ts",
+    "db:validate": "prisma validate --config prisma7.config.ts",
+    "db:reset": "prisma migrate reset --config prisma7.config.ts --force",
+    "db:seed": "prisma db seed --config prisma7.config.ts",
+    "db:generate": "prisma generate --config prisma7.config.ts",
+    "docker:start": "docker compose up -d",
+    "prepare": "husky"
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.1",
@@ -55,6 +60,8 @@
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",
     "dotenv": "^18.0.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.4.2",
@@ -64,6 +71,14 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "oxlint --type-aware"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --check"
+    ]
   },
   "allowScripts": {
     "@prisma/engines@7.10.1": true,
