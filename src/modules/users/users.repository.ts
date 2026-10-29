@@ -47,14 +47,14 @@ export class UsersRepository {
 
   async findUserById(id: string) {
     return this.prisma.user.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       select: userSelect,
     });
   }
 
   async findCredentials(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email, deletedAt: null },
       select: userSelectWithCredentials,
     });
   }
