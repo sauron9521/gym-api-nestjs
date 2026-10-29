@@ -214,4 +214,26 @@ describe('UsersRepository integration (e2e)', () => {
 
     expect(unchanged?.emailVerified).toBe(false);
   });
+
+  it('does not return a soft-deleted user for authentication', async () => {
+    const email = createEmail('soft-delete');
+    const user = await createUser(email);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { deletedAt: new Date() },
+    });
+
+    await expect(repository.findUserById(user.id)).resolves.toBeNull();
+    await expect(repository.findCredentials(email)).resolves.toBeNull();
+
+    // Soft delete must preserve the database record.
+    const deletedUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, deletedAt: true },
+    });
+
+    expect(deletedUser).not.toBeNull();
+    expect(deletedUser?.deletedAt).toBeInstanceOf(Date);
+  });
 });

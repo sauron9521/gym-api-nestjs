@@ -158,7 +158,7 @@ describe('UsersRepository', () => {
       const result = await repository.findUserById('user-1');
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
+        where: { id: 'user-1', deletedAt: null },
         select: userSelect,
       });
       expect(result).toEqual(user);
@@ -185,7 +185,7 @@ describe('UsersRepository', () => {
       const result = await repository.findCredentials(user.email);
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: user.email },
+        where: { email: user.email, deletedAt: null },
         select: userSelectWithCredentials,
       });
 

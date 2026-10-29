@@ -1,0 +1,16 @@
+model Session {
+  // SHA-256 hash cookie-токена, а не сам токен
+  id           String   @id @db.VarChar(64)
+  userId       String   @map("user_id")
+  createdAt    DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(3)
+  lastActiveAt DateTime @map("last_active_at") @db.Timestamptz(3)
+  mfa          String?
+  metadata     Json?    @db.JsonB
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
