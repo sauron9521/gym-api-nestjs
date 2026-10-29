@@ -1,9 +1,10 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { randomUUID } from 'node:crypto';
-import type { ViewUserDto } from '../../../users/dto/view-user.dto.js';
-import type { Users } from '../../../../generated/prisma/client.js';
+import type { User } from '../../../../generated/prisma/client.js';
 import { UsersRepository } from '../../../users/users.repository.js';
 import { CredentialsService } from '../../services/index.js';
+import { UserResponse } from '../../../users/dto/response-user.js';
+import { SingInDto } from '../../dto/auth.dto.js';
 
 describe('Credentials service', () => {
   let service: CredentialsService;
@@ -32,27 +33,27 @@ describe('Credentials service', () => {
 
   describe('register', () => {
     it('Should hash the password and create user', async () => {
-      const input = {
+      const dto: SingInDto = {
         email: 'test123@example.com',
         password: 'StrongPassword123!@',
       };
 
       const createUser = {
-        id: randomUUID(),
-        email: input.email,
-      } as ViewUserDto;
+        id: 'user-1',
+        email: dto.email,
+      } as UserResponse;
 
       passwordHasher.hash.mockResolvedValue('hashed-password');
       userRepository.create.mockResolvedValue(createUser);
 
-      const result = await service.registry(input);
+      const result = await service.registry(dto);
 
-      expect(userRepository.checkEmail).toHaveBeenCalledWith(input.email);
-      expect(passwordHasher.hash).toHaveBeenCalledWith(input.password);
-      expect(userRepository.create).toHaveBeenCalledWith({
-        email: input.email,
-        password: 'hashed-password',
-      });
+      expect(userRepository.checkEmail).toHaveBeenCalledWith(dto.email);
+      expect(passwordHasher.hash).toHaveBeenCalledWith(dto.password);
+      expect(userRepository.create).toHaveBeenCalledWith(
+        dto.email,
+        'hashed-password',
+      );
       expect(result).toEqual(createUser);
     });
 
@@ -77,8 +78,8 @@ describe('Credentials service', () => {
       const user = {
         id: randomUUID(),
         email: 'test@example.com',
-        passHash: 'stored-hash',
-      } as unknown as Users;
+        passwordHash: 'stored-hash',
+      } as unknown as User;
 
       userRepository.findCredentials.mockResolvedValue(user);
       passwordHasher.verify.mockResolvedValue(false);
@@ -98,10 +99,10 @@ describe('Credentials service', () => {
 
     it('should return the user without the password hash', async () => {
       const user = {
-        id: randomUUID(),
+        id: 'user-1',
         email: 'test@example.com',
-        passHash: 'store-hash',
-      } as unknown as Users;
+        passwordHash: 'store-hash',
+      } as unknown as User;
 
       userRepository.findCredentials.mockResolvedValue(user);
       passwordHasher.verify.mockResolvedValue(true);
@@ -113,7 +114,7 @@ describe('Credentials service', () => {
         id: user.id,
         email: user.email,
       });
-      expect(result).not.toHaveProperty('passHash');
+      expect(result).not.toHaveProperty('passwordHash');
     });
 
     it("should return null the user doesn't exist", async () => {
@@ -134,8 +135,8 @@ describe('Credentials service', () => {
       const user = {
         id: randomUUID(),
         email: 'test@example.com',
-        passHash: 'old-hash',
-      } as unknown as Users;
+        passwordHash: 'old-hash',
+      } as unknown as User;
 
       userRepository.findCredentials.mockResolvedValue(user);
       passwordHasher.verify.mockResolvedValue(true);
@@ -153,7 +154,7 @@ describe('Credentials service', () => {
         user.id,
         'new-hash',
       );
-      expect(result).not.toHaveProperty('passHash');
+      expect(result).not.toHaveProperty('passwordHash');
     });
   });
 });
