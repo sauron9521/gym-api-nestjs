@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UsersModule } from '../src/modules/index.js';
 
@@ -27,10 +27,7 @@ describe('UsersRepository integration (e2e)', () => {
   }
 
   async function createUser(email: string) {
-    return repository.create({
-      email,
-      password: passwordHash,
-    });
+    return repository.create(email, passwordHash);
   }
 
   beforeAll(async () => {
@@ -63,7 +60,7 @@ describe('UsersRepository integration (e2e)', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
+        await ConfigModule.forRoot({ isGlobal: true }),
         PrismaModule,
         UsersModule,
       ],
@@ -80,7 +77,7 @@ describe('UsersRepository integration (e2e)', () => {
   afterAll(async () => {
     try {
       if (prisma && emails.length > 0) {
-        await prisma.users.deleteMany({
+        await prisma.user.deleteMany({
           where: {
             email: { in: emails },
           },
@@ -101,12 +98,12 @@ describe('UsersRepository integration (e2e)', () => {
     expect(result.email).toBe(email);
     expect(result).not.toHaveProperty('passHash');
 
-    const savedUser = await prisma.users.findUnique({
+    const savedUser = await prisma.user.findUnique({
       where: { email },
     });
 
     expect(savedUser).not.toBeNull();
-    expect(savedUser?.passHash).toBe(passwordHash);
+    expect(savedUser?.passwordHash).toBe(passwordHash);
   });
 
   it('finds a user by email and ID without exposing the hash', async () => {
@@ -117,22 +114,20 @@ describe('UsersRepository integration (e2e)', () => {
     const byEmail = await repository.findUserByEmail(email);
     const byId = await repository.findUserById(created.id);
 
-    expect(byEmail.id).toBe(created.id);
-    expect(byEmail.email).toBe(email);
-    expect(byEmail).not.toHaveProperty('passHash');
+    expect(byEmail?.id).toBe(created.id);
+    expect(byEmail?.email).toBe(email);
+    expect(byEmail).not.toHaveProperty('passwordHash');
 
-    expect(byId.id).toBe(created.id);
-    expect(byId).not.toHaveProperty('passHash');
+    expect(byId?.id).toBe(created.id);
+    expect(byId).not.toHaveProperty('passwordHash');
   });
 
-  it('throws NotFoundException when the user does not exist', async () => {
+  it('returns null when the user does not exist', async () => {
     await expect(
       repository.findUserByEmail('missing-user@example.com'),
-    ).rejects.toThrow(NotFoundException);
+    ).resolves.toBeNull();
 
-    await expect(repository.findUserById(randomUUID())).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(repository.findUserById(randomUUID())).resolves.toBeNull();
   });
 
   it('returns credentials including the password hash', async () => {
@@ -144,7 +139,7 @@ describe('UsersRepository integration (e2e)', () => {
 
     expect(credentials).not.toBeNull();
     expect(credentials?.email).toBe(email);
-    expect(credentials?.passHash).toBe(passwordHash);
+    expect(credentials?.passwordHash).toBe(passwordHash);
   });
 
   it('returns null when credentials are not found', async () => {
@@ -162,11 +157,11 @@ describe('UsersRepository integration (e2e)', () => {
 
     await repository.updatePassHash(user.id, updatedPasswordHash);
 
-    const updated = await prisma.users.findUnique({
+    const updated = await prisma.user.findUnique({
       where: { id: user.id },
     });
 
-    expect(updated?.passHash).toBe(updatedPasswordHash);
+    expect(updated?.passwordHash).toBe(updatedPasswordHash);
   });
 
   it('checks whether an email is already registered', async () => {
@@ -194,7 +189,7 @@ describe('UsersRepository integration (e2e)', () => {
 
     expect(result).toBe(true);
 
-    const updated = await prisma.users.findUnique({
+    const updated = await prisma.user.findUnique({
       where: { id: user.id },
     });
 
@@ -213,7 +208,7 @@ describe('UsersRepository integration (e2e)', () => {
 
     expect(result).toBe(false);
 
-    const unchanged = await prisma.users.findUnique({
+    const unchanged = await prisma.user.findUnique({
       where: { id: user.id },
     });
 

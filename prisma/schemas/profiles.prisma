@@ -1,0 +1,16 @@
+model Profile {
+  id       String    @id @default(uuid(4))
+  name     String?
+  birthday DateTime? @db.Date
+  height   Int?
+  weight   Int?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt() @map("updated_at") @db.Timestamptz(3)
+
+  // Relation
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique @map("user_id")
+
+  @@map("profiles")
+}

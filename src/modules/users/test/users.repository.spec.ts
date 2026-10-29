@@ -1,13 +1,18 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/index.js';
-import { ViewUserDto } from '../dto/view-user.dto.js';
-import { UsersRepository } from '../users.repository.js';
+import {
+  userSelect,
+  userSelectWithCredentials,
+  UsersRepository,
+} from '../users.repository.js';
+import { UserResponse } from '../dto/response-user.js';
+import type { User } from '../../../generated/prisma/client.js';
 
 describe('UsersRepository', () => {
   let repository: UsersRepository;
 
   const prisma = {
-    users: {
+    user: {
       create: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -21,33 +26,31 @@ describe('UsersRepository', () => {
   });
 
   describe('create', () => {
-    it('should create a user without returning passHash', async () => {
+    it('should create a user without returning passwordHash', async () => {
       const input = {
         email: 'test@example.com',
-        password: 'hashed-password',
+        passwordHash: 'hashed-password',
       };
 
       const createUser = {
         id: 'user-1',
         email: input.email,
-      } as ViewUserDto;
+      } as UserResponse;
 
-      prisma.users.create.mockResolvedValue(createUser);
+      prisma.user.create.mockResolvedValue(createUser);
 
-      const result = await repository.create(input);
+      const result = await repository.create(input.email, input.passwordHash);
 
-      expect(prisma.users.create).toHaveBeenCalledWith({
+      expect(prisma.user.create).toHaveBeenCalledWith({
         data: {
           email: input.email,
-          passHash: input.password,
+          passwordHash: input.passwordHash,
         },
-        omit: {
-          passHash: true,
-        },
+        select: userSelect,
       });
 
       expect(result).toEqual(createUser);
-      expect(result).not.toHaveProperty('passHash');
+      expect(result).not.toHaveProperty('passwordHash');
     });
   });
 
@@ -56,32 +59,32 @@ describe('UsersRepository', () => {
       const user = {
         id: 'user-1',
         email: 'test@example.com',
-      } as ViewUserDto;
+      } as UserResponse;
 
-      prisma.users.findUnique.mockResolvedValue(user);
+      prisma.user.findUnique.mockResolvedValue(user);
 
       const result = await repository.findUserByEmail('test@example.com');
 
-      expect(prisma.users.findUnique).toHaveBeenCalledWith({
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'test@example.com' },
-        omit: { passHash: true },
+        select: userSelect,
       });
 
       expect(result).toEqual(user);
     });
 
-    it('should throw NotFoundException when user is missing', async () => {
-      prisma.users.findUnique.mockResolvedValue(null);
+    it('should returned Null when user is missing', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
         repository.findUserByEmail('missing@example.com'),
-      ).rejects.toThrow(NotFoundException);
+      ).resolves.toBeNull();
     });
   });
 
   describe('checkEmail', () => {
     it('should throw ConflictException when email already exist', async () => {
-      prisma.users.findUnique.mockResolvedValue({
+      prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'test@example.com',
       });
@@ -92,7 +95,7 @@ describe('UsersRepository', () => {
     });
 
     it('should not throw when email. is available', async () => {
-      prisma.users.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
         repository.checkEmail('new@example.com'),
@@ -102,12 +105,12 @@ describe('UsersRepository', () => {
 
   describe('markEmailVerified', () => {
     it('should mark email as verified when it matches', async () => {
-      prisma.users.findUnique.mockResolvedValue({
-        id: 'user-1',
+      prisma.user.findUnique.mockResolvedValue({
+        userId: 'user-1',
         email: 'test@example.com',
       });
 
-      prisma.users.update.mockResolvedValue({});
+      prisma.user.update.mockResolvedValue({});
 
       const result = await repository.markEmailVerified(
         'user-1',
@@ -116,15 +119,19 @@ describe('UsersRepository', () => {
 
       expect(result).toBe(true);
 
-      expect(prisma.users.update).toHaveBeenCalledWith({
+      expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { emailVerified: true },
-        omit: { passHash: true },
+        select: {
+          id: true,
+          email: true,
+          emailVerified: true,
+        },
       });
     });
 
     it('should not update user when email does not match', async () => {
-      prisma.users.findUnique.mockResolvedValue({
+      prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'test@example.com',
       });
@@ -135,7 +142,7 @@ describe('UsersRepository', () => {
       );
 
       expect(result).toBe(false);
-      expect(prisma.users.update).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
     });
   });
 
@@ -144,26 +151,24 @@ describe('UsersRepository', () => {
       const user = {
         id: 'user-1',
         email: 'test@example.com',
-      } as ViewUserDto;
+      } as UserResponse;
 
-      prisma.users.findUnique.mockResolvedValue(user);
+      prisma.user.findUnique.mockResolvedValue(user);
 
       const result = await repository.findUserById('user-1');
 
-      expect(prisma.users.findUnique).toHaveBeenCalledWith({
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        omit: { passHash: true },
+        select: userSelect,
       });
       expect(result).toEqual(user);
-      expect(result).not.toHaveProperty('passHash');
+      expect(result).not.toHaveProperty('passwordHash');
     });
 
-    it('should throw NotFoundException when user is missing', async () => {
-      prisma.users.findUnique.mockResolvedValue(null);
+    it('should return null when user is missing', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(repository.findUserById('missing-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(repository.findUserById('missing-id')).resolves.toBeNull();
     });
   });
 
@@ -172,22 +177,24 @@ describe('UsersRepository', () => {
       const user = {
         id: 'user-1',
         email: 'test@example.com',
-        passHash: 'hashed-password',
-      };
+        passwordHash: 'hashed-password',
+      } as User;
 
-      prisma.users.findUnique.mockResolvedValue(user);
+      prisma.user.findUnique.mockResolvedValue(user);
 
       const result = await repository.findCredentials(user.email);
 
-      expect(prisma.users.findUnique).toHaveBeenCalledWith({
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: user.email },
+        select: userSelectWithCredentials,
       });
+
       expect(result).toEqual(user);
-      expect(result?.passHash).toBe('hashed-password');
+      expect(result?.passwordHash).toBe('hashed-password');
     });
 
     it('should return null when user is missing', async () => {
-      prisma.users.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       const result = await repository.findCredentials('missing@example.com');
 
@@ -197,13 +204,14 @@ describe('UsersRepository', () => {
 
   describe('updatePassHash', () => {
     it('should update the password hash', async () => {
-      prisma.users.update.mockResolvedValue({});
+      prisma.user.update.mockResolvedValue({});
 
       await repository.updatePassHash('user-1', 'new-hash');
 
-      expect(prisma.users.update).toHaveBeenCalledWith({
+      expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { passHash: 'new-hash' },
+        data: { passwordHash: 'new-hash' },
+        select: userSelect,
       });
     });
   });

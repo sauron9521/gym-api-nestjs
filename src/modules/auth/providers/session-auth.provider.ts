@@ -4,11 +4,11 @@ import {
   SessionRecord,
 } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
-import { ViewUserDto } from '../../users/dto/view-user.dto.js';
 import { UsersRepository } from '../../users/users.repository.js';
+import { UserResponse } from '../../users/dto/response-user.js';
 
 @Injectable()
-export class SessionAuth extends SessionCookieProvider<ViewUserDto> {
+export class SessionAuth extends SessionCookieProvider<UserResponse> {
   constructor(
     private readonly usersRepository: UsersRepository,
     registry: AuthenticationRegistry,

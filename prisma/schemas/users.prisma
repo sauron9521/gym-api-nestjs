@@ -1,18 +1,21 @@
 enum Role {
-  USER
+  ATHLETE
+  TRAINER
   ADMIN
-  CUSTOMER
-  STAFF
 }
 
-model Users {
-  id            String   @id @default(uuid(4))
-  email         String   @unique()
-  emailVerified Boolean  @default(false) @map("email_verified")
-  passHash      String   @map("pass_hash")
-  role          Role     @default(USER)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Date()
-  updateAt      DateTime @updatedAt @map("update_at") @db.Date
+model User {
+  id            String    @id @default(uuid(4))
+  email         String    @unique()
+  emailVerified Boolean   @default(false) @map("email_verified")
+  passwordHash  String    @map("password_hash")
+  role          Role      @default(ATHLETE)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @map("updated_at") @db.Timestamptz(3) @updatedAt()
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  // Relation
+  profile Profile?
 
   @@map("users")
 }

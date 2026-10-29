@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
-import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { Mailer } from '@nestjs/mail';
 
 import { AppModule } from '../src/app.module.js';
@@ -76,7 +76,7 @@ describe('Authentication integration (e2e)', () => {
     try {
       if (prisma) {
         // Видаляємо лише користувача, створеного цим тестом.
-        await prisma.users.deleteMany({
+        await prisma.user.deleteMany({
           where: { email },
         });
       }
@@ -96,18 +96,18 @@ describe('Authentication integration (e2e)', () => {
     expect(signUpResponse.status).toBe(201);
     expect(signUpResponse.body).toHaveProperty('id');
     expect(signUpResponse.body.email).toBe(email);
-    expect(signUpResponse.body).not.toHaveProperty('passHash');
+    expect(signUpResponse.body).not.toHaveProperty('passwordHash');
     expect(signUpResponse.body).not.toHaveProperty('password');
 
     // 2. Перевіряємо, що користувач справді збережений у PostgreSQL.
-    const savedUser = await prisma.users.findUnique({
+    const savedUser = await prisma.user.findUnique({
       where: { email },
     });
 
     expect(savedUser).not.toBeNull();
     expect(savedUser?.email).toBe(email);
-    expect(savedUser?.passHash).toBeTruthy();
-    expect(savedUser?.passHash).not.toBe(password);
+    expect(savedUser?.passwordHash).toBeTruthy();
+    expect(savedUser?.passwordHash).not.toBe(password);
 
     // 3. Повторна реєстрація з тією самою адресою.
     const duplicateResponse = await request(app.getHttpServer())
