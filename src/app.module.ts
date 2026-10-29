@@ -34,7 +34,6 @@ import { PrismaModule } from './prisma/index.js';
         },
       }),
     }),
-    AuthenticationModule.forRoot(),
     AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
