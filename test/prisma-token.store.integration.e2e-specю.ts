@@ -1,0 +1,176 @@
+import { createHash, randomUUID } from 'node:crypto';
+import type { INestApplication } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import {
+  AuthenticationStorage,
+  type EmailTokenPurpose,
+  type EmailTokenRecord,
+  type EmailTokenStore,
+  type RefreshTokenRecord,
+  type RefreshTokenStore,
+} from '@nestjs/authentication';
+import { authenticationStoreContract } from '@nestjs/authentication/testing';
+import { Test } from '@nestjs/testing';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PrismaTokenStore } from '../src/modules/auth/prisma-token.store.js';
+import { PrismaModule, PrismaService } from '../src/prisma/index.js';
+
+let app: INestApplication;
+let prisma: PrismaService;
+let store: PrismaTokenStore;
+const testUserIds = new Set<string>();
+
+class ContractTokenStore implements RefreshTokenStore, EmailTokenStore {
+  constructor(
+    private readonly persistence: PrismaTokenStore,
+    private readonly db: PrismaService,
+  ) {}
+
+  getRefreshToken(id: string) {
+    return this.persistence.getRefreshToken(id);
+  }
+
+  async saveRefreshToken(record: RefreshTokenRecord) {
+    await this.ensureUser(record.userId);
+    await this.persistence.saveRefreshToken(record);
+  }
+
+  markRefreshTokenUsed(id: string, at: Date) {
+    return this.persistence.markRefreshTokenUsed(id, at);
+  }
+
+  revokeRefreshTokenFamily(familyId: string) {
+    return this.persistence.revokeRefreshTokenFamily(familyId);
+  }
+
+  isRefreshTokenFamilyRevoked(familyId: string) {
+    return this.persistence.isRefreshTokenFamilyRevoked(familyId);
+  }
+
+  revokeUserRefreshTokens(userId: string) {
+    return this.persistence.revokeUserRefreshTokens(userId);
+  }
+
+  async saveEmailToken(record: EmailTokenRecord) {
+    await this.ensureUser(record.userId);
+    await this.persistence.saveEmailToken(record);
+  }
+
+  consumeEmailToken(id: string, purpose: EmailTokenPurpose) {
+    return this.persistence.consumeEmailToken(id, purpose);
+  }
+
+  deleteUserEmailTokens(userId: string, purpose: EmailTokenPurpose) {
+    return this.persistence.deleteUserEmailTokens(userId, purpose);
+  }
+
+  private async ensureUser(userId: string): Promise<void> {
+    const emailHash = createHash('sha256').update(userId).digest('hex');
+    await this.db.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email: `${emailHash}@token-contract.invalid`,
+        passwordHash: 'contract-test-password-hash',
+      },
+      update: {},
+      select: { id: true },
+    });
+    testUserIds.add(userId);
+  }
+}
+
+const contractCases = authenticationStoreContract(
+  async () => {
+    if (!store || !prisma) {
+      throw new Error('Test database and PrismaTokenStore must be initialized.');
+    }
+    const adapter = new ContractTokenStore(store, prisma);
+    return { refreshTokens: adapter, emailTokens: adapter };
+  },
+  { contracts: ['refreshTokens', 'emailTokens'], concurrent: true },
+);
+
+describe('PrismaTokenStore integration (e2e)', () => {
+  beforeAll(async () => {
+    const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+    if (!testDatabaseUrl) {
+      throw new Error('TEST_DATABASE_URL must point to a dedicated test database.');
+    }
+
+    let databaseName: string;
+    try {
+      databaseName = decodeURIComponent(new URL(testDatabaseUrl).pathname.slice(1));
+    } catch {
+      throw new Error('TEST_DATABASE_URL is not a valid database URL.');
+    }
+    if (!databaseName.toLowerCase().includes('test')) {
+      throw new Error('Refusing to run integration tests: database name must contain "test".');
+    }
+
+    // PrismaService reads DATABASE_URL, so switch it before Nest creates Prisma.
+    process.env.DATABASE_URL = testDatabaseUrl;
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule],
+      providers: [AuthenticationStorage, PrismaTokenStore],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+    prisma = app.get(PrismaService);
+    store = app.get(PrismaTokenStore);
+  }, 20_000);
+
+  afterAll(async () => {
+    try {
+      if (prisma && testUserIds.size > 0) {
+        // Token rows and family rows are removed by user FK cascade.
+        await prisma.user.deleteMany({ where: { id: { in: [...testUserIds] } } });
+      }
+    } finally {
+      await app?.close();
+    }
+  }, 20_000);
+
+  for (const contractCase of contractCases) {
+    it(contractCase.name, contractCase.run);
+  }
+
+  it('keeps a family revoked when a successor is saved afterward', async () => {
+    const userId = `token-family-${randomUUID()}`;
+    const email = `${createHash('sha256').update(userId).digest('hex')}@token-family.invalid`;
+    await prisma.user.create({
+      data: { id: userId, email, passwordHash: 'test-password-hash' },
+      select: { id: true },
+    });
+    testUserIds.add(userId);
+
+    const now = new Date();
+    const familyId = randomUUID().replaceAll('-', '');
+    const original: RefreshTokenRecord = {
+      id: createHash('sha256').update(randomUUID()).digest('hex'),
+      familyId,
+      userId,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+      familyExpiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
+    };
+    await store.saveRefreshToken(original);
+    await store.revokeRefreshTokenFamily(familyId);
+
+    const successor: RefreshTokenRecord = {
+      ...original,
+      id: createHash('sha256').update(randomUUID()).digest('hex'),
+      createdAt: new Date(now.getTime() + 1),
+      expiresAt: new Date(now.getTime() + 60_001),
+    };
+    await store.saveRefreshToken(successor);
+
+    await expect(store.isRefreshTokenFamilyRevoked(familyId)).resolves.toBe(true);
+    await expect(store.getRefreshToken(successor.id)).resolves.toMatchObject({
+      id: successor.id,
+      familyId,
+    });
+  });
+});

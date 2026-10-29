@@ -1,0 +1,48 @@
+model RefreshTokenFamily {
+  id              String    @id @db.VarChar(64)
+  userId          String    @map("user_id")
+  familyExpiresAt DateTime  @map("family_expires_at") @db.Timestamptz(3)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens RefreshToken[]
+
+  @@index([userId])
+  @@index([familyExpiresAt])
+  @@map("refresh_token_families")
+}
+
+model RefreshToken {
+  id              String    @id @db.VarChar(64)
+  familyId        String    @map("family_id") @db.VarChar(64)
+  userId          String    @map("user_id")
+  createdAt       DateTime  @map("created_at") @db.Timestamptz(3)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(3)
+  familyExpiresAt DateTime  @map("family_expires_at") @db.Timestamptz(3)
+  usedAt          DateTime? @map("used_at") @db.Timestamptz(3)
+  claims          Json?     @db.JsonB
+
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family RefreshTokenFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@index([familyExpiresAt])
+  @@map("refresh_tokens")
+}
+
+model EmailToken {
+  id          String   @id @db.VarChar(64)
+  purpose     String
+  userId      String   @map("user_id")
+  email       String
+  fingerprint String?
+  createdAt   DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("email_tokens")
+}
