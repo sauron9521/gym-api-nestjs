@@ -122,12 +122,12 @@ describe('UsersRepository integration (e2e)', () => {
     expect(byId).not.toHaveProperty('passwordHash');
   });
 
-  it('throws NotFoundException when the user does not exist', async () => {
+  it('returns null when the user does not exist', async () => {
     await expect(
       repository.findUserByEmail('missing-user@example.com'),
-    ).rejects.toBeNull();
+    ).resolves.toBeNull();
 
-    await expect(repository.findUserById(randomUUID())).rejects.toBeNull();
+    await expect(repository.findUserById(randomUUID())).resolves.toBeNull();
   });
 
   it('returns credentials including the password hash', async () => {
