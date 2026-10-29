@@ -1,7 +1,12 @@
 import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/index.js';
-import { userSelect, UsersRepository } from '../users.repository.js';
+import {
+  userSelect,
+  userSelectWithCredentials,
+  UsersRepository,
+} from '../users.repository.js';
 import { UserResponse } from '../dto/response-user.js';
+import type { User } from '../../../generated/prisma/client.js';
 
 describe('UsersRepository', () => {
   let repository: UsersRepository;
@@ -68,13 +73,13 @@ describe('UsersRepository', () => {
       expect(result).toEqual(user);
     });
 
-    // it('should throw NotFoundException when user is missing', async () => {
-    //   prisma.user.findUnique.mockResolvedValue(null);
-    //
-    //   await expect(
-    //     repository.findUserByEmail('missing@example.com'),
-    //   ).rejects.toThrow(NotFoundException);
-    // });
+    it('should returned Null when user is missing', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        repository.findUserByEmail('missing@example.com'),
+      ).resolves.toBeNull();
+    });
   });
 
   describe('checkEmail', () => {
@@ -101,7 +106,7 @@ describe('UsersRepository', () => {
   describe('markEmailVerified', () => {
     it('should mark email as verified when it matches', async () => {
       prisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
+        userId: 'user-1',
         email: 'test@example.com',
       });
 
@@ -117,7 +122,11 @@ describe('UsersRepository', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { emailVerified: true },
-        select: userSelect,
+        select: {
+          id: true,
+          email: true,
+          emailVerified: true,
+        },
       });
     });
 
@@ -150,19 +159,17 @@ describe('UsersRepository', () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        omit: { passHash: true },
+        select: userSelect,
       });
       expect(result).toEqual(user);
       expect(result).not.toHaveProperty('passwordHash');
     });
 
-    // it('should throw NotFoundException when user is missing', async () => {
-    //   prisma.user.findUnique.mockResolvedValue(null);
-    //
-    //   await expect(repository.findUserById('missing-id')).rejects.toThrow(
-    //     NotFoundException,
-    //   );
-    // });
+    it('should return null when user is missing', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(repository.findUserById('missing-id')).resolves.toBeNull();
+    });
   });
 
   describe('findCredentials', () => {
@@ -171,7 +178,7 @@ describe('UsersRepository', () => {
         id: 'user-1',
         email: 'test@example.com',
         passwordHash: 'hashed-password',
-      };
+      } as User;
 
       prisma.user.findUnique.mockResolvedValue(user);
 
@@ -179,7 +186,9 @@ describe('UsersRepository', () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: user.email },
+        select: userSelectWithCredentials,
       });
+
       expect(result).toEqual(user);
       expect(result?.passwordHash).toBe('hashed-password');
     });
@@ -202,6 +211,7 @@ describe('UsersRepository', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { passwordHash: 'new-hash' },
+        select: userSelect,
       });
     });
   });
