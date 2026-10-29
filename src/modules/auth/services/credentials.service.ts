@@ -15,10 +15,7 @@ export class CredentialsService {
     await this.usersRepository.checkEmail(dto.email);
     const hashedPassword = await this.passwordHasher.hash(dto.password);
 
-    return await this.usersRepository.create({
-      email: dto.email,
-      passwordHash: hashedPassword,
-    });
+    return await this.usersRepository.create(dto.email, hashedPassword);
   }
 
   async verify(email: string, password: string): Promise<UserResponse | null> {
