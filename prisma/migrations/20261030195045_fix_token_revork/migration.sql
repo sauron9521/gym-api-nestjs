@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "refresh_tokens" ADD COLUMN     "revoked" BOOLEAN NOT NULL DEFAULT false;
