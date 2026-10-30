@@ -7,7 +7,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CredentialsService } from '../services/index.js';
-import { SingInDto } from '../dto/auth.dto.js';
+import { RefreshTokenDto, SingInDto } from '../dto/auth.dto.js';
+import { Throttle } from '@nestjs/throttler';
 
 @Public()
 @Controller('auth/token')
@@ -17,6 +18,7 @@ export class TokensController {
     private readonly tokenService: TokenService,
   ) {}
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post()
   @HttpCode(200)
   async issue(@Body() body: SingInDto) {
@@ -29,5 +31,17 @@ export class TokensController {
       method: 'password',
       claims: { amr: ['pwd'] },
     });
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  refresh(@Body() body: RefreshTokenDto) {
+    return this.tokenService.refresh(body.refreshToken);
+  }
+
+  @Post('revoke')
+  @HttpCode(204)
+  async revoke(@Body() body: RefreshTokenDto): Promise<void> {
+    await this.tokenService.revoke(body.refreshToken);
   }
 }

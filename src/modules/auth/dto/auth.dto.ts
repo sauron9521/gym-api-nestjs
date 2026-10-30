@@ -1,8 +1,8 @@
 import {
   IsEmail,
-  IsStrongPassword,
-  IsString,
   IsNotEmpty,
+  IsString,
+  IsStrongPassword,
 } from 'class-validator';
 
 export class SingInDto {
@@ -36,4 +36,10 @@ export class ResetPasswordDto {
 
   @IsStrongPassword()
   password: string;
+}
+
+export class RefreshTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
 }

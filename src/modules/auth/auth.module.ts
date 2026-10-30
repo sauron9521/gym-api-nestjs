@@ -4,6 +4,8 @@ import { AuthController } from './auth.controller.js';
 import {
   EmailVerificationController,
   PasswordResetController,
+  SessionsController,
+  TokensController,
 } from './controllers/index.js';
 
 import {
@@ -12,7 +14,6 @@ import {
 } from './mailers/index.js';
 import { JwtAuth, SessionAuth } from './providers/index.js';
 import { CredentialsService } from './services/index.js';
-import { TokensController } from './controllers/tokens.controller.js';
 import { PrismaSessionStore } from './prisma-session.store.js';
 import { PrismaTokenStore } from './prisma-token.store.js';
 
@@ -23,6 +24,7 @@ import { PrismaTokenStore } from './prisma-token.store.js';
     PasswordResetController,
     EmailVerificationController,
     TokensController,
+    SessionsController,
   ],
   providers: [
     SessionAuth,
