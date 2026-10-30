@@ -26,6 +26,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
     const row = await this.prisma.refreshToken.findUnique({ where: { id } });
     if (!row) return undefined;
 
+    // `revoked` is persistence metadata, not part of RefreshTokenRecord.
     return {
       id: row.id,
       familyId: row.familyId,
@@ -42,16 +43,6 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
 
   async saveRefreshToken(record: RefreshTokenRecord): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      // Keep storage bounded. Delete child tokens before their family rows.
-      await tx.refreshToken.deleteMany({
-        where: { familyExpiresAt: { lte: record.createdAt } },
-      });
-      await tx.refreshTokenFamily.deleteMany({
-        where: { familyExpiresAt: { lte: record.createdAt } },
-      });
-
-      // Never reset revokedAt on an existing family: a racing refresh must not
-      // resurrect a family that another request has already revoked.
       await tx.refreshTokenFamily.upsert({
         where: { id: record.familyId },
         create: {
@@ -71,6 +62,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
           expiresAt: record.expiresAt,
           familyExpiresAt: record.familyExpiresAt,
           usedAt: record.usedAt ?? null,
+          revoked: false,
           claims: (record.claims as Prisma.InputJsonValue) ?? undefined,
         },
       });
@@ -78,35 +70,56 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   }
 
   async markRefreshTokenUsed(id: string, at: Date): Promise<boolean> {
-    // One conditional write; a read followed by update is unsafe under races.
+    // One conditional writing a read followed by update is unsafe under races.
     const result = await this.prisma.refreshToken.updateMany({
       where: { id, usedAt: null },
       data: { usedAt: at },
     });
+
     return result.count === 1;
   }
 
   async revokeRefreshTokenFamily(familyId: string): Promise<void> {
-    // Revocation lives on the family row, so it also covers successor tokens
-    // saved after a concurrent refresh request.
-    await this.prisma.refreshTokenFamily.updateMany({
-      where: { id: familyId },
-      data: { revokedAt: new Date() },
+    // Keep revocation on token rows as well as the family tombstone. This
+    // makes isRefreshTokenFamilyRevoked() correct even when tokens are read
+    // independently of the family table, and mirrors the package's contract.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshTokenFamily.updateMany({
+        where: { id: familyId },
+        data: { revokedAt: new Date() },
+      });
+      await tx.refreshToken.updateMany({
+        where: { familyId },
+        data: { revoked: true },
+      });
     });
   }
 
   async isRefreshTokenFamilyRevoked(familyId: string): Promise<boolean> {
-    const family = await this.prisma.refreshTokenFamily.findUnique({
-      where: { id: familyId },
-      select: { revokedAt: true },
-    });
-    return family ? family.revokedAt !== null : false;
+    const [family, revokedToken] = await Promise.all([
+      this.prisma.refreshTokenFamily.findUnique({
+        where: { id: familyId },
+        select: { revokedAt: true },
+      }),
+      this.prisma.refreshToken.findFirst({
+        where: { familyId, revoked: true },
+        select: { id: true },
+      }),
+    ]);
+
+    return Boolean(family?.revokedAt) || revokedToken !== null;
   }
 
   async revokeUserRefreshTokens(userId: string): Promise<void> {
-    await this.prisma.refreshTokenFamily.updateMany({
-      where: { userId },
-      data: { revokedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshTokenFamily.updateMany({
+        where: { userId },
+        data: { revokedAt: new Date() },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId },
+        data: { revoked: true },
+      });
     });
   }
 
@@ -185,5 +198,24 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
     purpose: EmailTokenPurpose,
   ): Promise<void> {
     await this.prisma.emailToken.deleteMany({ where: { userId, purpose } });
+  }
+
+  async deleteExpiredRefreshTokens(now = new Date()): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.deleteMany({
+        where: {
+          familyExpiresAt: { lte: now },
+        },
+      });
+
+      await tx.refreshTokenFamily.deleteMany({
+        where: {
+          familyExpiresAt: { lte: now },
+          refreshTokens: {
+            none: {},
+          },
+        },
+      });
+    });
   }
 }

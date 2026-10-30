@@ -133,7 +133,7 @@ describe('PrismaTokenStore integration (e2e)', () => {
   afterAll(async () => {
     try {
       if (prisma && testUserIds.size > 0) {
-        // Token rows and family rows are removed by user FK cascade.
+        // User FK cascade removes token rows and family rows.
         await prisma.user.deleteMany({
           where: { id: { in: [...testUserIds] } },
         });
@@ -144,7 +144,7 @@ describe('PrismaTokenStore integration (e2e)', () => {
   }, 20_000);
 
   for (const contractCase of contractCases) {
-    it(contractCase.name, contractCase.run);
+    it(contractCase.name, () => contractCase.run());
   }
 
   it('keeps a family revoked when a successor is saved afterward', async () => {
