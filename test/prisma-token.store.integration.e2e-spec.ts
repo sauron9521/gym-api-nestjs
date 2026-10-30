@@ -185,4 +185,58 @@ describe('PrismaTokenStore integration (e2e)', () => {
       familyId,
     });
   });
+
+  it('deletes expired email tokens during cleanup', async () => {
+    const userId = `email-cleanup-${randomUUID()}`;
+    const email = `${createHash('sha256').update(userId).digest('hex')}@email-cleanup.invalid`;
+
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email,
+        passwordHash: 'test-password-hash',
+      },
+      select: { id: true },
+    });
+
+    testUserIds.add(userId);
+
+    const now = new Date('2023-11-14T22:13:20.000Z');
+
+    const expiredToken: EmailTokenRecord = {
+      id: randomUUID().replaceAll('-', ''),
+      purpose: 'password-reset',
+      userId,
+      email,
+      fingerprint: 'expired-fingerprint',
+      createdAt: new Date(now.getTime() - 60_000),
+      expiresAt: new Date(now.getTime() - 1_000),
+    };
+
+    const validToken: EmailTokenRecord = {
+      id: randomUUID().replaceAll('-', ''),
+      purpose: 'password-reset',
+      userId,
+      email,
+      fingerprint: 'valid-fingerprint',
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+    };
+
+    await store.saveEmailToken(expiredToken);
+    await store.saveEmailToken(validToken);
+
+    await store.deleteExpiredEmailTokens(now);
+
+    await expect(
+      store.consumeEmailToken(expiredToken.id, 'password-reset'),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      store.consumeEmailToken(validToken.id, 'password-reset'),
+    ).resolves.toMatchObject({
+      id: validToken.id,
+      userId,
+    });
+  });
 });

@@ -8,16 +8,24 @@ export class TokenCleanupService {
 
   constructor(private readonly tokenStore: PrismaTokenStore) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Cron(CronExpression.EVERY_DAY_AT_3AM, {
+    timeZone: 'Europe/Kyiv',
+  })
   async cleanupExpiredTokens(): Promise<void> {
-    this.logger.log('Starting expired refresh tokens cleanup');
-
     try {
-      await this.tokenStore.deleteExpiredRefreshTokens();
+      const now = new Date();
 
-      this.logger.log('Expired refresh tokens cleanup completed');
+      await Promise.all([
+        this.tokenStore.deleteExpiredRefreshTokens(now),
+        this.tokenStore.deleteExpiredEmailTokens(now),
+      ]);
+
+      this.logger.log('Expired tokens cleanup completed');
     } catch (error) {
-      this.logger.error('Failed to cleanup expired refresh tokens', error);
+      this.logger.error(
+        'Failed to cleanup expired tokens',
+        error instanceof Error ? error.stack : String(error),
+      );
     }
   }
 }

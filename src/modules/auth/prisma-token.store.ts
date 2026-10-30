@@ -137,9 +137,10 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
         },
       });
 
-      // Use the record's clock, so tests and the auth service share a clock.
       await tx.emailToken.deleteMany({
-        where: { expiresAt: { lte: record.createdAt } },
+        where: {
+          expiresAt: { lte: record.createdAt },
+        },
       });
 
       const cutoff = await tx.emailToken.findMany({
@@ -216,6 +217,14 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
           },
         },
       });
+    });
+  }
+
+  async deleteExpiredEmailTokens(now = new Date()): Promise<void> {
+    await this.prisma.emailToken.deleteMany({
+      where: {
+        expiresAt: { lte: now },
+      },
     });
   }
 }
