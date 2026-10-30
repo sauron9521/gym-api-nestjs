@@ -13,6 +13,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/index.js';
 import { PrismaModule } from './prisma/index.js';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { PrismaModule } from './prisma/index.js';
         },
       ],
     }),
+    ScheduleModule.forRoot(),
     UsersModule,
   ],
   controllers: [],

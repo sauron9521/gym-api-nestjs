@@ -16,6 +16,7 @@ import { JwtAuth, SessionAuth } from './providers/index.js';
 import { CredentialsService } from './services/index.js';
 import { PrismaSessionStore } from './prisma-session.store.js';
 import { PrismaTokenStore } from './prisma-token.store.js';
+import { TokenCleanupService } from './services/token-cleanup.service.js';
 
 @Module({
   imports: [UsersModule],
@@ -34,6 +35,7 @@ import { PrismaTokenStore } from './prisma-token.store.js';
     PasswordResetMailer,
     PrismaSessionStore,
     PrismaTokenStore,
+    TokenCleanupService,
   ],
 })
 export class AuthModule {}
