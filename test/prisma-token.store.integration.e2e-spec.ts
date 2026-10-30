@@ -83,7 +83,9 @@ class ContractTokenStore implements RefreshTokenStore, EmailTokenStore {
 const contractCases = authenticationStoreContract(
   async () => {
     if (!store || !prisma) {
-      throw new Error('Test database and PrismaTokenStore must be initialized.');
+      throw new Error(
+        'Test database and PrismaTokenStore must be initialized.',
+      );
     }
     const adapter = new ContractTokenStore(store, prisma);
     return { refreshTokens: adapter, emailTokens: adapter };
@@ -95,24 +97,30 @@ describe('PrismaTokenStore integration (e2e)', () => {
   beforeAll(async () => {
     const testDatabaseUrl = process.env.TEST_DATABASE_URL;
     if (!testDatabaseUrl) {
-      throw new Error('TEST_DATABASE_URL must point to a dedicated test database.');
+      throw new Error(
+        'TEST_DATABASE_URL must point to a dedicated test database.',
+      );
     }
 
     let databaseName: string;
     try {
-      databaseName = decodeURIComponent(new URL(testDatabaseUrl).pathname.slice(1));
+      databaseName = decodeURIComponent(
+        new URL(testDatabaseUrl).pathname.slice(1),
+      );
     } catch {
       throw new Error('TEST_DATABASE_URL is not a valid database URL.');
     }
     if (!databaseName.toLowerCase().includes('test')) {
-      throw new Error('Refusing to run integration tests: database name must contain "test".');
+      throw new Error(
+        'Refusing to run integration tests: database name must contain "test".',
+      );
     }
 
     // PrismaService reads DATABASE_URL, so switch it before Nest creates Prisma.
     process.env.DATABASE_URL = testDatabaseUrl;
 
     const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule],
+      imports: [await ConfigModule.forRoot({ isGlobal: true }), PrismaModule],
       providers: [AuthenticationStorage, PrismaTokenStore],
     }).compile();
 
@@ -125,8 +133,10 @@ describe('PrismaTokenStore integration (e2e)', () => {
   afterAll(async () => {
     try {
       if (prisma && testUserIds.size > 0) {
-        // Token rows and family rows are removed by user FK cascade.
-        await prisma.user.deleteMany({ where: { id: { in: [...testUserIds] } } });
+        // User FK cascade removes token rows and family rows.
+        await prisma.user.deleteMany({
+          where: { id: { in: [...testUserIds] } },
+        });
       }
     } finally {
       await app?.close();
@@ -134,7 +144,7 @@ describe('PrismaTokenStore integration (e2e)', () => {
   }, 20_000);
 
   for (const contractCase of contractCases) {
-    it(contractCase.name, contractCase.run);
+    it(contractCase.name, () => contractCase.run());
   }
 
   it('keeps a family revoked when a successor is saved afterward', async () => {
@@ -167,10 +177,66 @@ describe('PrismaTokenStore integration (e2e)', () => {
     };
     await store.saveRefreshToken(successor);
 
-    await expect(store.isRefreshTokenFamilyRevoked(familyId)).resolves.toBe(true);
+    await expect(store.isRefreshTokenFamilyRevoked(familyId)).resolves.toBe(
+      true,
+    );
     await expect(store.getRefreshToken(successor.id)).resolves.toMatchObject({
       id: successor.id,
       familyId,
+    });
+  });
+
+  it('deletes expired email tokens during cleanup', async () => {
+    const userId = `email-cleanup-${randomUUID()}`;
+    const email = `${createHash('sha256').update(userId).digest('hex')}@email-cleanup.invalid`;
+
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email,
+        passwordHash: 'test-password-hash',
+      },
+      select: { id: true },
+    });
+
+    testUserIds.add(userId);
+
+    const now = new Date('2023-11-14T22:13:20.000Z');
+
+    const expiredToken: EmailTokenRecord = {
+      id: randomUUID().replaceAll('-', ''),
+      purpose: 'password-reset',
+      userId,
+      email,
+      fingerprint: 'expired-fingerprint',
+      createdAt: new Date(now.getTime() - 60_000),
+      expiresAt: new Date(now.getTime() - 1_000),
+    };
+
+    const validToken: EmailTokenRecord = {
+      id: randomUUID().replaceAll('-', ''),
+      purpose: 'password-reset',
+      userId,
+      email,
+      fingerprint: 'valid-fingerprint',
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+    };
+
+    await store.saveEmailToken(expiredToken);
+    await store.saveEmailToken(validToken);
+
+    await store.deleteExpiredEmailTokens(now);
+
+    await expect(
+      store.consumeEmailToken(expiredToken.id, 'password-reset'),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      store.consumeEmailToken(validToken.id, 'password-reset'),
+    ).resolves.toMatchObject({
+      id: validToken.id,
+      userId,
     });
   });
 });

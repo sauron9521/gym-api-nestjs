@@ -4,6 +4,8 @@ import { AuthController } from './auth.controller.js';
 import {
   EmailVerificationController,
   PasswordResetController,
+  SessionsController,
+  TokensController,
 } from './controllers/index.js';
 
 import {
@@ -11,8 +13,7 @@ import {
   PasswordResetMailer,
 } from './mailers/index.js';
 import { JwtAuth, SessionAuth } from './providers/index.js';
-import { CredentialsService } from './services/index.js';
-import { TokensController } from './controllers/tokens.controller.js';
+import { CredentialsService, TokenCleanupService } from './services/index.js';
 import { PrismaSessionStore } from './prisma-session.store.js';
 import { PrismaTokenStore } from './prisma-token.store.js';
 
@@ -23,6 +24,7 @@ import { PrismaTokenStore } from './prisma-token.store.js';
     PasswordResetController,
     EmailVerificationController,
     TokensController,
+    SessionsController,
   ],
   providers: [
     SessionAuth,
@@ -32,6 +34,7 @@ import { PrismaTokenStore } from './prisma-token.store.js';
     PasswordResetMailer,
     PrismaSessionStore,
     PrismaTokenStore,
+    TokenCleanupService,
   ],
 })
 export class AuthModule {}

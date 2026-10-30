@@ -20,6 +20,7 @@ model RefreshToken {
   expiresAt       DateTime  @map("expires_at") @db.Timestamptz(3)
   familyExpiresAt DateTime  @map("family_expires_at") @db.Timestamptz(3)
   usedAt          DateTime? @map("used_at") @db.Timestamptz(3)
+  revoked         Boolean   @default(false)
   claims          Json?     @db.JsonB
 
   user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
