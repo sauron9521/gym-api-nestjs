@@ -11,10 +11,11 @@ import {
 } from '@nestjs/mail';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module.js';
-import { UsersModule } from './modules/index.js';
+
 import { PrismaModule } from './database/index.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RolesGuard } from './common/guards/roles.guard.js';
+import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
   imports: [
