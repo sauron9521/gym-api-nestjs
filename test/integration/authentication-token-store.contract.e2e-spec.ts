@@ -115,4 +115,59 @@ describe('PrismaTokenStore contract (PostgreSQL)', () => {
   for (const contract of cases) {
     it(contract.name, () => contract.run());
   }
+
+  it('keeps maxPending email tokens when saves happen concurrently', async () => {
+    const { emailTokens } = await createTokenStores();
+
+    const createdAt = new Date('2026-10-31T12:00:00.000Z');
+
+    const records: EmailTokenRecord[] = Array.from(
+      { length: 12 },
+      (_, index) => {
+        const userId = `user-${randomUUID()}`;
+
+        return {
+          id: randomUUID().replaceAll('-', ''),
+          purpose: 'password-reset',
+          userId,
+          email: `${userId}@${contractEmailDomain}`,
+          fingerprint: `fingerprint-${index}`,
+          createdAt,
+          expiresAt: new Date(createdAt.getTime() + (index + 1) * 60_000),
+        };
+      },
+    );
+
+    // Усі 12 записів надсилаємо одночасно.
+    await Promise.all(
+      records.map((record) => emailTokens.saveEmailToken(record)),
+    );
+
+    const persisted = await prisma.emailToken.findMany({
+      where: {
+        userId: {
+          in: records.map((record) => record.userId),
+        },
+      },
+      select: {
+        id: true,
+        expiresAt: true,
+      },
+      orderBy: [{ expiresAt: 'desc' }, { id: 'desc' }],
+    });
+
+    // Має залишитися рівно 3 токени з найдовшим терміном дії.
+    expect(persisted).toHaveLength(3);
+
+    const persistedIds = persisted
+      .map((record) => record.id)
+      .sort((a, b) => a.localeCompare(b));
+
+    const expectedIds = records
+      .slice(-3)
+      .map((record) => record.id)
+      .sort((a, b) => a.localeCompare(b));
+
+    expect(persistedIds).toEqual(expectedIds);
+  });
 });

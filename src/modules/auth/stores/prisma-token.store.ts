@@ -126,6 +126,10 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
 
   async saveEmailToken(record: EmailTokenRecord): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      // Serialize email-token saves across database connections.
+      await tx.$queryRaw<Array<{ lock: string }>>`
+  SELECT pg_advisory_xact_lock(1197030721, 1)::text AS lock
+`;
       await tx.emailToken.create({
         data: {
           id: record.id,
