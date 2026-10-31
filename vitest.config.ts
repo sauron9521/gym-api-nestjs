@@ -8,9 +8,11 @@ export default defineConfig({
     globals: true,
     env: {
       JWT_SECRET: 'cAJVaf+PZ/XsS8My+YtdamtYlm2msoU2tVeCN3mQomc',
+      JWT_ISSUER: 'http://localhost:3000',
     },
     root: './',
-    include: ['**/*.spec.ts'],
+    include: ['src/**/*.spec.ts'],
+    exclude: ['**/*.e2e-spec.ts'],
     coverage: {
       exclude: ['generated/**', '**/index.ts'],
     },

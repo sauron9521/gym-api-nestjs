@@ -3,11 +3,11 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
 import { Mailer } from '@nestjs/mail';
-
-import { AppModule } from '../src/app.module.js';
+import { AppModule } from '../../src/app.module.js';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../src/prisma/index.js';
+import { PrismaService } from '../../src/database/index.js';
+import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('Authentication integration (e2e)', () => {
   let app: INestApplication;
@@ -17,33 +17,7 @@ describe('Authentication integration (e2e)', () => {
   const password = 'StrongGym123!';
 
   beforeAll(async () => {
-    const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-    if (!testDatabaseUrl) {
-      throw new Error(
-        'TEST_DATABASE_URL must point to a dedicated test database.',
-      );
-    }
-
-    let databaseName: string;
-
-    try {
-      databaseName = decodeURIComponent(
-        new URL(testDatabaseUrl).pathname.slice(1),
-      );
-    } catch {
-      throw new Error('TEST_DATABASE_URL is not a valid database URL.');
-    }
-
-    if (!databaseName.toLowerCase().includes('test')) {
-      throw new Error(
-        'Refusing to run integration tests: database name must contain "test".',
-      );
-    }
-
-    // PrismaService використовує саме DATABASE_URL.
-    // Підміняємо її URL-адресою окремої тестової БД.
-    process.env.DATABASE_URL = testDatabaseUrl;
+    useTestDatabase();
 
     // Потрібне для конфігурації AuthenticationModule.
     process.env.APP_URL ??= 'http://localhost:3000';
@@ -90,7 +64,7 @@ describe('Authentication integration (e2e)', () => {
   it('registers a user, stores a password hash, rejects duplicates and authenticates credentials', async () => {
     // 1. Реєстрація через HTTP.
     const signUpResponse = await request(app.getHttpServer())
-      .post('/auth/sing-up')
+      .post('/auth/registry')
       .send({ email, password });
 
     expect(signUpResponse.status).toBe(201);
@@ -111,14 +85,14 @@ describe('Authentication integration (e2e)', () => {
 
     // 3. Повторна реєстрація з тією самою адресою.
     const duplicateResponse = await request(app.getHttpServer())
-      .post('/auth/sing-up')
+      .post('/auth/registry')
       .send({ email, password });
 
     expect(duplicateResponse.status).toBe(409);
 
     // 4. Неправильний пароль.
     const invalidSignInResponse = await request(app.getHttpServer())
-      .post('/auth/sing-in')
+      .post('/auth/login')
       .send({
         email,
         password: 'WrongGym123!',
@@ -128,7 +102,7 @@ describe('Authentication integration (e2e)', () => {
 
     // 5. Правильний пароль.
     const validSignInResponse = await request(app.getHttpServer())
-      .post('/auth/sing-in')
+      .post('/auth/login')
       .send({ email, password });
 
     expect(validSignInResponse.status).toBe(200);

@@ -5,9 +5,10 @@ import {
 } from '@nestjs/authentication';
 import { UsersRepository } from '../../users/users.repository.js';
 import { Injectable } from '@nestjs/common';
+import type { UserResponse } from '../../users/dto/response-user.js';
 
 @Injectable()
-export class JwtAuth extends JwtBearerProvider<any> {
+export class JwtAuth extends JwtBearerProvider<UserResponse> {
   constructor(
     private readonly usersRepository: UsersRepository,
     registry: AuthenticationRegistry,

@@ -5,7 +5,7 @@ import type {
   SessionService,
   SignInService,
 } from '@nestjs/authentication';
-import { SessionsController } from '../src/modules/auth/controllers/index.js';
+import { SessionsController } from '../../controllers/index.js';
 
 describe('SessionsController', () => {
   const makeController = () => {

@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TokenCleanupService } from '../../services/index.js';
-import { PrismaTokenStore } from '../../prisma-token.store.js';
+import { PrismaTokenStore } from '../../stores/index.js';
 
 describe('TokenCleanupService', () => {
   let service: TokenCleanupService;

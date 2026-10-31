@@ -11,9 +11,11 @@ import {
 } from '@nestjs/mail';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module.js';
-import { UsersModule } from './modules/index.js';
-import { PrismaModule } from './prisma/index.js';
+
+import { PrismaModule } from './database/index.js';
 import { ScheduleModule } from '@nestjs/schedule';
+import { RolesGuard } from './common/guards/roles.guard.js';
+import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
   imports: [
@@ -22,7 +24,7 @@ import { ScheduleModule } from '@nestjs/schedule';
       useFactory: (config: ConfigService) => ({
         accessToken: {
           key: config.getOrThrow<string>('JWT_SECRET'),
-          issuer: 'http://localhost:3000',
+          issuer: config.getOrThrow<string>('JWT_ISSUER'),
           audience: 'mobile-app',
           ttl: '15m',
         },
@@ -70,6 +72,10 @@ import { ScheduleModule } from '@nestjs/schedule';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })

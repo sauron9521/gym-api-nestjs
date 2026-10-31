@@ -8,6 +8,8 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   app.enableCors({
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+    credentials: true,
+    origin: config.get('APP_URL'),
   });
   app.enableCsrfProtection();
   app.useGlobalPipes(

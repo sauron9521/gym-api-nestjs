@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { UsersModule } from '../users/users.module.js';
-import { AuthController } from './auth.controller.js';
 import {
+  AuthController,
   EmailVerificationController,
   PasswordResetController,
   SessionsController,
@@ -14,8 +14,7 @@ import {
 } from './mailers/index.js';
 import { JwtAuth, SessionAuth } from './providers/index.js';
 import { CredentialsService, TokenCleanupService } from './services/index.js';
-import { PrismaSessionStore } from './prisma-session.store.js';
-import { PrismaTokenStore } from './prisma-token.store.js';
+import { PrismaSessionStore, PrismaTokenStore } from './stores/index.js';
 
 @Module({
   imports: [UsersModule],

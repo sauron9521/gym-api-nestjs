@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaTokenStore } from '../prisma-token.store.js';
+import { PrismaTokenStore } from '../stores/index.js';
 
 @Injectable()
 export class TokenCleanupService {
