@@ -24,8 +24,8 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  async signUp(@Body() singUpDto: SignUpDto) {
-    const user = await this.credentialsService.registry(singUpDto);
+  async signUp(@Body() signUpDto: SignUpDto) {
+    const user = await this.credentialsService.registry(signUpDto);
     await this.singInService.signIn(user.id, { method: 'password' });
     await this.emailVerificationService.send(user);
     return { ...user };
