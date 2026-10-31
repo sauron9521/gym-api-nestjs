@@ -19,9 +19,15 @@ const contractEmailDomain = `contract-${contractNamespace}.test`;
 let app: INestApplication;
 let prisma: PrismaService;
 
+class ContractPrismaTokenStore extends PrismaTokenStore {
+  protected override readonly maxPending = 3;
+}
+
 async function createTokenStores() {
+  await prisma.emailToken.deleteMany();
+
   const storage = new AuthenticationStorage();
-  const store = new PrismaTokenStore(prisma, storage);
+  const store = new ContractPrismaTokenStore(prisma, storage);
 
   // RefreshTokenFamily, RefreshToken та EmailToken мають FK на User.
   async function ensureUser(userId: string): Promise<void> {
@@ -103,9 +109,10 @@ describe('PrismaTokenStore contract (PostgreSQL)', () => {
   const cases = authenticationStoreContract(createTokenStores, {
     contracts: ['refreshTokens', 'emailTokens'],
     concurrent: true,
+    maxPending: 3,
   });
 
   for (const contract of cases) {
-    it(contract.name, () => contract.run);
+    it(contract.name, () => contract.run());
   }
 });

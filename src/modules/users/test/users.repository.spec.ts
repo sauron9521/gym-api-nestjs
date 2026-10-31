@@ -96,6 +96,16 @@ describe('UsersRepository', () => {
 
       expect(result).toEqual(user);
     });
+
+    it('should rethrow unexpected database errors', async () => {
+      const error = new Error('Database connection failed');
+
+      prisma.user.create.mockRejectedValue(error);
+
+      await expect(
+        repository.create('test@example.com', 'hashed-password'),
+      ).rejects.toBe(error);
+    });
   });
 
   describe('findUserByEmail', () => {
