@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CredentialsService } from '../services/index.js';
-import { RefreshTokenDto, SingInDto } from '../dto/auth.dto.js';
+import { RefreshTokenDto, SignInDto } from '../dto/auth.dto.js';
 import { Throttle } from '@nestjs/throttler';
 
 @Public()
@@ -21,7 +21,7 @@ export class TokensController {
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post()
   @HttpCode(200)
-  async issue(@Body() body: SingInDto) {
+  async issue(@Body() body: SignInDto) {
     const user = await this.credentialService.verify(body.email, body.password);
 
     if (!user) {

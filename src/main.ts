@@ -6,12 +6,24 @@ import { AppModule } from './app.module.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
+
+  //CORS
+  const corsOrigins = config
+    .getOrThrow<string>('CORS_ORIGINS')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+    origin: corsOrigins,
     credentials: true,
-    origin: config.get('APP_URL'),
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
   });
+
+  //CSRF
   app.enableCsrfProtection();
+
+  //Global Pipes
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

@@ -5,13 +5,13 @@ import {
   IsStrongPassword,
 } from 'class-validator';
 
-export class SingInDto {
+export class SignInDto {
   @IsEmail()
   email: string;
   @IsString()
   password: string;
 }
-export class SingUpDto {
+export class SignUpDto {
   @IsEmail()
   email: string;
   @IsStrongPassword()

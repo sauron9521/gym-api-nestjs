@@ -64,7 +64,7 @@ describe('Authentication integration (e2e)', () => {
   it('registers a user, stores a password hash, rejects duplicates and authenticates credentials', async () => {
     // 1. Реєстрація через HTTP.
     const signUpResponse = await request(app.getHttpServer())
-      .post('/auth/registry')
+      .post('/auth/register')
       .send({ email, password });
 
     expect(signUpResponse.status).toBe(201);
@@ -85,7 +85,7 @@ describe('Authentication integration (e2e)', () => {
 
     // 3. Повторна реєстрація з тією самою адресою.
     const duplicateResponse = await request(app.getHttpServer())
-      .post('/auth/registry')
+      .post('/auth/register')
       .send({ email, password });
 
     expect(duplicateResponse.status).toBe(409);

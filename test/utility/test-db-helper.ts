@@ -7,8 +7,10 @@ export function useTestDatabase(): void {
 
   const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
 
-  if (!databaseName.toLowerCase().includes('test')) {
-    throw new Error('Refusing to use a non-test database');
+  if (!databaseName.toLowerCase().endsWith('_test')) {
+    throw new Error(
+      'Refusing to use a database that does not end with "_test"',
+    );
   }
 
   process.env.DATABASE_URL = url;

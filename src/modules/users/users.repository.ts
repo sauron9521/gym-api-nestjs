@@ -13,7 +13,6 @@ export const userSelect = {
   role: true,
   createdAt: true,
   updatedAt: true,
-  deletedAt: true,
 } satisfies Prisma.UserSelect;
 
 export const userSelectWithCredentials = {
