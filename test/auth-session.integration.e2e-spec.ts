@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/index.js';
+import { useTestDatabase } from './utility/test-db-helper.js';
 
 describe('Authentication sessions (HTTP + PostgreSQL)', () => {
   let app: INestApplication;
@@ -19,32 +20,33 @@ describe('Authentication sessions (HTTP + PostgreSQL)', () => {
   const password = 'StrongPassword123!';
 
   beforeAll(async () => {
-    const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-    if (!testDatabaseUrl) {
-      throw new Error(
-        'TEST_DATABASE_URL must point to a dedicated test database.',
-      );
-    }
-
-    let databaseName: string;
-
-    try {
-      databaseName = decodeURIComponent(
-        new URL(testDatabaseUrl).pathname.slice(1),
-      );
-    } catch {
-      throw new Error('TEST_DATABASE_URL is not a valid database URL.');
-    }
-
-    if (!databaseName.toLowerCase().includes('test')) {
-      throw new Error(
-        'Refusing to run integration tests: database name must contain "test".',
-      );
-    }
-
-    // Set the test DB before Nest initializes Prisma.
-    process.env.DATABASE_URL = testDatabaseUrl;
+    useTestDatabase();
+    // const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+    //
+    // if (!testDatabaseUrl) {
+    //   throw new Error(
+    //     'TEST_DATABASE_URL must point to a dedicated test database.',
+    //   );
+    // }
+    //
+    // let databaseName: string;
+    //
+    // try {
+    //   databaseName = decodeURIComponent(
+    //     new URL(testDatabaseUrl).pathname.slice(1),
+    //   );
+    // } catch {
+    //   throw new Error('TEST_DATABASE_URL is not a valid database URL.');
+    // }
+    //
+    // if (!databaseName.toLowerCase().includes('test')) {
+    //   throw new Error(
+    //     'Refusing to run integration tests: database name must contain "test".',
+    //   );
+    // }
+    //
+    // // Set the test DB before Nest initializes Prisma.
+    // process.env.DATABASE_URL = testDatabaseUrl;
 
     const moduleRef = await Test.createTestingModule({
       imports: [await ConfigModule.forRoot({ isGlobal: true }), AppModule],
