@@ -32,7 +32,10 @@ export class UsersRepository {
   async create(email: string, passwordHash: string) {
     try {
       return await this.prisma.user.create({
-        data: { email, passwordHash },
+        data: {
+          email: normalizeEmail(email),
+          passwordHash,
+        },
         select: userSelect,
       });
     } catch (error) {
@@ -49,7 +52,7 @@ export class UsersRepository {
 
   async findUserByEmail(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizeEmail(email) },
       select: userSelect,
     });
   }
@@ -63,7 +66,7 @@ export class UsersRepository {
 
   async findCredentials(email: string) {
     return this.prisma.user.findUnique({
-      where: { email, deletedAt: null },
+      where: { email: normalizeEmail(email), deletedAt: null },
       select: userSelectWithCredentials,
     });
   }
@@ -79,7 +82,7 @@ export class UsersRepository {
   // relocation SERVICE AUTH?
   async checkEmail(email: string): Promise<void> {
     const user = await this.findUserByEmail(email);
-    if (user?.email === email) {
+    if (user) {
       throw new ConflictException('User with the same email already exists');
     }
   }
@@ -105,4 +108,8 @@ export class UsersRepository {
     });
     return true;
   }
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().normalize('NFC').toLowerCase();
 }

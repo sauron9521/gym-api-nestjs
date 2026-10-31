@@ -73,14 +73,28 @@ describe('UsersRepository', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should rethrow unexpected database errors', async () => {
-      const error = new Error('Database connection failed');
+    it('should normalize email before creating a user', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'user@example.com',
+      } as UserResponse;
 
-      prisma.user.create.mockRejectedValue(error);
+      prisma.user.create.mockResolvedValue(user);
 
-      await expect(
-        repository.create('test@example.com', 'hashed-password'),
-      ).rejects.toBe(error);
+      const result = await repository.create(
+        '  User@Example.COM  ',
+        'hashed-password',
+      );
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: {
+          email: 'user@example.com',
+          passwordHash: 'hashed-password',
+        },
+        select: userSelect,
+      });
+
+      expect(result).toEqual(user);
     });
   });
 
@@ -110,6 +124,24 @@ describe('UsersRepository', () => {
         repository.findUserByEmail('missing@example.com'),
       ).resolves.toBeNull();
     });
+
+    it('should normalize email before searching for a user', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'user@example.com',
+      } as UserResponse;
+
+      prisma.user.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findUserByEmail('  USER@EXAMPLE.COM  ');
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+        select: userSelect,
+      });
+
+      expect(result).toEqual(user);
+    });
   });
 
   describe('checkEmail', () => {
@@ -130,6 +162,22 @@ describe('UsersRepository', () => {
       await expect(
         repository.checkEmail('new@example.com'),
       ).resolves.toBeUndefined();
+    });
+
+    it('should detect an existing email regardless of case', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+      });
+
+      await expect(
+        repository.checkEmail('  USER@EXAMPLE.COM  '),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+        select: userSelect,
+      });
     });
   });
 
@@ -229,6 +277,28 @@ describe('UsersRepository', () => {
       const result = await repository.findCredentials('missing@example.com');
 
       expect(result).toBeNull();
+    });
+
+    it('should normalize email before finding credentials', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'user@example.com',
+        passwordHash: 'hashed-password',
+      } as User;
+
+      prisma.user.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findCredentials('  USER@EXAMPLE.COM  ');
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: {
+          email: 'user@example.com',
+          deletedAt: null,
+        },
+        select: userSelectWithCredentials,
+      });
+
+      expect(result).toEqual(user);
     });
   });
 

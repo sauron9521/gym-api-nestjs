@@ -21,6 +21,7 @@ export class PasswordResetController {
     return this.passwordResetService.request(body.email);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('reset')
   @HttpCode(200)
   async reset(@Body() body: ResetPasswordDto) {
