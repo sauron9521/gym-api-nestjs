@@ -3,7 +3,6 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
 import { Mailer } from '@nestjs/mail';
-
 import { AppModule } from '../../src/app.module.js';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -18,34 +17,6 @@ describe('Authentication integration (e2e)', () => {
   const password = 'StrongGym123!';
 
   beforeAll(async () => {
-    // const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-    //
-    // if (!testDatabaseUrl) {
-    //   throw new Error(
-    //     'TEST_DATABASE_URL must point to a dedicated test database.',
-    //   );
-    // }
-    //
-    // let databaseName: string;
-    //
-    // try {
-    //   databaseName = decodeURIComponent(
-    //     new URL(testDatabaseUrl).pathname.slice(1),
-    //   );
-    // } catch {
-    //   throw new Error('TEST_DATABASE_URL is not a valid database URL.');
-    // }
-    //
-    // if (!databaseName.toLowerCase().includes('test')) {
-    //   throw new Error(
-    //     'Refusing to run integration tests: database name must contain "test".',
-    //   );
-    // }
-    //
-    // // PrismaService використовує саме DATABASE_URL.
-    // // Підміняємо її URL-адресою окремої тестової БД.
-    // process.env.DATABASE_URL = testDatabaseUrl;
-
     useTestDatabase();
 
     // Потрібне для конфігурації AuthenticationModule.

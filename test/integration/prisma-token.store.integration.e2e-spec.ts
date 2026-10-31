@@ -96,29 +96,6 @@ const contractCases = authenticationStoreContract(
 
 describe('PrismaTokenStore integration (e2e)', () => {
   beforeAll(async () => {
-    // const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-    // if (!testDatabaseUrl) {
-    //   throw new Error(
-    //     'TEST_DATABASE_URL must point to a dedicated test database.',
-    //   );
-    // }
-    //
-    // let databaseName: string;
-    // try {
-    //   databaseName = decodeURIComponent(
-    //     new URL(testDatabaseUrl).pathname.slice(1),
-    //   );
-    // } catch {
-    //   throw new Error('TEST_DATABASE_URL is not a valid database URL.');
-    // }
-    // if (!databaseName.toLowerCase().includes('test')) {
-    //   throw new Error(
-    //     'Refusing to run integration tests: database name must contain "test".',
-    //   );
-    // }
-    //
-    // // PrismaService reads DATABASE_URL, so switch it before Nest creates Prisma.
-    // process.env.DATABASE_URL = testDatabaseUrl;
     useTestDatabase();
 
     const moduleRef = await Test.createTestingModule({

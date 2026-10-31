@@ -3,7 +3,7 @@ import {
   JwtBearerProvider,
   JwtClaims,
 } from '@nestjs/authentication';
-import type { UsersRepository } from '../../users/users.repository.js';
+import { UsersRepository } from '../../users/users.repository.js';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
