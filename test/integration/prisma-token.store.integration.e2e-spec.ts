@@ -12,8 +12,8 @@ import {
 import { authenticationStoreContract } from '@nestjs/authentication/testing';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaTokenStore } from '../../src/modules/auth/stores/prisma-token.store.js';
-import { PrismaModule, PrismaService } from '../../src/prisma/index.js';
+import { PrismaTokenStore } from '../../src/modules/auth/stores/index.js';
+import { PrismaModule, PrismaService } from '../../src/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 let app: INestApplication;

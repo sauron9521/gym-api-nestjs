@@ -7,7 +7,7 @@ import { Mailer } from '@nestjs/mail';
 import { AppModule } from '../../src/app.module.js';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../../src/prisma/index.js';
+import { PrismaService } from '../../src/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('Authentication integration (e2e)', () => {

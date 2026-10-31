@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UsersModule } from '../../src/modules/index.js';
 
 import { UsersRepository } from '../../src/modules/users/users.repository.js';
-import { PrismaModule, PrismaService } from '../../src/prisma/index.js';
+import { PrismaModule, PrismaService } from '../../src/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('UsersRepository integration (e2e)', () => {

@@ -9,7 +9,7 @@ import {
   Prisma,
   type Session as PrismaSession,
 } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/index.js';
+import { PrismaService } from '../../../database/index.js';
 
 @Injectable()
 export class PrismaSessionStore implements SessionStore {

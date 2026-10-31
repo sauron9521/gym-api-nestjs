@@ -13,7 +13,7 @@ import {
   expect,
   it,
 } from 'vitest';
-import { PrismaService } from '../../src/prisma/index.js';
+import { PrismaService } from '../../src/database/index.js';
 
 type TokenPair = {
   accessToken: string;

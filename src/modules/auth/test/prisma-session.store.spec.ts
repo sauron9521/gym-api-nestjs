@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticationStorage, MfaState } from '@nestjs/authentication';
 import { PrismaSessionStore } from '../stores/index.js';
-import { PrismaService } from '../../../prisma/index.js';
+import { PrismaService } from '../../../database/index.js';
 
 describe('PrismaSessionStore', () => {
   const prisma = {

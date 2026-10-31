@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/index.js';
+import { PrismaService } from '../../../database/index.js';
 import {
   userSelect,
   userSelectWithCredentials,

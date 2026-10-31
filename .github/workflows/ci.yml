@@ -53,7 +53,7 @@ jobs:
         run: npm run db:validate
 
       - name: Generate Prisma Client
-        run: npx prisma generate --config prisma7.config.ts
+        run: npx database generate --config prisma7.config.ts
 
       - name: Lint
         run: npm run lint
@@ -62,7 +62,7 @@ jobs:
         run: npm run build
 
       - name: Apply database migrations
-        run: npx prisma migrate deploy --config prisma7.config.ts
+        run: npx database migrate deploy --config prisma7.config.ts
 
       - name: Unit tests
         run: npm test

@@ -7,7 +7,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../../src/app.module.js';
-import { PrismaService } from '../../src/prisma/index.js';
+import { PrismaService } from '../../src/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('Authentication sessions (HTTP + PostgreSQL)', () => {
