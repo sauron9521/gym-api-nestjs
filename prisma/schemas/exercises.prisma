@@ -1,0 +1,142 @@
+enum ExerciseSource {
+  GLOBAL
+  ATHLETE_CUSTOM
+  TRAINER_CUSTOM
+}
+
+enum ExerciseVisibility {
+  PRIVATE
+  SELECTED_TRAINERS
+}
+
+enum ExerciseType {
+  STRENGTH
+  CARDIO
+  MOBILITY
+  PLYOMETRIC
+  OTHER
+}
+
+enum MuscleRole {
+  PRIMARY
+  SECONDARY
+}
+
+model Exercise {
+  id           String  @id @default(uuid(4))
+  name         String  @db.VarChar(120)
+  slug         String? @unique @db.VarChar(140)
+  description  String? @db.Text
+  instructions String? @db.Text
+
+  source       ExerciseSource
+  visibility   ExerciseVisibility?
+  exerciseType ExerciseType        @default(STRENGTH)
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("ExerciseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  isArchived Boolean @default(false) @map("is_archived")
+
+  // Origin of an athlete-owned copy
+  copiedFromExerciseId String?    @map("copied_from_exercise_id")
+  copiedFromExercise   Exercise?  @relation("ExerciseCopies", fields: [copiedFromExerciseId], references: [id], onDelete: Restrict)
+  copiedExercises      Exercise[] @relation("ExerciseCopies")
+
+  muscleGroups ExerciseMuscleGroup[]
+  equipment    ExerciseEquipment[]
+
+  trainerAccesses ExerciseTrainerAccess[]
+  assignments     ExerciseAthleteAssignment[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([source, isArchived])
+  @@index([createdById])
+  @@index([name])
+  @@index([copiedFromExerciseId])
+  @@map("exercises")
+}
+
+model MuscleGroup {
+  id   String @id @default(uuid(4))
+  name String @unique @db.VarChar(80)
+  slug String @unique @db.VarChar(80)
+
+  exercises ExerciseMuscleGroup[]
+
+  @@map("muscle_groups")
+}
+
+model ExerciseMuscleGroup {
+  exerciseId    String     @map("exercise_id")
+  muscleGroupId String     @map("muscle_group_id")
+  role          MuscleRole @default(SECONDARY)
+
+  exercise    Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  muscleGroup MuscleGroup @relation(fields: [muscleGroupId], references: [id], onDelete: Restrict)
+
+  @@id([exerciseId, muscleGroupId])
+  @@index([muscleGroupId, exerciseId])
+  @@map("exercise_muscle_groups")
+}
+
+model Equipment {
+  id   String @id @default(uuid(4))
+  name String @unique @db.VarChar(80)
+  slug String @unique @db.VarChar(80)
+
+  exercises ExerciseEquipment[]
+
+  @@map("equipment")
+}
+
+model ExerciseEquipment {
+  exerciseId  String @map("exercise_id")
+  equipmentId String @map("equipment_id")
+
+  exercise  Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  @@id([exerciseId, equipmentId])
+  @@index([equipmentId, exerciseId])
+  @@map("exercise_equipments")
+}
+
+// Athlete grants a specific trainer access to their custom exercise.
+model ExerciseTrainerAccess {
+  id         String @id @default(uuid(4))
+  exerciseId String @map("exercise_id")
+  trainerId  String @map("trainer_id")
+
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  trainer  User     @relation("ExerciseAccessTrainer", fields: [trainerId], references: [id], onDelete: Restrict)
+
+  @@unique([exerciseId, trainerId])
+  @@index([trainerId, revokedAt])
+  @@map("exercise_trainer_access")
+}
+
+// Trainer shares their custom exercise with an athlete.
+model ExerciseAthleteAssignment {
+  id           String @id @default(uuid(4))
+  exerciseId   String @map("exercise_id")
+  athleteId    String @map("athlete_id")
+  assignedById String @map("assigned_by_id")
+
+  assignedAt DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  athlete    User     @relation("ExerciseAssignedAthlete", fields: [athleteId], references: [id], onDelete: Restrict)
+  assignedBy User     @relation("ExerciseAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  @@unique([exerciseId, athleteId])
+  @@index([athleteId, revokedAt])
+  @@index([assignedById])
+  @@map("exercise_athlete_assignments")
+}
