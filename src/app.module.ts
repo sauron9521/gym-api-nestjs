@@ -71,12 +71,14 @@ import { UsersModule } from './modules/users/users.module.js';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useExisting: ThrottlerGuard,
     },
+    ThrottlerGuard,
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,
+      useExisting: RolesGuard,
     },
+    RolesGuard,
   ],
 })
 export class AppModule {}

@@ -14,7 +14,7 @@ export class JwtAuth extends JwtBearerProvider<UserResponse> {
     registry: AuthenticationRegistry,
   ) {
     super({ realm: 'store' });
-    registry.registerProvider(this);
+    registry.registerProvider(this, { order: 1 });
   }
 
   validate({ sub }: JwtClaims) {

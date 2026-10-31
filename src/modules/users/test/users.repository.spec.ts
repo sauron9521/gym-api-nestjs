@@ -6,7 +6,7 @@ import {
   UsersRepository,
 } from '../users.repository.js';
 import { UserResponse } from '../dto/response-user.js';
-import type { User } from '../../../generated/prisma/client.js';
+import { Prisma, type User } from '../../../generated/prisma/client.js';
 
 describe('UsersRepository', () => {
   let repository: UsersRepository;
@@ -52,6 +52,60 @@ describe('UsersRepository', () => {
       expect(result).toEqual(createUser);
       expect(result).not.toHaveProperty('passwordHash');
     });
+
+    it('should throw ConflictException when email already exists', async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`email`)',
+        {
+          code: 'P2002',
+          clientVersion: '7.10.1',
+          meta: {
+            modelName: 'User',
+            target: ['email'],
+          },
+        },
+      );
+
+      prisma.user.create.mockRejectedValue(prismaError);
+
+      await expect(
+        repository.create('test@example.com', 'hashed-password'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should normalize email before creating a user', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'user@example.com',
+      } as UserResponse;
+
+      prisma.user.create.mockResolvedValue(user);
+
+      const result = await repository.create(
+        '  User@Example.COM  ',
+        'hashed-password',
+      );
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: {
+          email: 'user@example.com',
+          passwordHash: 'hashed-password',
+        },
+        select: userSelect,
+      });
+
+      expect(result).toEqual(user);
+    });
+
+    it('should rethrow unexpected database errors', async () => {
+      const error = new Error('Database connection failed');
+
+      prisma.user.create.mockRejectedValue(error);
+
+      await expect(
+        repository.create('test@example.com', 'hashed-password'),
+      ).rejects.toBe(error);
+    });
   });
 
   describe('findUserByEmail', () => {
@@ -80,6 +134,24 @@ describe('UsersRepository', () => {
         repository.findUserByEmail('missing@example.com'),
       ).resolves.toBeNull();
     });
+
+    it('should normalize email before searching for a user', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'user@example.com',
+      } as UserResponse;
+
+      prisma.user.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findUserByEmail('  USER@EXAMPLE.COM  ');
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+        select: userSelect,
+      });
+
+      expect(result).toEqual(user);
+    });
   });
 
   describe('checkEmail', () => {
@@ -100,6 +172,22 @@ describe('UsersRepository', () => {
       await expect(
         repository.checkEmail('new@example.com'),
       ).resolves.toBeUndefined();
+    });
+
+    it('should detect an existing email regardless of case', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+      });
+
+      await expect(
+        repository.checkEmail('  USER@EXAMPLE.COM  '),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+        select: userSelect,
+      });
     });
   });
 
@@ -199,6 +287,28 @@ describe('UsersRepository', () => {
       const result = await repository.findCredentials('missing@example.com');
 
       expect(result).toBeNull();
+    });
+
+    it('should normalize email before finding credentials', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'user@example.com',
+        passwordHash: 'hashed-password',
+      } as User;
+
+      prisma.user.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findCredentials('  USER@EXAMPLE.COM  ');
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: {
+          email: 'user@example.com',
+          deletedAt: null,
+        },
+        select: userSelectWithCredentials,
+      });
+
+      expect(result).toEqual(user);
     });
   });
 

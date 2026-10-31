@@ -30,15 +30,29 @@ export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(email: string, passwordHash: string) {
-    return this.prisma.user.create({
-      data: { email, passwordHash },
-      select: userSelect,
-    });
+    try {
+      return await this.prisma.user.create({
+        data: {
+          email: normalizeEmail(email),
+          passwordHash,
+        },
+        select: userSelect,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('User with the same email already exists');
+      }
+
+      throw error;
+    }
   }
 
   async findUserByEmail(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizeEmail(email) },
       select: userSelect,
     });
   }
@@ -52,7 +66,7 @@ export class UsersRepository {
 
   async findCredentials(email: string) {
     return this.prisma.user.findUnique({
-      where: { email, deletedAt: null },
+      where: { email: normalizeEmail(email), deletedAt: null },
       select: userSelectWithCredentials,
     });
   }
@@ -68,7 +82,7 @@ export class UsersRepository {
   // relocation SERVICE AUTH?
   async checkEmail(email: string): Promise<void> {
     const user = await this.findUserByEmail(email);
-    if (user?.email === email) {
+    if (user) {
       throw new ConflictException('User with the same email already exists');
     }
   }
@@ -94,4 +108,8 @@ export class UsersRepository {
     });
     return true;
   }
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().normalize('NFC').toLowerCase();
 }

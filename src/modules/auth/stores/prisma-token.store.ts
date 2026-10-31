@@ -10,7 +10,6 @@ import {
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../database/index.js';
 
-const MAX_PENDING_EMAIL_TOKENS = 10_000;
 
 /** PostgreSQL-backed stores for opaque refresh tokens and email links. */
 @Injectable()
@@ -21,6 +20,8 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   ) {
     storage.registerSource({ refreshTokens: this, emailTokens: this });
   }
+
+  protected readonly maxPending = 10_000;
 
   async getRefreshToken(id: string): Promise<RefreshTokenRecord | undefined> {
     const row = await this.prisma.refreshToken.findUnique({ where: { id } });
@@ -125,6 +126,10 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
 
   async saveEmailToken(record: EmailTokenRecord): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      // Serialize email-token saves across database connections.
+      await tx.$queryRaw<Array<{ lock: string }>>`
+  SELECT pg_advisory_xact_lock(1197030721, 1)::text AS lock
+`;
       await tx.emailToken.create({
         data: {
           id: record.id,
@@ -144,15 +149,26 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
       });
 
       const cutoff = await tx.emailToken.findMany({
-        select: { expiresAt: true },
+        select: {
+          id: true,
+          expiresAt: true,
+        },
         orderBy: [{ expiresAt: 'desc' }, { id: 'desc' }],
-        skip: MAX_PENDING_EMAIL_TOKENS,
+        skip: this.maxPending,
         take: 1,
       });
 
       if (cutoff[0]) {
         await tx.emailToken.deleteMany({
-          where: { expiresAt: { lte: cutoff[0].expiresAt } },
+          where: {
+            OR: [
+              { expiresAt: { lt: cutoff[0].expiresAt } },
+              {
+                expiresAt: cutoff[0].expiresAt,
+                id: { lte: cutoff[0].id },
+              },
+            ],
+          },
         });
       }
     });

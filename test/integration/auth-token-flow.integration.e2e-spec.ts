@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import { PrismaService } from '../../src/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 type TokenPair = {
   accessToken: string;
@@ -74,7 +75,10 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
     const { AppModule } = await import('../../src/app.module.js');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -217,5 +221,25 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
       .get('/')
       .set('Authorization', `Bearer ${tokens.accessToken}`)
       .expect(200);
+  });
+
+  it('should reject an empty password when issuing tokens', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/token')
+      .send({
+        email,
+        password: '',
+      })
+      .expect(400);
+  });
+
+  it('should reject a whitespace-only password when issuing tokens', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/token')
+      .send({
+        email,
+        password: '   ',
+      })
+      .expect(400);
   });
 });

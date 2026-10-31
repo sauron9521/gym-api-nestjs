@@ -3,18 +3,26 @@ import {
   IsNotEmpty,
   IsString,
   IsStrongPassword,
+  Matches,
 } from 'class-validator';
 
 export class SignInDto {
   @IsEmail()
   email: string;
   @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/, {
+    message: 'Password must contain at least one non-whitespace character',
+  })
   password: string;
 }
 export class SignUpDto {
   @IsEmail()
   email: string;
   @IsStrongPassword()
+  @Matches(/\S/, {
+    message: 'Password must contain at least one non-whitespace character',
+  })
   password: string;
 }
 
@@ -35,6 +43,10 @@ export class ResetPasswordDto {
   token: string;
 
   @IsStrongPassword()
+  @IsNotEmpty()
+  @Matches(/\S/, {
+    message: 'Password must contain at least one non-whitespace character',
+  })
   password: string;
 }
 
