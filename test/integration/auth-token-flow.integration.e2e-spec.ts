@@ -14,6 +14,7 @@ import {
   it,
 } from 'vitest';
 import { PrismaService } from '../../src/database/index.js';
+import { useTestDatabase } from '../utility/test-db-helper.js';
 
 type TokenPair = {
   accessToken: string;
@@ -33,29 +34,6 @@ let prisma: PrismaService;
 let passwordHasher: PasswordHasher;
 let userId = '';
 let email: string;
-
-function assertTestDatabaseUrl(
-  value: string | undefined,
-): asserts value is string {
-  if (!value) {
-    throw new Error(
-      'TEST_DATABASE_URL is required for auth token integration tests.',
-    );
-  }
-
-  let databaseName: string;
-  try {
-    databaseName = decodeURIComponent(new URL(value).pathname.slice(1));
-  } catch {
-    throw new Error('TEST_DATABASE_URL is not a valid database URL.');
-  }
-
-  if (!databaseName.toLowerCase().includes('test')) {
-    throw new Error(
-      'Refusing to run auth token integration tests: database name must contain "test".',
-    );
-  }
-}
 
 async function issueTokenPair(): Promise<TokenPair> {
   const response = await request(app.getHttpServer())
@@ -83,12 +61,8 @@ async function expectRefreshUnauthorized(refreshToken: string): Promise<void> {
 
 describe('Auth token flow (HTTP + PostgreSQL)', () => {
   beforeAll(async () => {
-    const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-    assertTestDatabaseUrl(testDatabaseUrl);
+    useTestDatabase();
 
-    // AppModule and PrismaService must be created only after DATABASE_URL
-    // has been redirected to the dedicated test database.
-    process.env.DATABASE_URL = testDatabaseUrl;
     process.env.APP_URL ||= 'http://localhost:3000';
     if (
       !process.env.JWT_SECRET ||
