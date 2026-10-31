@@ -2,7 +2,7 @@ import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from '../../users/users.repository.js';
 import { SingUpDto } from '../dto/auth.dto.js';
-import { UserResponse } from '../../users/dto/response-user.js';
+import type { UserResponse } from '../../users/dto/response-user.js';
 
 @Injectable()
 export class CredentialsService {
