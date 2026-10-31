@@ -11,7 +11,7 @@ import {
   SignInService,
 } from '@nestjs/authentication';
 import { Throttle } from '@nestjs/throttler';
-import { SingInDto, SingUpDto } from '../dto/auth.dto.js';
+import { SignInDto, SignUpDto } from '../dto/auth.dto.js';
 import { CredentialsService } from '../services/index.js';
 
 @Public()
@@ -24,7 +24,7 @@ export class AuthController {
   ) {}
 
   @Post('registry')
-  async singUp(@Body() singUpDto: SingUpDto) {
+  async signUp(@Body() singUpDto: SignUpDto) {
     const user = await this.credentialsService.registry(singUpDto);
     await this.singInService.signIn(user.id, { method: 'password' });
     await this.emailVerificationService.send(user);
@@ -34,7 +34,7 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('login')
   @HttpCode(200)
-  async singIn(@Body() body: SingInDto) {
+  async signIn(@Body() body: SignInDto) {
     const user = await this.credentialsService.verify(
       body.email,
       body.password,

@@ -64,7 +64,7 @@ describe('AuthController', () => {
       signInService.signIn.mockResolvedValue({});
       emailVerificationService.send.mockResolvedValue(undefined);
 
-      const result = await controller.singUp(input);
+      const result = await controller.signUp(input);
 
       expect(credentialsService.registry).toHaveBeenCalledWith(input);
       expect(signInService.signIn).toHaveBeenCalledWith('user-1', {
@@ -87,7 +87,7 @@ describe('AuthController', () => {
         session: { mfa: 'pending' },
       });
 
-      const result = await controller.singIn({
+      const result = await controller.signIn({
         email: 'test@example.com',
         password: 'StrongPassword123!',
       });
@@ -106,7 +106,7 @@ describe('AuthController', () => {
       credentialsService.verify.mockResolvedValue(null);
 
       await expect(
-        controller.singIn({
+        controller.signIn({
           email: 'test@example.com',
           password: 'WrongPassword123!',
         }),

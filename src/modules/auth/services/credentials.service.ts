@@ -1,7 +1,7 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from '../../users/users.repository.js';
-import { SingUpDto } from '../dto/auth.dto.js';
+import { SignUpDto } from '../dto/auth.dto.js';
 import type { UserResponse } from '../../users/dto/response-user.js';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class CredentialsService {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async registry(dto: SingUpDto): Promise<UserResponse> {
+  async registry(dto: SignUpDto): Promise<UserResponse> {
     await this.usersRepository.checkEmail(dto.email);
     const hashedPassword = await this.passwordHasher.hash(dto.password);
 
