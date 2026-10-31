@@ -18,8 +18,6 @@ async function bootstrap() {
     origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
-    credentials: true,
-    origin: config.get('APP_URL'),
   });
 
   //CSRF
