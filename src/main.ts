@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { StandardSchemaValidationPipe, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
@@ -30,7 +30,9 @@ async function bootstrap() {
       transform: true,
       forbidNonWhitelisted: true,
     }),
+    new StandardSchemaValidationPipe(),
   );
+
   app.enableShutdownHooks();
   const PORT = config.get<string>('PORT');
   await app.listen(PORT || 3000);
