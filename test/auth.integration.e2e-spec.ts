@@ -90,7 +90,7 @@ describe('Authentication integration (e2e)', () => {
   it('registers a user, stores a password hash, rejects duplicates and authenticates credentials', async () => {
     // 1. Реєстрація через HTTP.
     const signUpResponse = await request(app.getHttpServer())
-      .post('/auth/sing-up')
+      .post('/auth/registry')
       .send({ email, password });
 
     expect(signUpResponse.status).toBe(201);
@@ -111,14 +111,14 @@ describe('Authentication integration (e2e)', () => {
 
     // 3. Повторна реєстрація з тією самою адресою.
     const duplicateResponse = await request(app.getHttpServer())
-      .post('/auth/sing-up')
+      .post('/auth/registry')
       .send({ email, password });
 
     expect(duplicateResponse.status).toBe(409);
 
     // 4. Неправильний пароль.
     const invalidSignInResponse = await request(app.getHttpServer())
-      .post('/auth/sing-in')
+      .post('/auth/login')
       .send({
         email,
         password: 'WrongGym123!',
@@ -128,7 +128,7 @@ describe('Authentication integration (e2e)', () => {
 
     // 5. Правильний пароль.
     const validSignInResponse = await request(app.getHttpServer())
-      .post('/auth/sing-in')
+      .post('/auth/login')
       .send({ email, password });
 
     expect(validSignInResponse.status).toBe(200);

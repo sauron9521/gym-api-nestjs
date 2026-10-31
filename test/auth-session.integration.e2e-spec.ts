@@ -47,7 +47,7 @@ describe('Authentication sessions (HTTP + PostgreSQL)', () => {
     process.env.DATABASE_URL = testDatabaseUrl;
 
     const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), AppModule],
+      imports: [await ConfigModule.forRoot({ isGlobal: true }), AppModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
@@ -91,7 +91,7 @@ describe('Authentication sessions (HTTP + PostgreSQL)', () => {
     }
 
     const loginResponse = await request(app.getHttpServer())
-      .post('/auth/sing-in')
+      .post('/auth/login')
       .send({ email, password });
 
     expect(loginResponse.status).toBe(200);

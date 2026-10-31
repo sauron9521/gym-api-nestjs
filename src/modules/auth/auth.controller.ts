@@ -23,7 +23,7 @@ export class AuthController {
     private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
-  @Post('sing-up')
+  @Post('registry')
   async singUp(@Body() singUpDto: SingUpDto) {
     const user = await this.credentialsService.registry(singUpDto);
     await this.singInService.signIn(user.id, { method: 'password' });
@@ -32,7 +32,7 @@ export class AuthController {
   }
 
   @Throttle({ default: { limit: 3, ttl: 60000 } })
-  @Post('sing-in')
+  @Post('login')
   @HttpCode(200)
   async singIn(@Body() body: SingInDto) {
     const user = await this.credentialsService.verify(

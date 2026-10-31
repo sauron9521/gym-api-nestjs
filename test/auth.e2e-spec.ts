@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import {
   EmailVerificationService,
   SignInService,
@@ -65,7 +65,7 @@ describe('AuthController (HTTP)', () => {
     await app.close();
   });
 
-  describe('POST /auth/sing-in', () => {
+  describe('POST /auth/login', () => {
     it('should return 200 when credentials are valid', async () => {
       credentialsService.verify.mockResolvedValue({
         id: 'user-1',
@@ -77,7 +77,7 @@ describe('AuthController (HTTP)', () => {
       });
 
       const response = await request(app.getHttpServer())
-        .post('/auth/sing-in')
+        .post('/auth/login')
         .send({
           email: 'test@example.com',
           password: 'StrongPassword123!',
@@ -100,7 +100,7 @@ describe('AuthController (HTTP)', () => {
       credentialsService.verify.mockResolvedValue(null);
 
       const response = await request(app.getHttpServer())
-        .post('/auth/sing-in')
+        .post('/auth/login')
         .send({
           email: 'test@example.com',
           password: 'WrongPassword123!',
@@ -117,7 +117,7 @@ describe('AuthController (HTTP)', () => {
 
     it('should return 400 when email is invalid', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/sing-in')
+        .post('/auth/login')
         .send({
           email: 'not-an-email',
           password: 'StrongPassword123!',
@@ -129,7 +129,7 @@ describe('AuthController (HTTP)', () => {
 
     it('should return 400 when password is missing', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/sing-in')
+        .post('/auth/login')
         .send({
           email: 'test@example.com',
         });
@@ -140,7 +140,7 @@ describe('AuthController (HTTP)', () => {
 
     it('should return 400 when an unexpected field is provided', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/sing-in')
+        .post('/auth/login')
         .send({
           email: 'test@example.com',
           password: 'StrongPassword123!',
