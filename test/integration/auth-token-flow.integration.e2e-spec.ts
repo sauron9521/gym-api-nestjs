@@ -13,7 +13,7 @@ import {
   expect,
   it,
 } from 'vitest';
-import { PrismaService } from '../src/prisma/index.js';
+import { PrismaService } from '../../src/prisma/index.js';
 
 type TokenPair = {
   accessToken: string;
@@ -97,7 +97,7 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
       process.env.JWT_SECRET = randomUUID() + randomUUID();
     }
 
-    const { AppModule } = await import('../src/app.module.js');
+    const { AppModule } = await import('../../src/app.module.js');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

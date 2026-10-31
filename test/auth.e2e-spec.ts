@@ -8,7 +8,7 @@ import {
 } from '@nestjs/authentication';
 import request from 'supertest';
 
-import { AuthController } from '../src/modules/auth/auth.controller.js';
+import { AuthController } from '../src/modules/auth/controllers/index.js';
 import { CredentialsService } from '../src/modules/auth/services/index.js';
 
 describe('AuthController (HTTP)', () => {

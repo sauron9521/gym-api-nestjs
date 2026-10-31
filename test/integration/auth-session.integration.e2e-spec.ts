@@ -6,9 +6,9 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AppModule } from '../src/app.module.js';
-import { PrismaService } from '../src/prisma/index.js';
-import { useTestDatabase } from './utility/test-db-helper.js';
+import { AppModule } from '../../src/app.module.js';
+import { PrismaService } from '../../src/prisma/index.js';
+import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('Authentication sessions (HTTP + PostgreSQL)', () => {
   let app: INestApplication;

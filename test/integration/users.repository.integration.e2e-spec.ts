@@ -4,11 +4,11 @@ import { ConflictException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { UsersModule } from '../src/modules/index.js';
+import { UsersModule } from '../../src/modules/index.js';
 
-import { UsersRepository } from '../src/modules/users/users.repository.js';
-import { PrismaModule, PrismaService } from '../src/prisma/index.js';
-import { useTestDatabase } from './utility/test-db-helper.js';
+import { UsersRepository } from '../../src/modules/users/users.repository.js';
+import { PrismaModule, PrismaService } from '../../src/prisma/index.js';
+import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('UsersRepository integration (e2e)', () => {
   let app: INestApplication;

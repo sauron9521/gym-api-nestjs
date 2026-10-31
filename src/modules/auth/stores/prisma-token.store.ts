@@ -7,8 +7,8 @@ import {
   type RefreshTokenRecord,
   type RefreshTokenStore,
 } from '@nestjs/authentication';
-import { Prisma } from '../../generated/prisma/client.js';
-import { PrismaService } from '../../prisma/index.js';
+import { Prisma } from '../../../generated/prisma/client.js';
+import { PrismaService } from '../../../prisma/index.js';
 
 const MAX_PENDING_EMAIL_TOKENS = 10_000;
 

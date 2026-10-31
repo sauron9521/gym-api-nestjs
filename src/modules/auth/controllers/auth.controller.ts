@@ -11,8 +11,8 @@ import {
   SignInService,
 } from '@nestjs/authentication';
 import { Throttle } from '@nestjs/throttler';
-import { SingInDto, SingUpDto } from './dto/auth.dto.js';
-import { CredentialsService } from './services/index.js';
+import { SingInDto, SingUpDto } from '../dto/auth.dto.js';
+import { CredentialsService } from '../services/index.js';
 
 @Public()
 @Controller('auth')
