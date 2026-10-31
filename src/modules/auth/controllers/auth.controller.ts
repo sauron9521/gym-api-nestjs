@@ -23,7 +23,7 @@ export class AuthController {
     private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
-  @Post('registry')
+  @Post('register')
   async signUp(@Body() singUpDto: SignUpDto) {
     const user = await this.credentialsService.registry(singUpDto);
     await this.singInService.signIn(user.id, { method: 'password' });

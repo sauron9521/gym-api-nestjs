@@ -48,7 +48,7 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
   });
 
-  describe('singUp', () => {
+  describe('signUp', () => {
     it('should register a user, create a session and send verification email', async () => {
       const input = {
         email: 'test@example.com',
@@ -75,7 +75,7 @@ describe('AuthController', () => {
     });
   });
 
-  describe('singIn', () => {
+  describe('signIn', () => {
     it('should return mfaRequired when credentials are valid', async () => {
       const user = {
         id: 'user-1',
