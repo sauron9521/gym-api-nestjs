@@ -4,7 +4,7 @@ import type { User } from '../../../../generated/prisma/client.js';
 import { UsersRepository } from '../../../users/users.repository.js';
 import { CredentialsService } from '../../services/index.js';
 import { UserResponse } from '../../../users/dto/response-user.js';
-import { SingInDto } from '../../dto/auth.dto.js';
+import { SignInDto } from '../../dto/auth.dto.js';
 
 describe('Credentials service', () => {
   let service: CredentialsService;
@@ -33,7 +33,7 @@ describe('Credentials service', () => {
 
   describe('register', () => {
     it('Should hash the password and create user', async () => {
-      const dto: SingInDto = {
+      const dto: SignInDto = {
         email: 'test123@example.com',
         password: 'StrongPassword123!@',
       };
@@ -46,7 +46,7 @@ describe('Credentials service', () => {
       passwordHasher.hash.mockResolvedValue('hashed-password');
       userRepository.create.mockResolvedValue(createUser);
 
-      const result = await service.registry(dto);
+      const result = await service.register(dto);
 
       expect(userRepository.checkEmail).toHaveBeenCalledWith(dto.email);
       expect(passwordHasher.hash).toHaveBeenCalledWith(dto.password);
@@ -62,7 +62,7 @@ describe('Credentials service', () => {
       userRepository.checkEmail.mockRejectedValue(error);
 
       await expect(
-        service.registry({
+        service.register({
           email: 'test@exaple.com',
           password: 'StrongPassword123!@',
         }),

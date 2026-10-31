@@ -19,14 +19,14 @@ import { CredentialsService } from '../services/index.js';
 export class AuthController {
   constructor(
     private readonly credentialsService: CredentialsService,
-    private readonly singInService: SignInService,
+    private readonly signInService: SignInService,
     private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   @Post('register')
   async signUp(@Body() signUpDto: SignUpDto) {
-    const user = await this.credentialsService.registry(signUpDto);
-    await this.singInService.signIn(user.id, { method: 'password' });
+    const user = await this.credentialsService.register(signUpDto);
+    await this.signInService.signIn(user.id, { method: 'password' });
     await this.emailVerificationService.send(user);
     return { ...user };
   }
@@ -45,7 +45,7 @@ export class AuthController {
       );
     }
 
-    const { session } = await this.singInService.signIn(user.id, {
+    const { session } = await this.signInService.signIn(user.id, {
       method: 'password',
     });
     return { mfaRequired: session.mfa === 'pending' };

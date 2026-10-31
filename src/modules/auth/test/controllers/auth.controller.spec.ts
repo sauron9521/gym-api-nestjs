@@ -12,7 +12,7 @@ describe('AuthController', () => {
   let controller: AuthController;
 
   const credentialsService = {
-    registry: vi.fn(),
+    register: vi.fn(),
     verify: vi.fn(),
   };
 
@@ -60,13 +60,13 @@ describe('AuthController', () => {
         email: input.email,
       };
 
-      credentialsService.registry.mockResolvedValue(user);
+      credentialsService.register.mockResolvedValue(user);
       signInService.signIn.mockResolvedValue({});
       emailVerificationService.send.mockResolvedValue(undefined);
 
       const result = await controller.signUp(input);
 
-      expect(credentialsService.registry).toHaveBeenCalledWith(input);
+      expect(credentialsService.register).toHaveBeenCalledWith(input);
       expect(signInService.signIn).toHaveBeenCalledWith('user-1', {
         method: 'password',
       });

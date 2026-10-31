@@ -11,11 +11,10 @@ export class CredentialsService {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async registry(dto: SignUpDto): Promise<UserResponse> {
+  async register(dto: SignUpDto): Promise<UserResponse> {
     await this.usersRepository.checkEmail(dto.email);
     const hashedPassword = await this.passwordHasher.hash(dto.password);
-
-    return await this.usersRepository.create(dto.email, hashedPassword);
+    return this.usersRepository.create(dto.email, hashedPassword);
   }
 
   async verify(email: string, password: string): Promise<UserResponse | null> {
