@@ -14,7 +14,7 @@ export class SessionAuth extends SessionCookieProvider<UserResponse> {
     registry: AuthenticationRegistry,
   ) {
     super();
-    registry.registerProvider(this, { order: 1 });
+    registry.registerProvider(this);
   }
 
   validate(session: SessionRecord) {

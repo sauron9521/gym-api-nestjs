@@ -30,10 +30,21 @@ export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(email: string, passwordHash: string) {
-    return this.prisma.user.create({
-      data: { email, passwordHash },
-      select: userSelect,
-    });
+    try {
+      return await this.prisma.user.create({
+        data: { email, passwordHash },
+        select: userSelect,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('User with the same email already exists');
+      }
+
+      throw error;
+    }
   }
 
   async findUserByEmail(email: string) {

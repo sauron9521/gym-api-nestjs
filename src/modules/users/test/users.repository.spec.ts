@@ -6,7 +6,7 @@ import {
   UsersRepository,
 } from '../users.repository.js';
 import { UserResponse } from '../dto/response-user.js';
-import type { User } from '../../../generated/prisma/client.js';
+import { Prisma, type User } from '../../../generated/prisma/client.js';
 
 describe('UsersRepository', () => {
   let repository: UsersRepository;
@@ -51,6 +51,36 @@ describe('UsersRepository', () => {
 
       expect(result).toEqual(createUser);
       expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('should throw ConflictException when email already exists', async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`email`)',
+        {
+          code: 'P2002',
+          clientVersion: '7.10.1',
+          meta: {
+            modelName: 'User',
+            target: ['email'],
+          },
+        },
+      );
+
+      prisma.user.create.mockRejectedValue(prismaError);
+
+      await expect(
+        repository.create('test@example.com', 'hashed-password'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should rethrow unexpected database errors', async () => {
+      const error = new Error('Database connection failed');
+
+      prisma.user.create.mockRejectedValue(error);
+
+      await expect(
+        repository.create('test@example.com', 'hashed-password'),
+      ).rejects.toBe(error);
     });
   });
 
