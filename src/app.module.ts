@@ -10,10 +10,11 @@ import {
   SmtpTransport,
 } from '@nestjs/mail';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { AuthModule } from './modules/auth/auth.module.js';
-
-import { PrismaModule } from './database/index.js';
 import { ScheduleModule } from '@nestjs/schedule';
+
+import { AuthModule } from './modules/auth/auth.module.js';
+import { ExercisesModule } from './modules/exercises/exercises.module.js';
+import { PrismaModule } from './database/index.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { UsersModule } from './modules/users/users.module.js';
 
@@ -66,6 +67,7 @@ import { UsersModule } from './modules/users/users.module.js';
     }),
     ScheduleModule.forRoot(),
     UsersModule,
+    ExercisesModule,
   ],
   controllers: [],
   providers: [

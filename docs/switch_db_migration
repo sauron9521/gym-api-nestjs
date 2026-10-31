@@ -1,0 +1,45 @@
+$previousDatabaseUrl = $env:DATABASE_URL
+
+try {
+    $line = Get-Content .env.test |
+        Where-Object { $_ -match '^\s*TEST_DATABASE_URL\s*=' } |
+        Select-Object -First 1
+
+    if (!$line) {
+        throw "TEST_DATABASE_URL not found"
+    }
+
+    $testDatabaseUrl = ($line -replace '^\s*TEST_DATABASE_URL\s*=\s*', '').Trim().Trim('"').Trim("'")
+
+    $uri = [System.Uri]::new($testDatabaseUrl)
+    $databaseName = [System.Uri]::UnescapeDataString($uri.AbsolutePath.TrimStart('/'))
+
+    if (!$databaseName.ToLower().EndsWith('_test')) {
+        throw "Refusing to migrate database: $databaseName"
+    }
+
+    $env:DATABASE_URL = $testDatabaseUrl
+
+    Write-Host "Migration target: $databaseName" -ForegroundColor Green
+
+    npm run db:migrate:deploy
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Migration deployment failed"
+    }
+
+    npm run db:migrate:status
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Some migrations are still pending"
+    }
+
+    Write-Host "Test database is up to date!" -ForegroundColor Green
+}
+finally {
+    if ($null -eq $previousDatabaseUrl) {
+        Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+    } else {
+        $env:DATABASE_URL = $previousDatabaseUrl
+    }
+}

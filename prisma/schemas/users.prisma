@@ -21,5 +21,11 @@ model User {
   refreshTokenFamilies RefreshTokenFamily[]
   emailTokens          EmailToken[]
 
+  // Exercises
+  createdExercises            Exercise[]                  @relation("ExerciseCreator")
+  exerciseTrainerAccess       ExerciseTrainerAccess[]     @relation("ExerciseAccessTrainer")
+  receivedExerciseAssignments ExerciseAthleteAssignment[] @relation("ExerciseAssignedAthlete")
+  createdExerciseAssignments  ExerciseAthleteAssignment[] @relation("ExerciseAssignedBy")
+
   @@map("users")
 }
