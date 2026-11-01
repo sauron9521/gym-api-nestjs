@@ -1,0 +1,414 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
+import { Prisma } from '../../generated/prisma/client.js';
+
+import { ExercisesService } from '../exercises/exercises.service.js';
+import { WorkoutsRepository } from './workouts.repository.js';
+
+import type {
+  CreateWorkoutInput,
+  UpdateWorkoutInput,
+  UpdateWorkoutSetInput,
+  WorkoutActor,
+  WorkoutListQuery,
+} from './types/workout.types.js';
+
+import type { ExerciseAccessContext } from '../exercises/types/exercise.types.js';
+
+const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
+  activeTrainerIds: [],
+  activeAthleteIds: [],
+};
+
+@Injectable()
+export class WorkoutsService {
+  constructor(
+    private readonly workoutsRepository: WorkoutsRepository,
+    private readonly exercisesService: ExercisesService,
+  ) {}
+
+  // CREATE
+  async create(actor: WorkoutActor, input: CreateWorkoutInput) {
+    this.assertAthlete(actor);
+
+    if (input.exercises.length === 0) {
+      throw new BadRequestException(
+        'A workout must contain at least one exercise',
+      );
+    }
+
+    for (const exercise of input.exercises) {
+      if (exercise.sets.length === 0) {
+        throw new BadRequestException(
+          'Each workout exercise must contain at least one set',
+        );
+      }
+    }
+
+    const exerciseIds = input.exercises.map((item) => item.exerciseId);
+
+    const availableExercises =
+      await this.exercisesService.findAvailableForWorkout(
+        actor,
+        exerciseIds,
+        EMPTY_ACCESS_CONTEXT,
+      );
+
+    const exerciseMap = new Map(
+      availableExercises.map((exercise) => [exercise.id, exercise]),
+    );
+
+    const data = {
+      title: input.title.trim(),
+      notes: input.notes ?? null,
+      scheduledAt: input.scheduledAt ?? null,
+
+      athlete: {
+        connect: { id: actor.id },
+      },
+
+      createdBy: {
+        connect: { id: actor.id },
+      },
+
+      exercises: {
+        create: input.exercises.map((item, index) => {
+          const exercise = exerciseMap.get(item.exerciseId);
+
+          if (!exercise) {
+            throw new BadRequestException(
+              'One or more exercises are not available',
+            );
+          }
+
+          return {
+            exercise: {
+              connect: { id: exercise.id },
+            },
+
+            exerciseNameSnapshot: exercise.name,
+            exerciseTypeSnapshot: exercise.exerciseType,
+
+            sortOrder: index,
+            notes: item.notes ?? null,
+
+            sets: {
+              create: item.sets.map((set, setIndex) => ({
+                setNumber: setIndex + 1,
+                setType: set.setType ?? 'WORKING',
+
+                plannedReps: set.plannedReps ?? null,
+                plannedWeightKg: set.plannedWeightKg ?? null,
+                plannedDurationSeconds: set.plannedDurationSeconds ?? null,
+                plannedDistanceMeters: set.plannedDistanceMeters ?? null,
+
+                restSeconds: set.restSeconds ?? null,
+                rpe: set.rpe ?? null,
+                rir: set.rir ?? null,
+              })),
+            },
+          };
+        }),
+      },
+    } satisfies Prisma.WorkoutCreateInput;
+
+    return this.workoutsRepository.create(data);
+  }
+
+  // FIND MANY
+  async findMany(actor: WorkoutActor, query: WorkoutListQuery) {
+    this.assertAthlete(actor);
+    this.validatePagination(query);
+
+    if (
+      query.scheduledFrom &&
+      query.scheduledTo &&
+      query.scheduledFrom > query.scheduledTo
+    ) {
+      throw new BadRequestException(
+        'scheduledFrom must not be later than scheduledTo',
+      );
+    }
+
+    const where: Prisma.WorkoutWhereInput = {
+      athleteId: actor.id,
+
+      ...(query.status ? { status: query.status } : {}),
+
+      ...(query.scheduledFrom || query.scheduledTo
+        ? {
+            scheduledAt: {
+              ...(query.scheduledFrom ? { gte: query.scheduledFrom } : {}),
+              ...(query.scheduledTo ? { lte: query.scheduledTo } : {}),
+            },
+          }
+        : {}),
+    };
+
+    return this.workoutsRepository.findMany({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+  }
+
+  // FIND ONE
+  async findOne(id: string, actor: WorkoutActor) {
+    this.assertAthlete(actor);
+
+    const workout = await this.workoutsRepository.findById(id, {
+      athleteId: actor.id,
+    });
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found');
+    }
+
+    return workout;
+  }
+
+  // UPDATE PLANNED WORKOUT
+  async update(id: string, actor: WorkoutActor, input: UpdateWorkoutInput) {
+    const workout = await this.findOne(id, actor);
+
+    if (workout.status !== 'PLANNED') {
+      throw new BadRequestException('Only planned workouts can be edited');
+    }
+
+    const data: Prisma.WorkoutUpdateInput = {};
+
+    if (input.title !== undefined) {
+      data.title = input.title.trim();
+    }
+
+    if (input.notes !== undefined) {
+      data.notes = input.notes;
+    }
+
+    if (input.scheduledAt !== undefined) {
+      data.scheduledAt = input.scheduledAt;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('At least one field must be provided');
+    }
+
+    return this.updateWithConflictHandling(
+      {
+        id,
+        athleteId: actor.id,
+        status: 'PLANNED',
+      },
+      data,
+    );
+  }
+
+  // START WORKOUT
+  async start(id: string, actor: WorkoutActor) {
+    const workout = await this.findOne(id, actor);
+
+    if (workout.status !== 'PLANNED') {
+      throw new BadRequestException('Only planned workouts can be started');
+    }
+
+    return this.updateWithConflictHandling(
+      {
+        id,
+        athleteId: actor.id,
+        status: 'PLANNED',
+      },
+      {
+        status: 'IN_PROGRESS',
+        startedAt: new Date(),
+      },
+    );
+  }
+
+  // UPDATE SET RESULT
+  async updateSet(
+    workoutId: string,
+    setId: string,
+    actor: WorkoutActor,
+    input: UpdateWorkoutSetInput,
+  ) {
+    const workout = await this.findOne(workoutId, actor);
+
+    if (workout.status !== 'IN_PROGRESS') {
+      throw new BadRequestException(
+        'Sets can only be updated during an active workout',
+      );
+    }
+
+    const set = workout.exercises
+      .flatMap((exercise) => exercise.sets)
+      .find((item) => item.id === setId);
+
+    if (!set) {
+      throw new NotFoundException('Workout set not found');
+    }
+
+    const actualFields = [
+      input.actualReps,
+      input.actualWeightKg,
+      input.actualDurationSeconds,
+      input.actualDistanceMeters,
+    ];
+
+    if (
+      input.status === 'SKIPPED' &&
+      actualFields.some((value) => value !== undefined && value !== null)
+    ) {
+      throw new BadRequestException(
+        'A skipped set cannot contain actual performance values',
+      );
+    }
+
+    const data: Prisma.WorkoutSetUpdateInput = {
+      status: input.status,
+      completedAt: new Date(),
+    };
+
+    if (input.status === 'SKIPPED') {
+      data.actualReps = null;
+      data.actualWeightKg = null;
+      data.actualDurationSeconds = null;
+      data.actualDistanceMeters = null;
+    } else {
+      if (input.actualReps !== undefined) {
+        data.actualReps = input.actualReps;
+      }
+
+      if (input.actualWeightKg !== undefined) {
+        data.actualWeightKg = input.actualWeightKg;
+      }
+
+      if (input.actualDurationSeconds !== undefined) {
+        data.actualDurationSeconds = input.actualDurationSeconds;
+      }
+
+      if (input.actualDistanceMeters !== undefined) {
+        data.actualDistanceMeters = input.actualDistanceMeters;
+      }
+    }
+
+    if (input.restSeconds !== undefined) {
+      data.restSeconds = input.restSeconds;
+    }
+
+    if (input.rpe !== undefined) {
+      data.rpe = input.rpe;
+    }
+
+    if (input.rir !== undefined) {
+      data.rir = input.rir;
+    }
+
+    if (input.notes !== undefined) {
+      data.notes = input.notes;
+    }
+
+    return this.workoutsRepository.updateSet(setId, data);
+  }
+
+  // COMPLETE WORKOUT
+  async complete(id: string, actor: WorkoutActor) {
+    const workout = await this.findOne(id, actor);
+
+    if (workout.status !== 'IN_PROGRESS') {
+      throw new BadRequestException(
+        'Only in-progress workouts can be completed',
+      );
+    }
+
+    const sets = workout.exercises.flatMap((exercise) => exercise.sets);
+
+    if (sets.length === 0 || sets.some((set) => set.status === 'PENDING')) {
+      throw new BadRequestException(
+        'All workout sets must be completed or skipped',
+      );
+    }
+
+    if (!sets.some((set) => set.status === 'COMPLETED')) {
+      throw new BadRequestException('At least one set must be completed');
+    }
+
+    return this.updateWithConflictHandling(
+      {
+        id,
+        athleteId: actor.id,
+        status: 'IN_PROGRESS',
+      },
+      {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      },
+    );
+  }
+
+  // CANCEL WORKOUT
+  async cancel(id: string, actor: WorkoutActor) {
+    const workout = await this.findOne(id, actor);
+
+    if (workout.status !== 'PLANNED' && workout.status !== 'IN_PROGRESS') {
+      throw new BadRequestException('This workout cannot be cancelled');
+    }
+
+    return this.updateWithConflictHandling(
+      {
+        id,
+        athleteId: actor.id,
+        status: workout.status,
+      },
+      {
+        status: 'CANCELLED',
+      },
+    );
+  }
+
+  // HELPERS
+  private assertAthlete(actor: WorkoutActor): void {
+    if (actor.role !== 'ATHLETE') {
+      throw new ForbiddenException(
+        'Only athletes can manage personal workouts',
+      );
+    }
+  }
+
+  private validatePagination(query: WorkoutListQuery): void {
+    if (
+      !Number.isInteger(query.page) ||
+      query.page < 1 ||
+      !Number.isInteger(query.limit) ||
+      query.limit < 1 ||
+      query.limit > 100
+    ) {
+      throw new BadRequestException('Invalid pagination parameters');
+    }
+  }
+
+  private async updateWithConflictHandling(
+    where: Prisma.WorkoutWhereUniqueInput,
+    data: Prisma.WorkoutUpdateInput,
+  ) {
+    try {
+      return await this.workoutsRepository.update(where, data);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new ConflictException(
+          'Workout state has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
+  }
+}

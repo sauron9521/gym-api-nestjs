@@ -1,0 +1,109 @@
+enum WorkoutStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkoutSetStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+}
+
+enum WorkoutSetType {
+  WARMUP
+  WORKING
+  DROP_SET
+  AMRAP
+}
+
+model Workout {
+  id    String  @id @default(uuid(4))
+  title String  @db.VarChar(120)
+  notes String? @db.Text
+
+  athleteId   String @map("athlete_id")
+  createdById String @map("created_by_id")
+
+  status WorkoutStatus @default(PLANNED)
+
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(3)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  athlete   User @relation("WorkoutAthlete", fields: [athleteId], references: [id], onDelete: Restrict)
+  createdBy User @relation("WorkoutCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  exercises WorkoutExercise[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([athleteId, scheduledAt])
+  @@index([athleteId, status, scheduledAt])
+  @@index([createdById, createdAt])
+  @@map("workouts")
+}
+
+model WorkoutExercise {
+  id         String @id @default(uuid(4))
+  workoutId  String @map("workout_id")
+  exerciseId String @map("exercise_id")
+
+  // Historical snapshot of the exercise metadata.
+  exerciseNameSnapshot String       @map("exercise_name_snapshot") @db.VarChar(120)
+  exerciseTypeSnapshot ExerciseType @map("exercise_type_snapshot")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  notes     String? @db.Text
+
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  sets WorkoutSet[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([workoutId, sortOrder])
+  @@index([exerciseId])
+  @@map("workout_exercises")
+}
+
+model WorkoutSet {
+  id                String @id @default(uuid(4))
+  workoutExerciseId String @map("workout_exercise_id")
+
+  setNumber Int              @map("set_number")
+  setType   WorkoutSetType   @default(WORKING) @map("set_type")
+  status    WorkoutSetStatus @default(PENDING)
+
+  // Planned values
+  plannedReps            Int?     @map("planned_reps")
+  plannedWeightKg        Decimal? @map("planned_weight_kg") @db.Decimal(8, 2)
+  plannedDurationSeconds Int?     @map("planned_duration_seconds")
+  plannedDistanceMeters  Decimal? @map("planned_distance_meters") @db.Decimal(10, 2)
+
+  // Actual values
+  actualReps            Int?     @map("actual_reps")
+  actualWeightKg        Decimal? @map("actual_weight_kg") @db.Decimal(8, 2)
+  actualDurationSeconds Int?     @map("actual_duration_seconds")
+  actualDistanceMeters  Decimal? @map("actual_distance_meters") @db.Decimal(10, 2)
+
+  // Additional training metrics
+  restSeconds Int?     @map("rest_seconds")
+  rpe         Decimal? @db.Decimal(3, 1)
+  rir         Int?
+
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  notes       String?   @db.Text
+
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([workoutExerciseId, setNumber])
+  @@map("workout_sets")
+}
