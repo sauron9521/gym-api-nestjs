@@ -11,12 +11,12 @@ import {
 } from '@nestjs/mail';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-
 import { AuthModule } from './modules/auth/auth.module.js';
+import { UsersModule } from './modules/users/users.module.js';
 import { ExercisesModule } from './modules/exercises/exercises.module.js';
+import { WorkoutsModule } from './modules/workouts/workouts.module.js';
 import { PrismaModule } from './database/index.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
-import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
   imports: [
@@ -68,6 +68,7 @@ import { UsersModule } from './modules/users/users.module.js';
     ScheduleModule.forRoot(),
     UsersModule,
     ExercisesModule,
+    WorkoutsModule,
   ],
   controllers: [],
   providers: [

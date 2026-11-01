@@ -442,6 +442,27 @@ export class ExercisesService {
     }
   }
 
+  async findAvailableForWorkout(
+    actor: ExerciseActor,
+    exerciseIds: string[],
+    access: ExerciseAccessContext,
+  ) {
+    const uniqueIds = [...new Set(exerciseIds)];
+
+    const exercises = await this.exercisesRepository.findAvailableForWorkout(
+      uniqueIds,
+      {
+        AND: [this.buildVisibilityWhere(actor, access), { isArchived: false }],
+      },
+    );
+
+    if (exercises.length !== uniqueIds.length) {
+      throw new BadRequestException('One or more exercises are not available');
+    }
+
+    return exercises;
+  }
+
   private validatePagination(query: ExerciseListQuery): void {
     if (
       !Number.isInteger(query.page) ||

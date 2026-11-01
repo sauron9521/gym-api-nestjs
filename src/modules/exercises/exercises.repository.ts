@@ -154,4 +154,20 @@ export class ExercisesRepository {
       },
     });
   }
+
+  async findAvailableForWorkout(
+    ids: string[],
+    where: Prisma.ExerciseWhereInput,
+  ) {
+    return this.prisma.exercise.findMany({
+      where: {
+        AND: [{ id: { in: ids } }, where],
+      },
+      select: {
+        id: true,
+        name: true,
+        exerciseType: true,
+      },
+    });
+  }
 }
