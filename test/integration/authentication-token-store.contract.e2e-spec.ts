@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
   AuthenticationStorage,
+  EmailTokenRecord,
   type EmailTokenStore,
   type RefreshTokenStore,
 } from '@nestjs/authentication';

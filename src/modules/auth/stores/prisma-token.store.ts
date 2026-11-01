@@ -21,7 +21,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
     storage.registerSource({ refreshTokens: this, emailTokens: this });
   }
 
-  protected readonly maxPending = 10_000;
+  protected readonly maxPending: number = 10_000;
 
   async getRefreshToken(id: string): Promise<RefreshTokenRecord | undefined> {
     const row = await this.prisma.refreshToken.findUnique({ where: { id } });
