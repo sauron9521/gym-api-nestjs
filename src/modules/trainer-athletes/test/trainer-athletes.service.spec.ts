@@ -24,6 +24,7 @@ describe('TrainerAthletesService', () => {
     update: vi.fn(),
     findActiveTrainerIdsForAthlete: vi.fn(),
     findActiveAthleteIdsForTrainer: vi.fn(),
+    terminateWithExerciseCopies: vi.fn(),
   };
 
   const usersRepository = {
@@ -404,62 +405,67 @@ describe('TrainerAthletesService', () => {
 
   describe('terminate', () => {
     it('should allow a trainer to terminate an active relationship', async () => {
-      repository.findById.mockResolvedValue(activeRelationship);
+      repository.findById.mockResolvedValue({
+        id: 'relationship-1',
+        trainerId: trainer.id,
+        athleteId: 'athlete-1',
+        initiatedById: trainer.id,
+        status: 'ACTIVE',
+      });
 
-      repository.update.mockResolvedValue({
-        ...activeRelationship,
+      repository.terminateWithExerciseCopies.mockResolvedValue({
+        id: 'relationship-1',
         status: 'TERMINATED',
       });
 
-      const result = await service.terminate(activeRelationship.id, trainer, {
+      const result = await service.terminate('relationship-1', trainer, {
         reason: 'Cooperation ended',
       });
 
       expect(result.status).toBe('TERMINATED');
 
-      expect(repository.update).toHaveBeenCalledWith(
-        {
-          id: activeRelationship.id,
-          status: 'ACTIVE',
-        },
-        expect.objectContaining({
-          status: 'TERMINATED',
-          endedAt: expect.any(Date),
-          endedBy: {
-            connect: { id: trainer.id },
-          },
-          endReason: 'Cooperation ended',
-        }),
-      );
+      expect(repository.terminateWithExerciseCopies).toHaveBeenCalledWith({
+        id: 'relationship-1',
+        actorId: trainer.id,
+        reason: 'Cooperation ended',
+      });
     });
 
     it('should allow an athlete to terminate an active relationship', async () => {
-      repository.findById.mockResolvedValue(activeRelationship);
-      repository.update.mockResolvedValue({
-        ...activeRelationship,
+      repository.findById.mockResolvedValue({
+        id: 'relationship-1',
+        trainerId: trainer.id,
+        athleteId: athlete.id,
+        initiatedById: trainer.id,
+        status: 'ACTIVE',
+      });
+
+      repository.terminateWithExerciseCopies.mockResolvedValue({
+        id: 'relationship-1',
         status: 'TERMINATED',
       });
 
-      await service.terminate(activeRelationship.id, athlete);
+      const result = await service.terminate('relationship-1', athlete, {
+        reason: 'Cooperation ended by athlete',
+      });
 
-      expect(repository.update).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          status: 'TERMINATED',
-          endedBy: {
-            connect: { id: athlete.id },
-          },
-        }),
-      );
+      expect(result.status).toBe('TERMINATED');
+
+      expect(repository.terminateWithExerciseCopies).toHaveBeenCalledWith({
+        id: 'relationship-1',
+        actorId: athlete.id,
+        reason: 'Cooperation ended by athlete',
+      });
     });
 
     it('should reject terminating a pending relationship', async () => {
       repository.findById.mockResolvedValue(pendingRelationship);
 
       await expect(
-        service.terminate(pendingRelationship.id, trainer),
+        service.terminate(pendingRelationship.id, trainer, {}),
       ).rejects.toThrow(ConflictException);
 
+      expect(repository.terminateWithExerciseCopies).not.toHaveBeenCalled();
       expect(repository.update).not.toHaveBeenCalled();
     });
   });

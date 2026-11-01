@@ -202,26 +202,26 @@ export class TrainerAthletesService {
   async terminate(
     id: string,
     actor: TrainerAthleteActor,
-    input: TerminateTrainerAthleteInput = {},
+    input: TerminateTrainerAthleteInput,
   ) {
     const relationship = await this.findOne(id, actor);
 
     this.assertStatus(relationship.status, 'ACTIVE');
 
-    return this.updateWithConflictHandling(
-      {
+    const terminated =
+      await this.trainerAthletesRepository.terminateWithExerciseCopies({
         id,
-        status: 'ACTIVE',
-      },
-      {
-        status: 'TERMINATED',
-        endedAt: new Date(),
-        endedBy: {
-          connect: { id: actor.id },
-        },
-        endReason: input.reason ?? null,
-      },
-    );
+        actorId: actor.id,
+        reason: input.reason,
+      });
+
+    if (!terminated) {
+      throw new ConflictException(
+        'Relationship state has changed. Reload and try again.',
+      );
+    }
+
+    return terminated;
   }
 
   // EXERCISE ACCESS CONTEXT
