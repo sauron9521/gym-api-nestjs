@@ -1,0 +1,43 @@
+enum TrainerAthleteStatus {
+  PENDING
+  ACTIVE
+  DECLINED
+  CANCELLED
+  TERMINATED
+}
+
+model TrainerAthlete {
+  id String @id @default(uuid(4))
+
+  trainerId     String @map("trainer_id")
+  athleteId     String @map("athlete_id")
+  initiatedById String @map("initiated_by_id")
+
+  status TrainerAthleteStatus @default(PENDING)
+
+  // Response to invitation/request
+  respondedAt DateTime? @map("responded_at") @db.Timestamptz(3)
+
+  // End of a relationship or cancellation
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
+  endedById String?   @map("ended_by_id")
+  endReason String?   @map("end_reason") @db.VarChar(500)
+
+  trainer User @relation("TrainerAthleteTrainer", fields: [trainerId], references: [id], onDelete: Restrict)
+
+  athlete User @relation("TrainerAthleteAthlete", fields: [athleteId], references: [id], onDelete: Restrict)
+
+  initiatedBy User @relation("TrainerAthleteInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+
+  endedBy User? @relation("TrainerAthleteEndedBy", fields: [endedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([trainerId, athleteId], where: raw("status IN ('PENDING', 'ACTIVE')"), map: "trainer_athletes_open_pair_key")
+  @@index([trainerId, status, createdAt])
+  @@index([athleteId, status, createdAt])
+  @@index([initiatedById, createdAt])
+  @@index([endedById])
+  @@map("trainer_athletes")
+}

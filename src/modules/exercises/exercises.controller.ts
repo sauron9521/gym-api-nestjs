@@ -34,6 +34,7 @@ import {
 } from './dto/query-exercises.dto.js';
 
 import { exerciseIdSchema } from './dto/exercise.schemas.js';
+import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
 
 const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
   activeTrainerIds: [],
@@ -42,25 +43,36 @@ const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
 
 @Controller('exercises')
 export class ExercisesController {
-  constructor(private readonly exercisesService: ExercisesService) {}
+  constructor(
+    private readonly exercisesService: ExercisesService,
+    private readonly trainerAthletesService: TrainerAthletesService,
+  ) {}
 
   @Get()
   @Authenticate({ optional: true })
-  findMany(
+  async findMany(
     @CurrentUser() user: ExerciseActor | null,
     @Query({ schema: queryExercisesSchema })
     query: QueryExercisesDto,
   ) {
-    return this.exercisesService.findMany(user, query, EMPTY_ACCESS_CONTEXT);
+    const access = user
+      ? await this.trainerAthletesService.getExerciseAccessContext(user)
+      : EMPTY_ACCESS_CONTEXT;
+
+    return this.exercisesService.findMany(user, query, access);
   }
 
   @Get(':id')
   @Authenticate({ optional: true })
-  findOne(
+  async findOne(
     @Param('id', { schema: exerciseIdSchema }) id: string,
     @CurrentUser() user: ExerciseActor | null,
   ) {
-    return this.exercisesService.findOne(id, user, EMPTY_ACCESS_CONTEXT);
+    const access = user
+      ? await this.trainerAthletesService.getExerciseAccessContext(user)
+      : EMPTY_ACCESS_CONTEXT;
+
+    return this.exercisesService.findOne(id, user, access);
   }
 
   @Post()

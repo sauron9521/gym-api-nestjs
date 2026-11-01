@@ -5,12 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { Prisma } from '../../generated/prisma/client.js';
-
 import { ExercisesService } from '../exercises/exercises.service.js';
 import { WorkoutsRepository } from './workouts.repository.js';
-
 import type {
   CreateWorkoutInput,
   UpdateWorkoutInput,
@@ -18,19 +15,14 @@ import type {
   WorkoutActor,
   WorkoutListQuery,
 } from './types/workout.types.js';
-
-import type { ExerciseAccessContext } from '../exercises/types/exercise.types.js';
-
-const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
-  activeTrainerIds: [],
-  activeAthleteIds: [],
-};
+import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
 
 @Injectable()
 export class WorkoutsService {
   constructor(
     private readonly workoutsRepository: WorkoutsRepository,
     private readonly exercisesService: ExercisesService,
+    private readonly trainerAthletesService: TrainerAthletesService,
   ) {}
 
   // CREATE
@@ -53,11 +45,14 @@ export class WorkoutsService {
 
     const exerciseIds = input.exercises.map((item) => item.exerciseId);
 
+    const access =
+      await this.trainerAthletesService.getExerciseAccessContext(actor);
+
     const availableExercises =
       await this.exercisesService.findAvailableForWorkout(
         actor,
         exerciseIds,
-        EMPTY_ACCESS_CONTEXT,
+        access,
       );
 
     const exerciseMap = new Map(

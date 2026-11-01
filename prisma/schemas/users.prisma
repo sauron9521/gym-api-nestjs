@@ -31,5 +31,11 @@ model User {
   athleteWorkouts Workout[] @relation("WorkoutAthlete")
   createdWorkouts Workout[] @relation("WorkoutCreator")
 
+  // Trainer - Athlete relationships
+  trainerRelationships             TrainerAthlete[] @relation("TrainerAthleteTrainer")
+  athleteRelationships             TrainerAthlete[] @relation("TrainerAthleteAthlete")
+  initiatedTrainerAthleteRequests  TrainerAthlete[] @relation("TrainerAthleteInitiator")
+  endedTrainerAthleteRelationships TrainerAthlete[] @relation("TrainerAthleteEndedBy")
+
   @@map("users")
 }

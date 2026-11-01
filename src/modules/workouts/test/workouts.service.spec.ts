@@ -15,6 +15,7 @@ import type {
   CreateWorkoutInput,
   WorkoutActor,
 } from '../types/workout.types.js';
+import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
 
 describe('WorkoutsService', () => {
   let service: WorkoutsService;
@@ -100,6 +101,15 @@ describe('WorkoutsService', () => {
     ],
   };
 
+  const trainerAthletesService = {
+    getExerciseAccessContext: vi.fn(),
+  };
+
+  const exerciseAccess = {
+    activeTrainerIds: [],
+    activeAthleteIds: [],
+  };
+
   beforeEach(() => {
     vi.resetAllMocks();
 
@@ -107,9 +117,37 @@ describe('WorkoutsService', () => {
       availableExercise,
     ]);
 
+    trainerAthletesService.getExerciseAccessContext.mockResolvedValue(
+      exerciseAccess,
+    );
+
     service = new WorkoutsService(
       repository as unknown as WorkoutsRepository,
       exercisesService as unknown as ExercisesService,
+      trainerAthletesService as unknown as TrainerAthletesService,
+    );
+  });
+
+  it('should use active trainer access when creating a workout', async () => {
+    const access = {
+      activeTrainerIds: ['trainer-1'],
+      activeAthleteIds: [],
+    };
+
+    trainerAthletesService.getExerciseAccessContext.mockResolvedValue(access);
+
+    repository.create.mockResolvedValue(plannedWorkout);
+
+    await service.create(athlete, createInput);
+
+    expect(
+      trainerAthletesService.getExerciseAccessContext,
+    ).toHaveBeenCalledWith(athlete);
+
+    expect(exercisesService.findAvailableForWorkout).toHaveBeenCalledWith(
+      athlete,
+      ['exercise-1'],
+      access,
     );
   });
 

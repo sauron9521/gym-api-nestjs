@@ -3,11 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ExercisesController } from '../exercises.controller.js';
 import { ExercisesService } from '../exercises.service.js';
 
-import type {
-  ExerciseActor,
-  ExerciseAccessContext,
-} from '../types/exercise.types.js';
+import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
 
+import type {
+  ExerciseAccessContext,
+  ExerciseActor,
+} from '../types/exercise.types.js';
 import type { CreateExerciseDto } from '../dto/create-exercise.dto.js';
 import type { UpdateExerciseDto } from '../dto/update-exercise.dto.js';
 import type { QueryExercisesDto } from '../dto/query-exercises.dto.js';
@@ -23,6 +24,10 @@ describe('ExercisesController', () => {
     archive: vi.fn(),
   };
 
+  const trainerAthletesService = {
+    getExerciseAccessContext: vi.fn(),
+  };
+
   const athlete: ExerciseActor = {
     id: 'athlete-1',
     role: 'ATHLETE',
@@ -36,12 +41,18 @@ describe('ExercisesController', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
 
+    trainerAthletesService.getExerciseAccessContext.mockResolvedValue(access);
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ExercisesController],
       providers: [
         {
           provide: ExercisesService,
           useValue: exercisesService,
+        },
+        {
+          provide: TrainerAthletesService,
+          useValue: trainerAthletesService,
         },
       ],
     }).compile();
@@ -78,6 +89,9 @@ describe('ExercisesController', () => {
       );
 
       expect(result).toEqual(exercises);
+      expect(
+        trainerAthletesService.getExerciseAccessContext,
+      ).toHaveBeenCalledWith(athlete);
     });
 
     it('should support guest requests', async () => {
@@ -131,6 +145,9 @@ describe('ExercisesController', () => {
         null,
         access,
       );
+      expect(
+        trainerAthletesService.getExerciseAccessContext,
+      ).not.toHaveBeenCalled();
     });
   });
 
