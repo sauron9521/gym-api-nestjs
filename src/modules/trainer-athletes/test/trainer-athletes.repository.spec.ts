@@ -21,6 +21,27 @@ describe('TrainerAthletesRepository', () => {
     },
   };
 
+  const tx = {
+    trainerAthlete: {
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    trainingProgramAssignment: {
+      updateMany: vi.fn(),
+    },
+    exercise: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    exerciseAthleteAssignment: {
+      updateMany: vi.fn(),
+    },
+    exerciseTrainerAccess: {
+      updateMany: vi.fn(),
+    },
+  };
+
   beforeEach(() => {
     vi.resetAllMocks();
 
@@ -352,6 +373,70 @@ describe('TrainerAthletesRepository', () => {
         await repository.findActiveAthleteIdsForTrainer('trainer-1');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('terminateWithExerciseCopies', () => {
+    it('should terminate active program assignments with the relationship', async () => {
+      const relationship = {
+        id: 'relationship-1',
+        trainerId: 'trainer-1',
+        athleteId: 'athlete-1',
+        createdAt: new Date('2026-10-01T10:00:00.000Z'),
+        respondedAt: new Date('2026-10-01T10:00:00.000Z'),
+      };
+
+      const terminated = {
+        ...relationship,
+        status: 'TERMINATED',
+      };
+
+      // Transaction setup
+      prisma.$transaction.mockImplementation(
+        async (callback: (client: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      );
+
+      tx.trainerAthlete.findFirst.mockResolvedValue(relationship);
+      tx.trainerAthlete.updateMany.mockResolvedValue({ count: 1 });
+      tx.trainerAthlete.findUnique.mockResolvedValue(terminated);
+
+      tx.trainingProgramAssignment.updateMany.mockResolvedValue({
+        count: 2,
+      });
+
+      // No exercises to copy in this test.
+      tx.exercise.findMany.mockResolvedValue([]);
+
+      tx.exerciseAthleteAssignment.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      tx.exerciseTrainerAccess.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      await repository.terminateWithExerciseCopies({
+        id: 'relationship-1',
+        actorId: 'trainer-1',
+        reason: 'Relationship ended',
+      });
+
+      // Verify program assignments are terminated.
+      expect(tx.trainingProgramAssignment.updateMany).toHaveBeenCalledWith({
+        where: {
+          trainerAthleteId: 'relationship-1',
+          status: 'ACTIVE',
+        },
+        data: {
+          status: 'TERMINATED',
+          endedAt: expect.any(Date),
+          endedById: 'trainer-1',
+          endReason: 'Relationship ended',
+        },
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalledOnce();
     });
   });
 });

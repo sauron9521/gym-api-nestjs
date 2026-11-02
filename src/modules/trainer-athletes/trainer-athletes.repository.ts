@@ -217,6 +217,21 @@ export class TrainerAthletesRepository {
         return null;
       }
 
+      // 3. Terminate all active program assignments
+      // associated with this trainer-athlete relationship.
+      await tx.trainingProgramAssignment.updateMany({
+        where: {
+          trainerAthleteId: relationship.id,
+          status: 'ACTIVE',
+        },
+        data: {
+          status: 'TERMINATED',
+          endedAt,
+          endedById: input.actorId,
+          endReason: input.reason ?? null,
+        },
+      });
+
       const activeFrom = relationship.respondedAt ?? relationship.createdAt;
 
       // 3. Find trainer exercises that were assigned to this athlete
