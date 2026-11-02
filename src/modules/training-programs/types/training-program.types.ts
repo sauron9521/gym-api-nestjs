@@ -25,3 +25,29 @@ export type TrainingProgramListQuery = {
   limit: number;
   status?: TrainingProgramStatus;
 };
+
+export type CreateTrainingProgramWorkoutInput = {
+  weekNumber: number;
+  dayNumber: number;
+  title: string;
+  notes?: string | null;
+};
+
+export type UpdateTrainingProgramWorkoutInput = {
+  weekNumber?: number;
+  dayNumber?: number;
+  title?: string;
+  notes?: string | null;
+};
+export type AddTrainingProgramExerciseInput = {
+  exerciseId: string;
+  notes?: string | null;
+};
+
+export type UpdateTrainingProgramExerciseInput = {
+  notes?: string | null;
+};
+
+export type ReorderTrainingProgramExercisesInput = {
+  exerciseIds: string[];
+};

@@ -4,12 +4,9 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-
 import { Prisma } from '../../../generated/prisma/client.js';
-
 import { TrainingProgramsRepository } from '../training-programs.repository.js';
 import { TrainingProgramsService } from '../training-programs.service.js';
-
 import type { TrainingProgramActor } from '../types/training-program.types.js';
 
 describe('TrainingProgramsService', () => {
@@ -26,6 +23,21 @@ describe('TrainingProgramsService', () => {
     updateVersion: vi.fn(),
     publishVersion: vi.fn(),
     updateProgram: vi.fn(),
+    createWorkout: vi.fn(),
+    updateWorkout: vi.fn(),
+    deleteWorkout: vi.fn(),
+    createProgramExercise: vi.fn(),
+    updateProgramExercise: vi.fn(),
+    deleteProgramExercise: vi.fn(),
+    reorderProgramExercises: vi.fn(),
+  };
+
+  const exercisesServiceMock = {
+    findOne: vi.fn(),
+  };
+
+  const trainerAthletesServiceMock = {
+    getExerciseAccessContext: vi.fn(),
   };
 
   const trainer: TrainingProgramActor = {
@@ -96,6 +108,8 @@ describe('TrainingProgramsService', () => {
 
     service = new TrainingProgramsService(
       repository as unknown as TrainingProgramsRepository,
+      exercisesServiceMock as unknown as ExercisesService,
+      trainerAthletesServiceMock as unknown as TrainerAthletesService,
     );
   });
 

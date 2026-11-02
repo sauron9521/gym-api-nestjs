@@ -5,23 +5,134 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
+import { ExercisesService } from '../exercises/exercises.service.js';
+import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
 import { Prisma } from '../../generated/prisma/client.js';
 
 import { TrainingProgramsRepository } from './training-programs.repository.js';
 
 import type {
+  AddTrainingProgramExerciseInput,
   CreateTrainingProgramInput,
+  CreateTrainingProgramWorkoutInput,
+  ReorderTrainingProgramExercisesInput,
   TrainingProgramActor,
   TrainingProgramListQuery,
   UpdateTrainingProgramDraftInput,
+  UpdateTrainingProgramExerciseInput,
+  UpdateTrainingProgramWorkoutInput,
 } from './types/training-program.types.js';
 
 @Injectable()
 export class TrainingProgramsService {
   constructor(
     private readonly trainingProgramsRepository: TrainingProgramsRepository,
+    private readonly exercisesService: ExercisesService,
+    private readonly trainerAthletesService: TrainerAthletesService,
   ) {}
+
+  async createWorkout(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    input: CreateTrainingProgramWorkoutInput,
+  ) {
+    await this.assertEditableDraft(actor, programId, versionId);
+
+    try {
+      return await this.trainingProgramsRepository.createWorkout(
+        programId,
+        versionId,
+        input,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2002')) {
+        throw new ConflictException(
+          'A workout already exists for this week and day.',
+        );
+      }
+
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async updateWorkout(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    input: UpdateTrainingProgramWorkoutInput,
+  ) {
+    if (Object.keys(input).length === 0) {
+      throw new BadRequestException('At least one field must be provided.');
+    }
+
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workoutExists = version.workouts.some(
+      (workout) => workout.id === workoutId,
+    );
+
+    if (!workoutExists) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.updateWorkout(
+        programId,
+        versionId,
+        workoutId,
+        input,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2002')) {
+        throw new ConflictException(
+          'A workout already exists for this week and day.',
+        );
+      }
+
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async deleteWorkout(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workoutExists = version.workouts.some(
+      (workout) => workout.id === workoutId,
+    );
+
+    if (!workoutExists) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.deleteWorkout(
+        programId,
+        versionId,
+        workoutId,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
 
   // ===========================================================================
   // CREATE PROGRAM
@@ -350,5 +461,222 @@ export class TrainingProgramsService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === code
     );
+  }
+
+  private async assertEditableDraft(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+  ) {
+    this.assertTrainer(actor);
+
+    const program = await this.trainingProgramsRepository.findProgramById(
+      programId,
+      {
+        trainerId: actor.id,
+      },
+    );
+
+    if (!program) {
+      throw new NotFoundException('Training program not found.');
+    }
+
+    if (program.status === 'ARCHIVED') {
+      throw new ConflictException('Archived programs cannot be modified.');
+    }
+
+    const version = await this.trainingProgramsRepository.findVersionById(
+      versionId,
+      { programId },
+    );
+
+    if (!version) {
+      throw new NotFoundException('Program version not found.');
+    }
+
+    if (version.status !== 'DRAFT') {
+      throw new ConflictException('Only draft versions can be modified.');
+    }
+
+    return version;
+  }
+
+  async addExercise(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    input: AddTrainingProgramExerciseInput,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    const access =
+      await this.trainerAthletesService.getExerciseAccessContext(actor);
+
+    const exercise = await this.exercisesService.findOne(
+      input.exerciseId,
+      actor,
+      access,
+    );
+
+    const sortOrder =
+      Math.max(-1, ...workout.exercises.map((item) => item.sortOrder)) + 1;
+
+    try {
+      return await this.trainingProgramsRepository.createProgramExercise(
+        programId,
+        versionId,
+        workoutId,
+        {
+          exerciseId: exercise.id,
+          exerciseNameSnapshot: exercise.name,
+          exerciseTypeSnapshot: exercise.exerciseType,
+          sortOrder,
+          notes: input.notes ?? null,
+        },
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2002')) {
+        throw new ConflictException(
+          'Exercise order has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async updateExercise(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    exerciseId: string,
+    input: UpdateTrainingProgramExerciseInput,
+  ) {
+    if (Object.keys(input).length === 0) {
+      throw new BadRequestException('At least one field must be provided.');
+    }
+
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    if (!workout.exercises.some((item) => item.id === exerciseId)) {
+      throw new NotFoundException('Program exercise not found.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.updateProgramExercise(
+        programId,
+        versionId,
+        workoutId,
+        exerciseId,
+        input,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async removeExercise(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    exerciseId: string,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    if (!workout.exercises.some((item) => item.id === exerciseId)) {
+      throw new NotFoundException('Program exercise not found.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.deleteProgramExercise(
+        programId,
+        versionId,
+        workoutId,
+        exerciseId,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async reorderExercises(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    input: ReorderTrainingProgramExercisesInput,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    const exerciseIds: string[] = input.exerciseIds;
+
+    if (
+      new Set(exerciseIds).size !== exerciseIds.length ||
+      exerciseIds.length !== workout.exercises.length ||
+      !exerciseIds.every((id) =>
+        workout.exercises.some((item) => item.id === id),
+      )
+    ) {
+      throw new BadRequestException(
+        'The order must contain every workout exercise exactly once.',
+      );
+    }
+
+    try {
+      return await this.trainingProgramsRepository.reorderProgramExercises(
+        programId,
+        versionId,
+        workoutId,
+        exerciseIds,
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'INVALID_EXERCISE_ORDER'
+      ) {
+        throw new BadRequestException('Invalid exercise order.');
+      }
+
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
   }
 }
