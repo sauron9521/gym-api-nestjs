@@ -30,6 +30,10 @@ describe('TrainingProgramsService', () => {
     updateProgramExercise: vi.fn(),
     deleteProgramExercise: vi.fn(),
     reorderProgramExercises: vi.fn(),
+    createProgramSet: vi.fn(),
+    updateProgramSet: vi.fn(),
+    deleteProgramSet: vi.fn(),
+    reorderProgramSets: vi.fn(),
   };
 
   const exercisesServiceMock = {

@@ -8,20 +8,21 @@ import {
 import { ExercisesService } from '../exercises/exercises.service.js';
 import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
 import { Prisma } from '../../generated/prisma/client.js';
-
-import { TrainingProgramsRepository } from './training-programs.repository.js';
-
 import type {
   AddTrainingProgramExerciseInput,
   CreateTrainingProgramInput,
+  CreateTrainingProgramSetInput,
   CreateTrainingProgramWorkoutInput,
   ReorderTrainingProgramExercisesInput,
+  ReorderTrainingProgramSetsInput,
   TrainingProgramActor,
   TrainingProgramListQuery,
   UpdateTrainingProgramDraftInput,
   UpdateTrainingProgramExerciseInput,
+  UpdateTrainingProgramSetInput,
   UpdateTrainingProgramWorkoutInput,
 } from './types/training-program.types.js';
+import { TrainingProgramsRepository } from './training-programs.repository.js';
 
 @Injectable()
 export class TrainingProgramsService {
@@ -670,6 +671,220 @@ export class TrainingProgramsService {
         error.message === 'INVALID_EXERCISE_ORDER'
       ) {
         throw new BadRequestException('Invalid exercise order.');
+      }
+
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async addSet(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    programExerciseId: string,
+    input: CreateTrainingProgramSetInput,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    const exercise = workout.exercises.find(
+      (item) => item.id === programExerciseId,
+    );
+
+    if (!exercise) {
+      throw new NotFoundException('Program exercise not found.');
+    }
+
+    const setNumber =
+      Math.max(0, ...exercise.sets.map((set) => set.setNumber)) + 1;
+
+    try {
+      return await this.trainingProgramsRepository.createProgramSet(
+        programId,
+        versionId,
+        workoutId,
+        programExerciseId,
+        {
+          setNumber,
+          setType: input.setType ?? 'WORKING',
+          plannedReps: input.plannedReps ?? null,
+          plannedWeightKg: input.plannedWeightKg ?? null,
+          plannedDurationSeconds: input.plannedDurationSeconds ?? null,
+          plannedDistanceMeters: input.plannedDistanceMeters ?? null,
+          restSeconds: input.restSeconds ?? null,
+          targetRpe: input.targetRpe ?? null,
+          targetRir: input.targetRir ?? null,
+          notes: input.notes ?? null,
+        },
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2002')) {
+        throw new ConflictException(
+          'Set number already exists. Reload and try again.',
+        );
+      }
+
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException(
+          'The draft version or exercise is no longer editable.',
+        );
+      }
+
+      throw error;
+    }
+  }
+  async updateSet(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    programExerciseId: string,
+    setId: string,
+    input: UpdateTrainingProgramSetInput,
+  ) {
+    if (Object.keys(input).length === 0) {
+      throw new BadRequestException('At least one field must be provided.');
+    }
+
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    const exercise = workout.exercises.find(
+      (item) => item.id === programExerciseId,
+    );
+
+    if (!exercise) {
+      throw new NotFoundException('Program exercise not found.');
+    }
+
+    if (!exercise.sets.some((set) => set.id === setId)) {
+      throw new NotFoundException('Program set not found.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.updateProgramSet(
+        programId,
+        versionId,
+        workoutId,
+        programExerciseId,
+        setId,
+        input,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+  async removeSet(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    programExerciseId: string,
+    setId: string,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    const exercise = workout.exercises.find(
+      (item) => item.id === programExerciseId,
+    );
+
+    if (!exercise) {
+      throw new NotFoundException('Program exercise not found.');
+    }
+
+    if (!exercise.sets.some((set) => set.id === setId)) {
+      throw new NotFoundException('Program set not found.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.deleteProgramSet(
+        programId,
+        versionId,
+        workoutId,
+        programExerciseId,
+        setId,
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async reorderSets(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    workoutId: string,
+    programExerciseId: string,
+    input: ReorderTrainingProgramSetsInput,
+  ) {
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    const workout = version.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new NotFoundException('Workout not found.');
+    }
+
+    const exercise = workout.exercises.find(
+      (item) => item.id === programExerciseId,
+    );
+
+    if (!exercise) {
+      throw new NotFoundException('Program exercise not found.');
+    }
+
+    const { setIds } = input;
+
+    if (
+      new Set(setIds).size !== setIds.length ||
+      setIds.length !== exercise.sets.length ||
+      !setIds.every((id) => exercise.sets.some((set) => set.id === id))
+    ) {
+      throw new BadRequestException(
+        'The order must contain every set exactly once.',
+      );
+    }
+
+    try {
+      return await this.trainingProgramsRepository.reorderProgramSets(
+        programId,
+        versionId,
+        workoutId,
+        programExerciseId,
+        setIds,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_SET_ORDER') {
+        throw new BadRequestException('Invalid set order.');
       }
 
       if (this.isPrismaError(error, 'P2025')) {

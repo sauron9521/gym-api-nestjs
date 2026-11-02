@@ -1,6 +1,7 @@
 import type {
   Role,
   TrainingProgramStatus,
+  WorkoutSetType,
 } from '../../../generated/prisma/client.js';
 
 export type TrainingProgramActor = {
@@ -50,4 +51,23 @@ export type UpdateTrainingProgramExerciseInput = {
 
 export type ReorderTrainingProgramExercisesInput = {
   exerciseIds: string[];
+};
+
+export type CreateTrainingProgramSetInput = {
+  setType?: WorkoutSetType;
+  plannedReps?: number | null;
+  plannedWeightKg?: number | null;
+  plannedDurationSeconds?: number | null;
+  plannedDistanceMeters?: number | null;
+  restSeconds?: number | null;
+  targetRpe?: number | null;
+  targetRir?: number | null;
+  notes?: string | null;
+};
+
+export type UpdateTrainingProgramSetInput =
+  Partial<CreateTrainingProgramSetInput>;
+
+export type ReorderTrainingProgramSetsInput = {
+  setIds: string[];
 };
