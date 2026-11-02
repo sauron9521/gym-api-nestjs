@@ -224,6 +224,177 @@ export type FindManyTrainingProgramAssignmentsParams = {
 export class TrainingProgramsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async createProgramWithDraft(input: {
+    trainerId: string;
+    title: string;
+    description?: string | null;
+    durationWeeks?: number | null;
+  }) {
+    return this.prisma.trainingProgram.create({
+      data: {
+        trainer: {
+          connect: { id: input.trainerId },
+        },
+        versions: {
+          create: {
+            version: 1,
+            title: input.title,
+            description: input.description ?? null,
+            durationWeeks: input.durationWeeks ?? null,
+            status: 'DRAFT',
+          },
+        },
+      },
+      select: trainingProgramSelect,
+    });
+  }
+
+  async createDraftFromLatestPublished(programId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const program = await tx.trainingProgram.findFirst({
+        where: {
+          id: programId,
+          status: { not: 'ARCHIVED' },
+        },
+        select: { id: true },
+      });
+
+      if (!program) {
+        return null;
+      }
+
+      const existingDraft = await tx.trainingProgramVersion.findFirst({
+        where: {
+          programId,
+          status: 'DRAFT',
+        },
+        select: { id: true },
+      });
+
+      if (existingDraft) {
+        return null;
+      }
+
+      const source = await tx.trainingProgramVersion.findFirst({
+        where: {
+          programId,
+          status: 'PUBLISHED',
+        },
+        orderBy: {
+          version: 'desc',
+        },
+        select: trainingProgramVersionSelect,
+      });
+
+      if (!source) {
+        return null;
+      }
+
+      return tx.trainingProgramVersion.create({
+        data: {
+          program: {
+            connect: { id: programId },
+          },
+
+          version: source.version + 1,
+          title: source.title,
+          description: source.description,
+          durationWeeks: source.durationWeeks,
+          status: 'DRAFT',
+
+          workouts: {
+            create: source.workouts.map((workout) => ({
+              weekNumber: workout.weekNumber,
+              dayNumber: workout.dayNumber,
+              title: workout.title,
+              notes: workout.notes,
+
+              exercises: {
+                create: workout.exercises.map((exercise) => ({
+                  exercise: {
+                    connect: { id: exercise.exerciseId },
+                  },
+
+                  exerciseNameSnapshot: exercise.exerciseNameSnapshot,
+                  exerciseTypeSnapshot: exercise.exerciseTypeSnapshot,
+
+                  sortOrder: exercise.sortOrder,
+                  notes: exercise.notes,
+
+                  sets: {
+                    create: exercise.sets.map((set) => ({
+                      setNumber: set.setNumber,
+                      setType: set.setType,
+
+                      plannedReps: set.plannedReps,
+                      plannedWeightKg: set.plannedWeightKg,
+                      plannedDurationSeconds: set.plannedDurationSeconds,
+                      plannedDistanceMeters: set.plannedDistanceMeters,
+
+                      restSeconds: set.restSeconds,
+                      targetRpe: set.targetRpe,
+                      targetRir: set.targetRir,
+
+                      notes: set.notes,
+                    })),
+                  },
+                })),
+              },
+            })),
+          },
+        },
+        select: trainingProgramVersionSelect,
+      });
+    });
+  }
+
+  async publishVersion(programId: string, versionId: string) {
+    return this.prisma
+      .$transaction(async (tx) => {
+        const published = await tx.trainingProgramVersion.updateMany({
+          where: {
+            id: versionId,
+            programId,
+            status: 'DRAFT',
+          },
+          data: {
+            status: 'PUBLISHED',
+            publishedAt: new Date(),
+          },
+        });
+
+        if (published.count !== 1) {
+          return null;
+        }
+
+        const programUpdate = await tx.trainingProgram.updateMany({
+          where: {
+            id: programId,
+            status: { not: 'ARCHIVED' },
+          },
+          data: {
+            status: 'PUBLISHED',
+          },
+        });
+
+        if (programUpdate.count !== 1) {
+          throw new Error('PROGRAM_ARCHIVED');
+        }
+
+        return tx.trainingProgramVersion.findUnique({
+          where: { id: versionId },
+          select: trainingProgramVersionSelect,
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.message === 'PROGRAM_ARCHIVED') {
+          return null;
+        }
+
+        throw error;
+      });
+  }
+
   // ===========================================================================
   // TRAINING PROGRAMS
   // ===========================================================================
