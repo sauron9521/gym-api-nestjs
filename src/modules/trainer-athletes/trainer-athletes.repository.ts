@@ -217,6 +217,40 @@ export class TrainerAthletesRepository {
         return null;
       }
 
+      // 3. Collect exercises from active training program assignments.
+      const activeProgramAssignments =
+        await tx.trainingProgramAssignment.findMany({
+          where: {
+            trainerAthleteId: relationship.id,
+            status: 'ACTIVE',
+          },
+          select: {
+            version: {
+              select: {
+                workouts: {
+                  select: {
+                    exercises: {
+                      select: {
+                        exerciseId: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+      const programExerciseIds = [
+        ...new Set(
+          activeProgramAssignments.flatMap(({ version }) =>
+            version.workouts.flatMap((workout) =>
+              workout.exercises.map(({ exerciseId }) => exerciseId),
+            ),
+          ),
+        ),
+      ];
+
       // 3. Terminate all active program assignments
       // associated with this trainer-athlete relationship.
       await tx.trainingProgramAssignment.updateMany({
@@ -269,6 +303,9 @@ export class TrainerAthletesRepository {
                 },
               },
             },
+            ...(programExerciseIds.length > 0
+              ? [{ id: { in: programExerciseIds } }]
+              : []),
           ],
         },
         select: {

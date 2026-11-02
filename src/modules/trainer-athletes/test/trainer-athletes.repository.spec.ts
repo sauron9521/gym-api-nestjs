@@ -28,6 +28,7 @@ describe('TrainerAthletesRepository', () => {
       findUnique: vi.fn(),
     },
     trainingProgramAssignment: {
+      findMany: vi.fn(),
       updateMany: vi.fn(),
     },
     exercise: {
@@ -44,6 +45,8 @@ describe('TrainerAthletesRepository', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+
+    tx.trainingProgramAssignment.findMany.mockResolvedValue([]);
 
     repository = new TrainerAthletesRepository(
       prisma as unknown as PrismaService,
@@ -406,7 +409,20 @@ describe('TrainerAthletesRepository', () => {
       });
 
       // No exercises to copy in this test.
-      tx.exercise.findMany.mockResolvedValue([]);
+      tx.trainingProgramAssignment.findMany.mockResolvedValue([
+        {
+          version: {
+            workouts: [
+              {
+                exercises: [
+                  { exerciseId: 'program-exercise-1' },
+                  { exerciseId: 'program-exercise-2' },
+                ],
+              },
+            ],
+          },
+        },
+      ]);
 
       tx.exerciseAthleteAssignment.updateMany.mockResolvedValue({
         count: 0,
@@ -416,11 +432,49 @@ describe('TrainerAthletesRepository', () => {
         count: 0,
       });
 
+      tx.exercise.findMany.mockResolvedValue([]);
+
       await repository.terminateWithExerciseCopies({
         id: 'relationship-1',
         actorId: 'trainer-1',
         reason: 'Relationship ended',
       });
+
+      expect(tx.trainingProgramAssignment.findMany).toHaveBeenCalledWith({
+        where: {
+          trainerAthleteId: 'relationship-1',
+          status: 'ACTIVE',
+        },
+        select: {
+          version: {
+            select: {
+              workouts: {
+                select: {
+                  exercises: {
+                    select: {
+                      exerciseId: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(tx.exercise.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              {
+                id: {
+                  in: ['program-exercise-1', 'program-exercise-2'],
+                },
+              },
+            ]),
+          }),
+        }),
+      );
 
       // Verify program assignments are terminated.
       expect(tx.trainingProgramAssignment.updateMany).toHaveBeenCalledWith({
