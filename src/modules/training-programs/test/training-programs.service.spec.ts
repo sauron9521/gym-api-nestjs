@@ -34,6 +34,7 @@ describe('TrainingProgramsService', () => {
     updateProgramSet: vi.fn(),
     deleteProgramSet: vi.fn(),
     reorderProgramSets: vi.fn(),
+    createAssignment: vi.fn(),
   };
 
   const exercisesServiceMock = {
@@ -42,6 +43,7 @@ describe('TrainingProgramsService', () => {
 
   const trainerAthletesServiceMock = {
     getExerciseAccessContext: vi.fn(),
+    findOne: vi.fn(),
   };
 
   const trainer: TrainingProgramActor = {
@@ -66,6 +68,13 @@ describe('TrainingProgramsService', () => {
         status: 'DRAFT',
       },
     ],
+  };
+
+  const relationship = {
+    id: 'relationship-1',
+    trainerId: trainer.id,
+    athleteId: 'athlete-1',
+    status: 'ACTIVE',
   };
 
   const draftVersion = {
@@ -523,6 +532,184 @@ describe('TrainingProgramsService', () => {
       );
 
       expect(repository.updateProgram).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('assignVersionToAthlete', () => {
+    const publishedProgram = {
+      ...program,
+      status: 'PUBLISHED',
+    };
+
+    const publishedVersion = {
+      ...draftVersion,
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+    };
+
+    const input = {
+      trainerAthleteId: relationship.id,
+    };
+
+    beforeEach(() => {
+      repository.findProgramById.mockResolvedValue(publishedProgram);
+      repository.findVersionById.mockResolvedValue(publishedVersion);
+      trainerAthletesServiceMock.findOne.mockResolvedValue(relationship);
+    });
+
+    it('should assign a published version to an active athlete', async () => {
+      const assignment = {
+        id: 'assignment-1',
+        versionId: publishedVersion.id,
+        athleteId: relationship.athleteId,
+        status: 'ACTIVE',
+      };
+
+      repository.createAssignment.mockResolvedValue(assignment);
+
+      const result = await service.assignVersionToAthlete(
+        trainer,
+        'program-1',
+        'version-1',
+        input,
+      );
+
+      expect(trainerAthletesServiceMock.findOne).toHaveBeenCalledWith(
+        relationship.id,
+        trainer,
+      );
+
+      expect(repository.createAssignment).toHaveBeenCalledWith({
+        version: {
+          connect: { id: 'version-1' },
+        },
+        trainerAthlete: {
+          connect: { id: relationship.id },
+        },
+        athlete: {
+          connect: { id: relationship.athleteId },
+        },
+        assignedBy: {
+          connect: { id: trainer.id },
+        },
+      });
+
+      expect(result).toEqual(assignment);
+    });
+
+    it('should reject non-trainers', async () => {
+      await expect(
+        service.assignVersionToAthlete(
+          athlete,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(repository.createAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject an archived program', async () => {
+      repository.findProgramById.mockResolvedValue({
+        ...publishedProgram,
+        status: 'ARCHIVED',
+      });
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(trainerAthletesServiceMock.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should reject a draft version', async () => {
+      repository.findVersionById.mockResolvedValue(draftVersion);
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.createAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject an inactive trainer-athlete relationship', async () => {
+      trainerAthletesServiceMock.findOne.mockResolvedValue({
+        ...relationship,
+        status: 'PENDING',
+      });
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.createAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject a relationship belonging to another trainer', async () => {
+      trainerAthletesServiceMock.findOne.mockResolvedValue({
+        ...relationship,
+        trainerId: 'another-trainer',
+      });
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(repository.createAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject an assignment when the program does not exist', async () => {
+      repository.findProgramById.mockResolvedValue(null);
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(repository.createAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should convert duplicate assignment conflict into ConflictException', async () => {
+      repository.createAssignment.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '7.10.1',
+        }),
+      );
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

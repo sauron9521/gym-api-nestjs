@@ -71,3 +71,7 @@ export type UpdateTrainingProgramSetInput =
 export type ReorderTrainingProgramSetsInput = {
   setIds: string[];
 };
+
+export type CreateTrainingProgramAssignmentInput = {
+  trainerAthleteId: string;
+};

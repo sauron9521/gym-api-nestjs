@@ -10,6 +10,7 @@ import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.ser
 import { Prisma } from '../../generated/prisma/client.js';
 import type {
   AddTrainingProgramExerciseInput,
+  CreateTrainingProgramAssignmentInput,
   CreateTrainingProgramInput,
   CreateTrainingProgramSetInput,
   CreateTrainingProgramWorkoutInput,
@@ -38,7 +39,14 @@ export class TrainingProgramsService {
     versionId: string,
     input: CreateTrainingProgramWorkoutInput,
   ) {
-    await this.assertEditableDraft(actor, programId, versionId);
+    const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    if (
+      version.durationWeeks !== null &&
+      input.weekNumber > version.durationWeeks
+    ) {
+      throw new BadRequestException('Workout week exceeds program duration.');
+    }
 
     try {
       return await this.trainingProgramsRepository.createWorkout(
@@ -73,6 +81,14 @@ export class TrainingProgramsService {
     }
 
     const version = await this.assertEditableDraft(actor, programId, versionId);
+
+    if (
+      input.weekNumber !== undefined &&
+      version.durationWeeks !== null &&
+      input.weekNumber > version.durationWeeks
+    ) {
+      throw new BadRequestException('Workout week exceeds program duration.');
+    }
 
     const workoutExists = version.workouts.some(
       (workout) => workout.id === workoutId,
@@ -889,6 +905,81 @@ export class TrainingProgramsService {
 
       if (this.isPrismaError(error, 'P2025')) {
         throw new ConflictException('The draft version is no longer editable.');
+      }
+
+      throw error;
+    }
+  }
+
+  async assignVersionToAthlete(
+    actor: TrainingProgramActor,
+    programId: string,
+    versionId: string,
+    input: CreateTrainingProgramAssignmentInput,
+  ) {
+    this.assertTrainer(actor);
+
+    const program = await this.findOne(programId, actor);
+
+    if (program.status === 'ARCHIVED') {
+      throw new ConflictException('Archived programs cannot be assigned.');
+    }
+
+    const version = await this.findVersion(programId, versionId, actor);
+
+    if (version.status !== 'PUBLISHED') {
+      throw new ConflictException('Only published versions can be assigned.');
+    }
+
+    const relationship = await this.trainerAthletesService.findOne(
+      input.trainerAthleteId,
+      actor,
+    );
+
+    if (relationship.trainerId !== actor.id) {
+      throw new ForbiddenException(
+        'You can only assign programs to your own athletes.',
+      );
+    }
+
+    if (relationship.status !== 'ACTIVE') {
+      throw new ConflictException(
+        'An active trainer-athlete relationship is required.',
+      );
+    }
+
+    const data = {
+      version: {
+        connect: { id: versionId },
+      },
+      trainerAthlete: {
+        connect: { id: relationship.id },
+      },
+      athlete: {
+        connect: { id: relationship.athleteId },
+      },
+      assignedBy: {
+        connect: { id: actor.id },
+      },
+    } satisfies Prisma.TrainingProgramAssignmentCreateInput;
+
+    try {
+      return await this.trainingProgramsRepository.createAssignment(data);
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2002')) {
+        throw new ConflictException('This program assignment already exists.');
+      }
+
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException(
+          'The program or relationship state has changed.',
+        );
+      }
+
+      if (this.isPrismaError(error, 'P2003')) {
+        throw new NotFoundException(
+          'One of the assignment references no longer exists.',
+        );
       }
 
       throw error;
