@@ -660,13 +660,6 @@ export class TrainingProgramsRepository {
     });
   }
 
-  async createAssignment(data: Prisma.TrainingProgramAssignmentCreateInput) {
-    return this.prisma.trainingProgramAssignment.create({
-      data,
-      select: trainingProgramAssignmentSelect,
-    });
-  }
-
   async createAssignmentForActiveRelationship(input: {
     trainerAthleteId: string;
     trainerId: string;
