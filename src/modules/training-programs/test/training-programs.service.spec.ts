@@ -34,7 +34,7 @@ describe('TrainingProgramsService', () => {
     updateProgramSet: vi.fn(),
     deleteProgramSet: vi.fn(),
     reorderProgramSets: vi.fn(),
-    createAssignment: vi.fn(),
+    createAssignmentForActiveRelationship: vi.fn(),
     findManyAssignments: vi.fn(),
     findAssignmentById: vi.fn(),
     updateAssignment: vi.fn(),
@@ -632,7 +632,9 @@ describe('TrainingProgramsService', () => {
         status: 'ACTIVE',
       };
 
-      repository.createAssignment.mockResolvedValue(assignment);
+      repository.createAssignmentForActiveRelationship.mockResolvedValue(
+        assignment,
+      );
 
       const result = await service.assignVersionToAthlete(
         trainer,
@@ -646,22 +648,64 @@ describe('TrainingProgramsService', () => {
         trainer,
       );
 
-      expect(repository.createAssignment).toHaveBeenCalledWith({
-        version: {
-          connect: { id: 'version-1' },
-        },
-        trainerAthlete: {
-          connect: { id: relationship.id },
-        },
-        athlete: {
-          connect: { id: relationship.athleteId },
-        },
-        assignedBy: {
-          connect: { id: trainer.id },
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).toHaveBeenCalledWith({
+        trainerAthleteId: relationship.id,
+        trainerId: trainer.id,
+        athleteId: relationship.athleteId,
+        data: {
+          version: {
+            connect: { id: 'version-1' },
+          },
+          trainerAthlete: {
+            connect: { id: relationship.id },
+          },
+          athlete: {
+            connect: { id: relationship.athleteId },
+          },
+          assignedBy: {
+            connect: { id: trainer.id },
+          },
         },
       });
 
       expect(result).toEqual(assignment);
+    });
+
+    it('should reject assignment when relationship is no longer active', async () => {
+      repository.createAssignmentForActiveRelationship.mockResolvedValue(null);
+
+      await expect(
+        service.assignVersionToAthlete(
+          trainer,
+          'program-1',
+          'version-1',
+          input,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).toHaveBeenCalledWith({
+        trainerAthleteId: relationship.id,
+        trainerId: trainer.id,
+        athleteId: relationship.athleteId,
+        data: {
+          version: {
+            connect: { id: 'version-1' },
+          },
+          trainerAthlete: {
+            connect: { id: relationship.id },
+          },
+          athlete: {
+            connect: { id: relationship.athleteId },
+          },
+          assignedBy: {
+            connect: { id: trainer.id },
+          },
+        },
+      });
     });
 
     it('should reject non-trainers', async () => {
@@ -674,7 +718,9 @@ describe('TrainingProgramsService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(repository.createAssignment).not.toHaveBeenCalled();
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).not.toHaveBeenCalled();
     });
 
     it('should reject an archived program', async () => {
@@ -707,7 +753,9 @@ describe('TrainingProgramsService', () => {
         ),
       ).rejects.toThrow(ConflictException);
 
-      expect(repository.createAssignment).not.toHaveBeenCalled();
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).not.toHaveBeenCalled();
     });
 
     it('should reject an inactive trainer-athlete relationship', async () => {
@@ -725,7 +773,9 @@ describe('TrainingProgramsService', () => {
         ),
       ).rejects.toThrow(ConflictException);
 
-      expect(repository.createAssignment).not.toHaveBeenCalled();
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).not.toHaveBeenCalled();
     });
 
     it('should reject a relationship belonging to another trainer', async () => {
@@ -743,7 +793,9 @@ describe('TrainingProgramsService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(repository.createAssignment).not.toHaveBeenCalled();
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).not.toHaveBeenCalled();
     });
 
     it('should reject an assignment when the program does not exist', async () => {
@@ -758,11 +810,13 @@ describe('TrainingProgramsService', () => {
         ),
       ).rejects.toThrow(NotFoundException);
 
-      expect(repository.createAssignment).not.toHaveBeenCalled();
+      expect(
+        repository.createAssignmentForActiveRelationship,
+      ).not.toHaveBeenCalled();
     });
 
     it('should convert duplicate assignment conflict into ConflictException', async () => {
-      repository.createAssignment.mockRejectedValue(
+      repository.createAssignmentForActiveRelationship.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
           code: 'P2002',
           clientVersion: '7.10.1',

@@ -1,9 +1,8 @@
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
-
 import {
-  trainingProgramSelect,
-  trainingProgramVersionSelect,
   trainingProgramAssignmentSelect,
+  trainingProgramSelect,
+  TrainingProgramsRepository,
+  trainingProgramVersionSelect,
 } from '../training-programs.repository.js';
 
 describe('TrainingProgramsRepository', () => {
@@ -361,27 +360,22 @@ describe('TrainingProgramsRepository', () => {
       expect(result).toEqual(assignments);
     });
 
-    it('should create an assignment', async () => {
-      const assignment = { id: 'assignment-1' };
+    it('should not create an assignment when relationship is inactive', async () => {
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([]),
+        trainingProgramAssignment: {
+          create: vi.fn(),
+        },
+      };
 
-      models.trainingProgramAssignment.create.mockResolvedValue(assignment);
-
-      const result = await repository.createAssignment({
-        version: {
-          connect: { id: 'version-1' },
-        },
-        trainerAthlete: {
-          connect: { id: 'relationship-1' },
-        },
-        athlete: {
-          connect: { id: 'athlete-1' },
-        },
-        assignedBy: {
-          connect: { id: 'trainer-1' },
-        },
+      models.$transaction.mockImplementation(async (callback) => {
+        return callback(tx);
       });
 
-      expect(models.trainingProgramAssignment.create).toHaveBeenCalledWith({
+      const result = await repository.createAssignmentForActiveRelationship({
+        trainerAthleteId: 'relationship-1',
+        trainerId: 'trainer-1',
+        athleteId: 'athlete-1',
         data: {
           version: {
             connect: { id: 'version-1' },
@@ -396,6 +390,59 @@ describe('TrainingProgramsRepository', () => {
             connect: { id: 'trainer-1' },
           },
         },
+      });
+
+      expect(result).toBeNull();
+
+      expect(tx.trainingProgramAssignment.create).not.toHaveBeenCalled();
+    });
+
+    it('should create an assignment for an active relationship', async () => {
+      const assignment = {
+        id: 'assignment-1',
+      };
+
+      const data = {
+        version: {
+          connect: { id: 'version-1' },
+        },
+        trainerAthlete: {
+          connect: { id: 'relationship-1' },
+        },
+        athlete: {
+          connect: { id: 'athlete-1' },
+        },
+        assignedBy: {
+          connect: { id: 'trainer-1' },
+        },
+      };
+
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([
+          {
+            id: 'relationship-1',
+          },
+        ]),
+        trainingProgramAssignment: {
+          create: vi.fn().mockResolvedValue(assignment),
+        },
+      };
+
+      models.$transaction.mockImplementation(async (callback) => {
+        return callback(tx);
+      });
+
+      const result = await repository.createAssignmentForActiveRelationship({
+        trainerAthleteId: 'relationship-1',
+        trainerId: 'trainer-1',
+        athleteId: 'athlete-1',
+        data,
+      });
+
+      expect(tx.$queryRaw).toHaveBeenCalled();
+
+      expect(tx.trainingProgramAssignment.create).toHaveBeenCalledWith({
+        data,
         select: trainingProgramAssignmentSelect,
       });
 

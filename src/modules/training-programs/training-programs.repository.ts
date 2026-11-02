@@ -667,6 +667,37 @@ export class TrainingProgramsRepository {
     });
   }
 
+  async createAssignmentForActiveRelationship(input: {
+    trainerAthleteId: string;
+    trainerId: string;
+    athleteId: string;
+    data: Prisma.TrainingProgramAssignmentCreateInput;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      // Lock the active relationship row.
+      const relationships = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "trainer_athletes"
+      WHERE
+        "id" = ${input.trainerAthleteId}
+        AND "trainer_id" = ${input.trainerId}
+        AND "athlete_id" = ${input.athleteId}
+        AND "status" = 'ACTIVE'
+      FOR UPDATE
+    `;
+
+      if (relationships.length !== 1) {
+        return null;
+      }
+
+      // Create assignment while holding the relationship lock.
+      return tx.trainingProgramAssignment.create({
+        data: input.data,
+        select: trainingProgramAssignmentSelect,
+      });
+    });
+  }
+
   async updateAssignment(
     where: Prisma.TrainingProgramAssignmentWhereUniqueInput,
     data: Prisma.TrainingProgramAssignmentUpdateInput,

@@ -963,7 +963,23 @@ export class TrainingProgramsService {
     } satisfies Prisma.TrainingProgramAssignmentCreateInput;
 
     try {
-      return await this.trainingProgramsRepository.createAssignment(data);
+      const assignment =
+        await this.trainingProgramsRepository.createAssignmentForActiveRelationship(
+          {
+            trainerAthleteId: relationship.id,
+            trainerId: actor.id,
+            athleteId: relationship.athleteId,
+            data,
+          },
+        );
+
+      if (!assignment) {
+        throw new ConflictException(
+          'The trainer-athlete relationship is no longer active.',
+        );
+      }
+
+      return assignment;
     } catch (error) {
       if (this.isPrismaError(error, 'P2002')) {
         throw new ConflictException('This program assignment already exists.');
