@@ -535,14 +535,11 @@ export class TrainingProgramsService {
       throw new NotFoundException('Workout not found.');
     }
 
-    const access =
-      await this.trainerAthletesService.getExerciseAccessContext(actor);
-
-    const exercise = await this.exercisesService.findOne(
-      input.exerciseId,
-      actor,
-      access,
-    );
+    const exercise =
+      await this.exercisesService.findAvailableForTrainingProgram(
+        input.exerciseId,
+        actor,
+      );
 
     const sortOrder =
       Math.max(-1, ...workout.exercises.map((item) => item.sortOrder)) + 1;

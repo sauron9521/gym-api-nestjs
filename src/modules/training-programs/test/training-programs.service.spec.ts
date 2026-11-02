@@ -42,6 +42,7 @@ describe('TrainingProgramsService', () => {
 
   const exercisesServiceMock = {
     findOne: vi.fn(),
+    findAvailableForTrainingProgram: vi.fn(),
   };
 
   const trainerAthletesServiceMock = {
@@ -133,6 +134,63 @@ describe('TrainingProgramsService', () => {
       exercisesServiceMock as unknown as ExercisesService,
       trainerAthletesServiceMock as unknown as TrainerAthletesService,
     );
+  });
+
+  describe('addExercise', () => {
+    it('should add an available exercise to a workout', async () => {
+      // Arrange: mock program and draft version.
+      repository.findProgramById.mockResolvedValue(program);
+      repository.findVersionById.mockResolvedValue(draftVersion);
+
+      // Arrange: mock available exercise.
+      const exercise = {
+        id: 'exercise-1',
+        name: 'Bench Press',
+        exerciseType: 'STRENGTH',
+      };
+
+      exercisesServiceMock.findAvailableForTrainingProgram.mockResolvedValue(
+        exercise,
+      );
+
+      repository.createProgramExercise.mockResolvedValue({
+        id: 'program-exercise-new',
+      });
+
+      // Act.
+      const result = await service.addExercise(
+        trainer,
+        'program-1',
+        'version-1',
+        'program-workout-1',
+        {
+          exerciseId: 'exercise-1',
+          notes: 'Controlled tempo',
+        },
+      );
+
+      // Assert.
+      expect(
+        exercisesServiceMock.findAvailableForTrainingProgram,
+      ).toHaveBeenCalledWith('exercise-1', trainer);
+
+      expect(repository.createProgramExercise).toHaveBeenCalledWith(
+        'program-1',
+        'version-1',
+        'program-workout-1',
+        {
+          exerciseId: 'exercise-1',
+          exerciseNameSnapshot: 'Bench Press',
+          exerciseTypeSnapshot: 'STRENGTH',
+          sortOrder: 1,
+          notes: 'Controlled tempo',
+        },
+      );
+
+      expect(result).toEqual({
+        id: 'program-exercise-new',
+      });
+    });
   });
 
   describe('create', () => {
