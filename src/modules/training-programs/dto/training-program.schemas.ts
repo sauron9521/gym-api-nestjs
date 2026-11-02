@@ -65,3 +65,12 @@ export const trainingProgramRestSchema = z.number().int().min(0).max(86400);
 export const trainingProgramRpeSchema = z.number().finite().min(1).max(10);
 
 export const trainingProgramRirSchema = z.number().int().min(0).max(10);
+
+export const trainingProgramAssignmentIdSchema = z.string().uuid();
+
+export const trainingProgramAssignmentStatusSchema = z.enum([
+  'ACTIVE',
+  'COMPLETED',
+  'CANCELLED',
+  'TERMINATED',
+]);

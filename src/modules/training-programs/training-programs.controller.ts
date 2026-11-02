@@ -21,12 +21,23 @@ import { TrainingProgramsService } from './training-programs.service.js';
 import type { TrainingProgramActor } from './types/training-program.types.js';
 
 import {
+  trainingProgramAssignmentIdSchema,
   trainingProgramExerciseIdSchema,
   trainingProgramIdSchema,
   trainingProgramSetIdSchema,
   trainingProgramVersionIdSchema,
   trainingProgramWorkoutIdSchema,
 } from './dto/training-program.schemas.js';
+
+import {
+  type QueryTrainingProgramAssignmentsDto,
+  queryTrainingProgramAssignmentsSchema,
+} from './dto/query-training-program-assignments.dto.js';
+
+import {
+  type CancelTrainingProgramAssignmentDto,
+  cancelTrainingProgramAssignmentSchema,
+} from './dto/cancel-training-program-assignment.dto.js';
 
 import {
   type CreateTrainingProgramDto,
@@ -108,6 +119,58 @@ export class TrainingProgramsController {
     query: QueryTrainingProgramsDto,
   ) {
     return this.trainingProgramsService.findMany(actor, query);
+  }
+
+  // ASSIGNMENTS
+
+  @Get('assignments')
+  findManyAssignments(
+    @CurrentUser() actor: TrainingProgramActor,
+    @Query({ schema: queryTrainingProgramAssignmentsSchema })
+    query: QueryTrainingProgramAssignmentsDto,
+  ) {
+    return this.trainingProgramsService.findManyAssignments(actor, query);
+  }
+
+  @Get('assignments/:assignmentId')
+  findOneAssignment(
+    @Param('assignmentId', {
+      schema: trainingProgramAssignmentIdSchema,
+    })
+    assignmentId: string,
+    @CurrentUser() actor: TrainingProgramActor,
+  ) {
+    return this.trainingProgramsService.findOneAssignment(assignmentId, actor);
+  }
+
+  @Post('assignments/:assignmentId/complete')
+  @HttpCode(HttpStatus.OK)
+  completeAssignment(
+    @Param('assignmentId', {
+      schema: trainingProgramAssignmentIdSchema,
+    })
+    assignmentId: string,
+    @CurrentUser() actor: TrainingProgramActor,
+  ) {
+    return this.trainingProgramsService.completeAssignment(assignmentId, actor);
+  }
+
+  @Post('assignments/:assignmentId/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelAssignment(
+    @Param('assignmentId', {
+      schema: trainingProgramAssignmentIdSchema,
+    })
+    assignmentId: string,
+    @CurrentUser() actor: TrainingProgramActor,
+    @Body({ schema: cancelTrainingProgramAssignmentSchema })
+    body: CancelTrainingProgramAssignmentDto,
+  ) {
+    return this.trainingProgramsService.cancelAssignment(
+      assignmentId,
+      actor,
+      body ?? {},
+    );
   }
 
   @Get(':programId')

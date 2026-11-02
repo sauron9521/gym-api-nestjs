@@ -25,6 +25,10 @@ describe('TrainingProgramsController', () => {
     removeSet: vi.fn(),
     reorderSets: vi.fn(),
     assignVersionToAthlete: vi.fn(),
+    findManyAssignments: vi.fn(),
+    findOneAssignment: vi.fn(),
+    completeAssignment: vi.fn(),
+    cancelAssignment: vi.fn(),
   };
 
   let controller: TrainingProgramsController;
@@ -39,6 +43,69 @@ describe('TrainingProgramsController', () => {
 
     controller = new TrainingProgramsController(
       service as unknown as TrainingProgramsService,
+    );
+  });
+
+  it('should return assignments for current user', async () => {
+    const query = {
+      page: 1,
+      limit: 20,
+      status: 'ACTIVE' as const,
+    };
+
+    service.findManyAssignments.mockResolvedValue({
+      data: [],
+      meta: {},
+    });
+
+    await controller.findManyAssignments(actor, query);
+
+    expect(service.findManyAssignments).toHaveBeenCalledWith(actor, query);
+  });
+
+  it('should return one assignment', async () => {
+    service.findOneAssignment.mockResolvedValue({
+      id: 'assignment-1',
+    });
+
+    await controller.findOneAssignment('assignment-1', actor);
+
+    expect(service.findOneAssignment).toHaveBeenCalledWith(
+      'assignment-1',
+      actor,
+    );
+  });
+
+  it('should complete an assignment', async () => {
+    service.completeAssignment.mockResolvedValue({
+      id: 'assignment-1',
+      status: 'COMPLETED',
+    });
+
+    await controller.completeAssignment('assignment-1', actor);
+
+    expect(service.completeAssignment).toHaveBeenCalledWith(
+      'assignment-1',
+      actor,
+    );
+  });
+
+  it('should cancel an assignment', async () => {
+    const body = {
+      reason: 'Program changed',
+    };
+
+    service.cancelAssignment.mockResolvedValue({
+      id: 'assignment-1',
+      status: 'CANCELLED',
+    });
+
+    await controller.cancelAssignment('assignment-1', actor, body);
+
+    expect(service.cancelAssignment).toHaveBeenCalledWith(
+      'assignment-1',
+      actor,
+      body,
     );
   });
 
