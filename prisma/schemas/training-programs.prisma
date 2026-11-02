@@ -1,0 +1,171 @@
+enum TrainingProgramStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TrainingProgramVersionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum TrainingProgramAssignmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  TERMINATED
+}
+
+model TrainingProgram {
+  id        String @id @default(uuid(4))
+  trainerId String @map("trainer_id")
+
+  status TrainingProgramStatus @default(DRAFT)
+
+  trainer  User                     @relation("TrainingProgramTrainer", fields: [trainerId], references: [id], onDelete: Restrict)
+  versions TrainingProgramVersion[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([trainerId, status, updatedAt])
+  @@map("training_programs")
+}
+
+model TrainingProgramVersion {
+  id        String @id @default(uuid(4))
+  programId String @map("program_id")
+
+  version Int
+
+  title         String  @db.VarChar(120)
+  description   String? @db.Text
+  durationWeeks Int?    @map("duration_weeks")
+
+  status      TrainingProgramVersionStatus @default(DRAFT)
+  publishedAt DateTime?                    @map("published_at") @db.Timestamptz(3)
+
+  program     TrainingProgram             @relation(fields: [programId], references: [id], onDelete: Restrict)
+  workouts    TrainingProgramWorkout[]
+  assignments TrainingProgramAssignment[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([programId, version])
+  @@unique([programId], where: raw("status = 'DRAFT'"), map: "training_program_versions_one_draft_key")
+  @@index([programId, status, version])
+  @@map("training_program_versions")
+}
+
+model TrainingProgramWorkout {
+  id        String @id @default(uuid(4))
+  versionId String @map("version_id")
+
+  weekNumber Int @map("week_number")
+  dayNumber  Int @map("day_number")
+
+  title String  @db.VarChar(120)
+  notes String? @db.Text
+
+  version   TrainingProgramVersion    @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  exercises TrainingProgramExercise[]
+  workouts  Workout[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([versionId, weekNumber, dayNumber])
+  @@index([versionId, weekNumber, dayNumber])
+  @@map("training_program_workouts")
+}
+
+model TrainingProgramExercise {
+  id         String @id @default(uuid(4))
+  workoutId  String @map("workout_id")
+  exerciseId String @map("exercise_id")
+
+  // Snapshot of the exercise at the time it was added to the program.
+  exerciseNameSnapshot String       @map("exercise_name_snapshot") @db.VarChar(120)
+  exerciseTypeSnapshot ExerciseType @map("exercise_type_snapshot")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  notes     String? @db.Text
+
+  workout  TrainingProgramWorkout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise               @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  sets TrainingProgramSet[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([workoutId, sortOrder])
+  @@index([exerciseId])
+  @@map("training_program_exercises")
+}
+
+model TrainingProgramSet {
+  id                String @id @default(uuid(4))
+  programExerciseId String @map("program_exercise_id")
+
+  setNumber Int            @map("set_number")
+  setType   WorkoutSetType @default(WORKING) @map("set_type")
+
+  // Planned values
+  plannedReps            Int?     @map("planned_reps")
+  plannedWeightKg        Decimal? @map("planned_weight_kg") @db.Decimal(8, 2)
+  plannedDurationSeconds Int?     @map("planned_duration_seconds")
+  plannedDistanceMeters  Decimal? @map("planned_distance_meters") @db.Decimal(10, 2)
+
+  restSeconds Int?     @map("rest_seconds")
+  targetRpe   Decimal? @map("target_rpe") @db.Decimal(3, 1)
+  targetRir   Int?     @map("target_rir")
+
+  notes String? @db.Text
+
+  programExercise TrainingProgramExercise @relation(fields: [programExerciseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([programExerciseId, setNumber])
+  @@map("training_program_sets")
+}
+
+model TrainingProgramAssignment {
+  id               String @id @default(uuid(4))
+  versionId        String @map("version_id")
+  trainerAthleteId String @map("trainer_athlete_id")
+  athleteId        String @map("athlete_id")
+  assignedById     String @map("assigned_by_id")
+
+  status TrainingProgramAssignmentStatus @default(ACTIVE)
+
+  assignedAt  DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
+  endedById String?   @map("ended_by_id")
+  endReason String?   @map("end_reason") @db.VarChar(500)
+
+  version        TrainingProgramVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  trainerAthlete TrainerAthlete         @relation(fields: [trainerAthleteId], references: [id], onDelete: Restrict)
+
+  athlete    User  @relation("ProgramAssignmentAthlete", fields: [athleteId], references: [id], onDelete: Restrict)
+  assignedBy User  @relation("ProgramAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  endedBy    User? @relation("ProgramAssignmentEndedBy", fields: [endedById], references: [id], onDelete: Restrict)
+
+  workouts Workout[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([trainerAthleteId, status])
+  @@index([athleteId, status, assignedAt])
+  @@index([versionId])
+  @@index([assignedById])
+  @@index([endedById])
+  @@map("training_program_assignments")
+}
