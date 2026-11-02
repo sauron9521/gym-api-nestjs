@@ -10,6 +10,7 @@ import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.ser
 import { Prisma } from '../../generated/prisma/client.js';
 import type {
   AddTrainingProgramExerciseInput,
+  CancelTrainingProgramAssignmentInput,
   CreateTrainingProgramAssignmentInput,
   CreateTrainingProgramInput,
   CreateTrainingProgramSetInput,
@@ -17,6 +18,7 @@ import type {
   ReorderTrainingProgramExercisesInput,
   ReorderTrainingProgramSetsInput,
   TrainingProgramActor,
+  TrainingProgramAssignmentListQuery,
   TrainingProgramListQuery,
   UpdateTrainingProgramDraftInput,
   UpdateTrainingProgramExerciseInput,
@@ -983,6 +985,161 @@ export class TrainingProgramsService {
       }
 
       throw error;
+    }
+  }
+
+  async findManyAssignments(
+    actor: TrainingProgramActor,
+    query: TrainingProgramAssignmentListQuery,
+  ) {
+    this.assertAssignmentParticipant(actor);
+    this.validateAssignmentPagination(query);
+
+    const accessWhere = this.getAssignmentAccessWhere(actor);
+
+    return this.trainingProgramsRepository.findManyAssignments({
+      where: {
+        AND: [accessWhere, ...(query.status ? [{ status: query.status }] : [])],
+      },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+  }
+
+  async findOneAssignment(assignmentId: string, actor: TrainingProgramActor) {
+    this.assertAssignmentParticipant(actor);
+
+    const assignment = await this.trainingProgramsRepository.findAssignmentById(
+      assignmentId,
+      this.getAssignmentAccessWhere(actor),
+    );
+
+    if (!assignment) {
+      throw new NotFoundException('Training program assignment not found.');
+    }
+
+    return assignment;
+  }
+
+  async completeAssignment(assignmentId: string, actor: TrainingProgramActor) {
+    if (actor.role !== 'ATHLETE') {
+      throw new ForbiddenException(
+        'Only athletes can complete their program assignments.',
+      );
+    }
+
+    const assignment = await this.findOneAssignment(assignmentId, actor);
+
+    if (assignment.status !== 'ACTIVE') {
+      throw new ConflictException('Only active assignments can be completed.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.updateAssignment(
+        {
+          id: assignmentId,
+          status: 'ACTIVE',
+        },
+        {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException(
+          'Assignment state has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async cancelAssignment(
+    assignmentId: string,
+    actor: TrainingProgramActor,
+    input: CancelTrainingProgramAssignmentInput = {},
+  ) {
+    if (actor.role !== 'TRAINER') {
+      throw new ForbiddenException(
+        'Only trainers can cancel program assignments.',
+      );
+    }
+
+    const assignment = await this.findOneAssignment(assignmentId, actor);
+
+    if (assignment.status !== 'ACTIVE') {
+      throw new ConflictException('Only active assignments can be cancelled.');
+    }
+
+    try {
+      return await this.trainingProgramsRepository.updateAssignment(
+        {
+          id: assignmentId,
+          status: 'ACTIVE',
+        },
+        {
+          status: 'CANCELLED',
+          endedAt: new Date(),
+          endedBy: {
+            connect: { id: actor.id },
+          },
+          endReason: input.reason?.trim() || null,
+        },
+      );
+    } catch (error) {
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException(
+          'Assignment state has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private assertAssignmentParticipant(actor: TrainingProgramActor): void {
+    if (actor.role !== 'TRAINER' && actor.role !== 'ATHLETE') {
+      throw new ForbiddenException(
+        'Only trainers and athletes can access program assignments.',
+      );
+    }
+  }
+
+  private getAssignmentAccessWhere(
+    actor: TrainingProgramActor,
+  ): Prisma.TrainingProgramAssignmentWhereInput {
+    if (actor.role === 'TRAINER') {
+      return {
+        version: {
+          program: {
+            trainerId: actor.id,
+          },
+        },
+      };
+    }
+
+    if (actor.role === 'ATHLETE') {
+      return {
+        athleteId: actor.id,
+      };
+    }
+
+    throw new ForbiddenException();
+  }
+
+  private validateAssignmentPagination(
+    query: TrainingProgramAssignmentListQuery,
+  ): void {
+    if (
+      !Number.isInteger(query.page) ||
+      query.page < 1 ||
+      !Number.isInteger(query.limit) ||
+      query.limit < 1 ||
+      query.limit > 100
+    ) {
+      throw new BadRequestException('Invalid pagination parameters.');
     }
   }
 }

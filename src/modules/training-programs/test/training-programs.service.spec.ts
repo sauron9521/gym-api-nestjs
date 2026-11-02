@@ -35,6 +35,9 @@ describe('TrainingProgramsService', () => {
     deleteProgramSet: vi.fn(),
     reorderProgramSets: vi.fn(),
     createAssignment: vi.fn(),
+    findManyAssignments: vi.fn(),
+    findAssignmentById: vi.fn(),
+    updateAssignment: vi.fn(),
   };
 
   const exercisesServiceMock = {
@@ -68,6 +71,12 @@ describe('TrainingProgramsService', () => {
         status: 'DRAFT',
       },
     ],
+  };
+
+  const activeAssignment = {
+    id: 'assignment-1',
+    athleteId: 'athlete-1',
+    status: 'ACTIVE',
   };
 
   const relationship = {
@@ -732,6 +741,191 @@ describe('TrainingProgramsService', () => {
       await expect(
         service.createNextDraft('program-1', trainer),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('assignments lifecycle', () => {
+    beforeEach(() => {
+      repository.findAssignmentById.mockResolvedValue(activeAssignment);
+    });
+
+    it('should return trainer assignments scoped to owned programs', async () => {
+      const response = {
+        data: [activeAssignment],
+        meta: {
+          total: 1,
+          skip: 0,
+          take: 20,
+          totalPages: 1,
+        },
+      };
+
+      repository.findManyAssignments.mockResolvedValue(response);
+
+      const result = await service.findManyAssignments(trainer, {
+        page: 1,
+        limit: 20,
+        status: 'ACTIVE',
+      });
+
+      expect(repository.findManyAssignments).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              version: {
+                program: {
+                  trainerId: trainer.id,
+                },
+              },
+            },
+            { status: 'ACTIVE' },
+          ],
+        },
+        skip: 0,
+        take: 20,
+      });
+
+      expect(result).toEqual(response);
+    });
+
+    it('should scope athlete assignments to current athlete', async () => {
+      repository.findManyAssignments.mockResolvedValue({
+        data: [],
+        meta: {},
+      });
+
+      await service.findManyAssignments(athlete, {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(repository.findManyAssignments).toHaveBeenCalledWith({
+        where: {
+          AND: [{ athleteId: athlete.id }],
+        },
+        skip: 0,
+        take: 20,
+      });
+    });
+
+    it('should return only an assignment accessible to the athlete', async () => {
+      await service.findOneAssignment('assignment-1', athlete);
+
+      expect(repository.findAssignmentById).toHaveBeenCalledWith(
+        'assignment-1',
+        { athleteId: athlete.id },
+      );
+    });
+
+    it('should hide assignments belonging to another athlete', async () => {
+      repository.findAssignmentById.mockResolvedValue(null);
+
+      await expect(
+        service.findOneAssignment('assignment-1', athlete),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should allow an athlete to complete an active assignment', async () => {
+      const completed = {
+        ...activeAssignment,
+        status: 'COMPLETED',
+      };
+
+      repository.updateAssignment.mockResolvedValue(completed);
+
+      const result = await service.completeAssignment('assignment-1', athlete);
+
+      expect(repository.updateAssignment).toHaveBeenCalledWith(
+        {
+          id: 'assignment-1',
+          status: 'ACTIVE',
+        },
+        expect.objectContaining({
+          status: 'COMPLETED',
+          completedAt: expect.any(Date),
+        }),
+      );
+
+      expect(result).toEqual(completed);
+    });
+
+    it('should reject assignment completion by a trainer', async () => {
+      await expect(
+        service.completeAssignment('assignment-1', trainer),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should allow the owning trainer to cancel an active assignment', async () => {
+      repository.updateAssignment.mockResolvedValue({
+        ...activeAssignment,
+        status: 'CANCELLED',
+      });
+
+      await service.cancelAssignment('assignment-1', trainer, {
+        reason: 'Program updated',
+      });
+
+      expect(repository.updateAssignment).toHaveBeenCalledWith(
+        {
+          id: 'assignment-1',
+          status: 'ACTIVE',
+        },
+        expect.objectContaining({
+          status: 'CANCELLED',
+          endedAt: expect.any(Date),
+          endedBy: {
+            connect: { id: trainer.id },
+          },
+          endReason: 'Program updated',
+        }),
+      );
+    });
+
+    it('should reject cancellation by an athlete', async () => {
+      await expect(
+        service.cancelAssignment('assignment-1', athlete),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject completing an already completed assignment', async () => {
+      repository.findAssignmentById.mockResolvedValue({
+        ...activeAssignment,
+        status: 'COMPLETED',
+      });
+
+      await expect(
+        service.completeAssignment('assignment-1', athlete),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject cancelling an already cancelled assignment', async () => {
+      repository.findAssignmentById.mockResolvedValue({
+        ...activeAssignment,
+        status: 'CANCELLED',
+      });
+
+      await expect(
+        service.cancelAssignment('assignment-1', trainer),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid assignment pagination', async () => {
+      await expect(
+        service.findManyAssignments(trainer, {
+          page: 0,
+          limit: 20,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(repository.findManyAssignments).not.toHaveBeenCalled();
     });
   });
 });

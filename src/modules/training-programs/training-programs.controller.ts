@@ -12,16 +12,20 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
+import {
+  type CreateTrainingProgramAssignmentDto,
+  createTrainingProgramAssignmentSchema,
+} from './dto/create-training-program-assignment.dto.js';
 
 import { TrainingProgramsService } from './training-programs.service.js';
 import type { TrainingProgramActor } from './types/training-program.types.js';
 
 import {
+  trainingProgramExerciseIdSchema,
   trainingProgramIdSchema,
+  trainingProgramSetIdSchema,
   trainingProgramVersionIdSchema,
   trainingProgramWorkoutIdSchema,
-  trainingProgramExerciseIdSchema,
-  trainingProgramSetIdSchema,
 } from './dto/training-program.schemas.js';
 
 import {
@@ -190,6 +194,24 @@ export class TrainingProgramsController {
       programId,
       versionId,
       actor,
+    );
+  }
+
+  @Post(':programId/versions/:versionId/assignments')
+  assignVersionToAthlete(
+    @Param('programId', { schema: trainingProgramIdSchema })
+    programId: string,
+    @Param('versionId', { schema: trainingProgramVersionIdSchema })
+    versionId: string,
+    @CurrentUser() actor: TrainingProgramActor,
+    @Body({ schema: createTrainingProgramAssignmentSchema })
+    body: CreateTrainingProgramAssignmentDto,
+  ) {
+    return this.trainingProgramsService.assignVersionToAthlete(
+      actor,
+      programId,
+      versionId,
+      body,
     );
   }
 

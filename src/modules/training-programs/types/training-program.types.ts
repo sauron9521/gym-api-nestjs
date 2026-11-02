@@ -1,5 +1,6 @@
 import type {
   Role,
+  TrainingProgramAssignmentStatus,
   TrainingProgramStatus,
   WorkoutSetType,
 } from '../../../generated/prisma/client.js';
@@ -74,4 +75,14 @@ export type ReorderTrainingProgramSetsInput = {
 
 export type CreateTrainingProgramAssignmentInput = {
   trainerAthleteId: string;
+};
+
+export type TrainingProgramAssignmentListQuery = {
+  page: number;
+  limit: number;
+  status?: TrainingProgramAssignmentStatus;
+};
+
+export type CancelTrainingProgramAssignmentInput = {
+  reason?: string | null;
 };

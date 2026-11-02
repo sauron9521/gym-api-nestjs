@@ -24,6 +24,7 @@ describe('TrainingProgramsController', () => {
     updateSet: vi.fn(),
     removeSet: vi.fn(),
     reorderSets: vi.fn(),
+    assignVersionToAthlete: vi.fn(),
   };
 
   let controller: TrainingProgramsController;
@@ -38,6 +39,31 @@ describe('TrainingProgramsController', () => {
 
     controller = new TrainingProgramsController(
       service as unknown as TrainingProgramsService,
+    );
+  });
+
+  it('should assign a published version to an athlete', async () => {
+    const body = {
+      trainerAthleteId: 'relationship-1',
+    };
+
+    service.assignVersionToAthlete.mockResolvedValue({
+      id: 'assignment-1',
+      status: 'ACTIVE',
+    });
+
+    await controller.assignVersionToAthlete(
+      'program-1',
+      'version-1',
+      actor,
+      body,
+    );
+
+    expect(service.assignVersionToAthlete).toHaveBeenCalledWith(
+      actor,
+      'program-1',
+      'version-1',
+      body,
     );
   });
 
