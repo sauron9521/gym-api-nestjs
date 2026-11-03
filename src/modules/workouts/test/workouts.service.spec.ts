@@ -12,6 +12,7 @@ import { WorkoutsRepository } from '../workouts.repository.js';
 import { WorkoutsService } from '../workouts.service.js';
 
 import type {
+  CreateWorkoutFromProgramInput,
   CreateWorkoutInput,
   WorkoutActor,
 } from '../types/workout.types.js';
@@ -22,6 +23,7 @@ describe('WorkoutsService', () => {
 
   const repository = {
     create: vi.fn(),
+    createFromProgram: vi.fn(),
     findMany: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
@@ -153,6 +155,57 @@ describe('WorkoutsService', () => {
       ['exercise-1'],
       access,
     );
+  });
+
+  describe('createFromProgram', () => {
+    const input: CreateWorkoutFromProgramInput = {
+      assignmentId: 'assignment-1',
+      programWorkoutId: 'program-workout-1',
+      scheduledAt: new Date('2030-01-15T10:00:00.000Z'),
+    };
+
+    const workoutFromProgram = {
+      id: 'workout-1',
+      title: 'Upper Body',
+      athleteId: athlete.id,
+      createdById: athlete.id,
+      status: 'PLANNED',
+      programAssignmentId: input.assignmentId,
+      programWorkoutId: input.programWorkoutId,
+    };
+
+    it('should create a workout from an assigned program', async () => {
+      repository.createFromProgram.mockResolvedValue(workoutFromProgram);
+
+      const result = await service.createFromProgram(athlete, input);
+
+      expect(result).toEqual(workoutFromProgram);
+
+      expect(repository.createFromProgram).toHaveBeenCalledWith({
+        athleteId: athlete.id,
+        assignmentId: input.assignmentId,
+        programWorkoutId: input.programWorkoutId,
+        scheduledAt: input.scheduledAt,
+      });
+    });
+
+    it('should reject non-athletes', async () => {
+      await expect(service.createFromProgram(trainer, input)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(repository.createFromProgram).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when assignment or workout is unavailable', async () => {
+      repository.createFromProgram.mockResolvedValue(null);
+
+      await expect(service.createFromProgram(athlete, input)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(repository.createFromProgram).toHaveBeenCalledOnce();
+    });
   });
 
   describe('create', () => {

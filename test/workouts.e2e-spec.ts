@@ -21,6 +21,16 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
   let prisma: PrismaService;
   let passwordHasher: PasswordHasher;
 
+  let trainerId: string;
+  let programId: string;
+  let programWorkoutId: string;
+  let anotherVersionWorkoutId: string;
+  let programAssignmentId: string;
+
+  const trainerAthleteIds: string[] = [];
+  const assignmentIds: string[] = [];
+  const programIds: string[] = [];
+
   let ownerId: string;
 
   let ownerCookie: string;
@@ -161,6 +171,18 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       select: { id: true },
     });
 
+    const trainer = await prisma.user.create({
+      data: {
+        email: `workout-trainer-${randomUUID()}@example.com`,
+        passwordHash,
+        role: 'TRAINER',
+      },
+      select: { id: true },
+    });
+
+    trainerId = trainer.id;
+    userIds.push(trainer.id);
+
     userIds.push(otherAthlete.id);
 
     // Create a global exercise.
@@ -173,6 +195,115 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       },
       select: { id: true },
     });
+
+    const trainerAthlete = await prisma.trainerAthlete.create({
+      data: {
+        trainerId,
+        athleteId: ownerId,
+        initiatedById: trainerId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    trainerAthleteIds.push(trainerAthlete.id);
+
+    const program = await prisma.trainingProgram.create({
+      data: {
+        trainerId,
+        status: 'PUBLISHED',
+      },
+      select: { id: true },
+    });
+
+    programId = program.id;
+    programIds.push(program.id);
+
+    const version = await prisma.trainingProgramVersion.create({
+      data: {
+        programId,
+        version: 1,
+        title: 'E2E Training Program',
+        status: 'PUBLISHED',
+        publishedAt: new Date(),
+      },
+      select: { id: true },
+    });
+
+    const anotherVersion = await prisma.trainingProgramVersion.create({
+      data: {
+        programId,
+        version: 2,
+        title: 'E2E Another Version',
+        status: 'PUBLISHED',
+        publishedAt: new Date(),
+      },
+      select: { id: true },
+    });
+
+    const programWorkout = await prisma.trainingProgramWorkout.create({
+      data: {
+        versionId: version.id,
+        weekNumber: 1,
+        dayNumber: 1,
+        title: 'E2E Program Workout',
+        notes: 'Created from an assigned program',
+      },
+      select: { id: true },
+    });
+
+    programWorkoutId = programWorkout.id;
+
+    const anotherProgramWorkout = await prisma.trainingProgramWorkout.create({
+      data: {
+        versionId: anotherVersion.id,
+        weekNumber: 1,
+        dayNumber: 1,
+        title: 'E2E Another Version Workout',
+      },
+      select: { id: true },
+    });
+
+    anotherVersionWorkoutId = anotherProgramWorkout.id;
+
+    const programExercise = await prisma.trainingProgramExercise.create({
+      data: {
+        workoutId: programWorkoutId,
+        exerciseId: globalExercise.id,
+        exerciseNameSnapshot: 'Program Bench Press Snapshot',
+        exerciseTypeSnapshot: 'STRENGTH',
+        sortOrder: 0,
+        notes: 'Program exercise notes',
+      },
+      select: { id: true },
+    });
+
+    await prisma.trainingProgramSet.create({
+      data: {
+        programExerciseId: programExercise.id,
+        setNumber: 1,
+        setType: 'WORKING',
+        plannedReps: 10,
+        plannedWeightKg: 60,
+        restSeconds: 90,
+        targetRpe: 8,
+        targetRir: 2,
+      },
+    });
+
+    const assignment = await prisma.trainingProgramAssignment.create({
+      data: {
+        versionId: version.id,
+        trainerAthleteId: trainerAthlete.id,
+        athleteId: ownerId,
+        assignedById: trainerId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    programAssignmentId = assignment.id;
+    assignmentIds.push(assignment.id);
 
     globalExerciseId = globalExercise.id;
     exerciseIds.push(globalExercise.id);
@@ -209,6 +340,36 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
                 { athleteId: { in: userIds } },
                 { createdById: { in: userIds } },
               ],
+            },
+          });
+        }
+
+        if (assignmentIds.length > 0) {
+          await prisma.trainingProgramAssignment.deleteMany({
+            where: {
+              id: { in: assignmentIds },
+            },
+          });
+        }
+
+        if (trainerAthleteIds.length > 0) {
+          await prisma.trainerAthlete.deleteMany({
+            where: {
+              id: { in: trainerAthleteIds },
+            },
+          });
+        }
+
+        if (programIds.length > 0) {
+          await prisma.trainingProgramVersion.deleteMany({
+            where: {
+              programId: { in: programIds },
+            },
+          });
+
+          await prisma.trainingProgram.deleteMany({
+            where: {
+              id: { in: programIds },
             },
           });
         }
@@ -476,6 +637,112 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('CANCELLED');
+    });
+  });
+
+  describe('POST /workouts/from-program', () => {
+    const scheduledAt = '2030-01-15T10:00:00.000Z';
+
+    const payload = () => ({
+      assignmentId: programAssignmentId,
+      programWorkoutId,
+      scheduledAt,
+    });
+
+    it('should reject unauthenticated requests', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .send(payload());
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should reject invalid UUIDs', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .send({
+          ...payload(),
+          assignmentId: 'invalid-uuid',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should create a workout from an active program assignment', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .send(payload());
+
+      expect(response.status).toBe(201);
+
+      expect(response.body).toMatchObject({
+        title: 'E2E Program Workout',
+        notes: 'Created from an assigned program',
+        athleteId: ownerId,
+        createdById: ownerId,
+        status: 'PLANNED',
+        scheduledAt,
+        programAssignmentId,
+        programWorkoutId,
+        exercises: [
+          {
+            exerciseId: globalExerciseId,
+            exerciseNameSnapshot: 'Program Bench Press Snapshot',
+            exerciseTypeSnapshot: 'STRENGTH',
+            sortOrder: 0,
+            notes: 'Program exercise notes',
+            sets: [
+              {
+                setNumber: 1,
+                setType: 'WORKING',
+                status: 'PENDING',
+                plannedReps: 10,
+                plannedWeightKg: '60',
+                restSeconds: 90,
+                targetRpe: '8',
+                targetRir: 2,
+                actualReps: null,
+                completedAt: null,
+              },
+            ],
+          },
+        ],
+      });
+    });
+
+    it('should hide assignments belonging to another athlete', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', otherAthleteCookie)
+        .send(payload());
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should reject a workout belonging to another program version', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .send({
+          assignmentId: programAssignmentId,
+          programWorkoutId: anotherVersionWorkoutId,
+        });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 404 for a nonexistent assignment', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .send({
+          assignmentId: randomUUID(),
+          programWorkoutId,
+        });
+
+      expect(response.status).toBe(404);
     });
   });
 });
