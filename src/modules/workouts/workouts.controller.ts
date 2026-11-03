@@ -14,7 +14,10 @@ import { Authenticate, CurrentUser } from '@nestjs/authentication';
 
 import { WorkoutsService } from './workouts.service.js';
 
-import type { WorkoutActor } from './types/workout.types.js';
+import type {
+  CreateWorkoutFromProgramInput,
+  WorkoutActor,
+} from './types/workout.types.js';
 
 import { workoutIdSchema, workoutSetIdSchema } from './dto/workout.schemas.js';
 
@@ -37,6 +40,7 @@ import {
   type UpdateWorkoutSetDto,
   updateWorkoutSetSchema,
 } from './dto/update-workout-set.dto.js';
+import { createWorkoutFromProgramSchema } from './dto/create-workout-from-program.dto.js';
 
 @Controller('workouts')
 @Authenticate()
@@ -115,5 +119,15 @@ export class WorkoutsController {
     @CurrentUser() user: WorkoutActor,
   ) {
     return this.workoutsService.cancel(id, user);
+  }
+
+  @Post('from-program')
+  @Authenticate()
+  createFromProgram(
+    @CurrentUser() actor: WorkoutActor,
+    @Body({ schema: createWorkoutFromProgramSchema })
+    body: CreateWorkoutFromProgramInput,
+  ) {
+    return this.workoutsService.createFromProgram(actor, body);
   }
 }

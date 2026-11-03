@@ -61,3 +61,9 @@ export type WorkoutListQuery = {
   scheduledFrom?: Date;
   scheduledTo?: Date;
 };
+
+export type CreateWorkoutFromProgramInput = {
+  assignmentId: string;
+  programWorkoutId: string;
+  scheduledAt?: Date | null;
+};
