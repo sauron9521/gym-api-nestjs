@@ -104,8 +104,8 @@ export class WorkoutsService {
                 plannedDistanceMeters: set.plannedDistanceMeters ?? null,
 
                 restSeconds: set.restSeconds ?? null,
-                rpe: set.rpe ?? null,
-                rir: set.rir ?? null,
+                targetRpe: set.targetRpe ?? null,
+                targetRir: set.targetRir ?? null,
               })),
             },
           };
