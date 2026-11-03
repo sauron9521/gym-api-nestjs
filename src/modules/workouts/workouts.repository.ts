@@ -13,6 +13,8 @@ export const workoutSelect = {
   scheduledAt: true,
   startedAt: true,
   completedAt: true,
+  programAssignmentId: true,
+  programWorkoutId: true,
 
   exercises: {
     orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -47,6 +49,8 @@ export const workoutSelect = {
           actualDistanceMeters: true,
 
           restSeconds: true,
+          targetRpe: true,
+          targetRir: true,
           rpe: true,
           rir: true,
 
@@ -81,6 +85,8 @@ export const workoutSetSelect = {
   actualDistanceMeters: true,
 
   restSeconds: true,
+  targetRpe: true,
+  targetRir: true,
   rpe: true,
   rir: true,
 

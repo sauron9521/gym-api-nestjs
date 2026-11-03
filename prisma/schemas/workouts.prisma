@@ -99,10 +99,14 @@ model WorkoutSet {
   actualDurationSeconds Int?     @map("actual_duration_seconds")
   actualDistanceMeters  Decimal? @map("actual_distance_meters") @db.Decimal(10, 2)
 
-  // Additional training metrics
+  // Planned training targets
   restSeconds Int?     @map("rest_seconds")
-  rpe         Decimal? @db.Decimal(3, 1)
-  rir         Int?
+  targetRpe   Decimal? @map("target_rpe") @db.Decimal(3, 1)
+  targetRir   Int?     @map("target_rir")
+
+  // Actual training metrics
+  rpe Decimal? @db.Decimal(3, 1)
+  rir Int?
 
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
   notes       String?   @db.Text
