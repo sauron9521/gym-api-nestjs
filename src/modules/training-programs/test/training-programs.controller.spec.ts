@@ -29,6 +29,7 @@ describe('TrainingProgramsController', () => {
     findOneAssignment: vi.fn(),
     completeAssignment: vi.fn(),
     cancelAssignment: vi.fn(),
+    findOneAssignmentDetails: vi.fn(),
   };
 
   let controller: TrainingProgramsController;
@@ -63,17 +64,25 @@ describe('TrainingProgramsController', () => {
     expect(service.findManyAssignments).toHaveBeenCalledWith(actor, query);
   });
 
-  it('should return one assignment', async () => {
-    service.findOneAssignment.mockResolvedValue({
+  it('should return one assignment with full program details', async () => {
+    const details = {
       id: 'assignment-1',
-    });
+      version: {
+        id: 'version-1',
+        workouts: [],
+      },
+    };
 
-    await controller.findOneAssignment('assignment-1', actor);
+    service.findOneAssignmentDetails.mockResolvedValue(details);
 
-    expect(service.findOneAssignment).toHaveBeenCalledWith(
+    const result = await controller.findOneAssignment('assignment-1', actor);
+
+    expect(service.findOneAssignmentDetails).toHaveBeenCalledWith(
       'assignment-1',
       actor,
     );
+
+    expect(result).toEqual(details);
   });
 
   it('should complete an assignment', async () => {

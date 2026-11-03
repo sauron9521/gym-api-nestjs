@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 import {
@@ -39,20 +28,14 @@ import {
   cancelTrainingProgramAssignmentSchema,
 } from './dto/cancel-training-program-assignment.dto.js';
 
-import {
-  type CreateTrainingProgramDto,
-  createTrainingProgramSchema,
-} from './dto/create-training-program.dto.js';
+import { type CreateTrainingProgramDto, createTrainingProgramSchema, } from './dto/create-training-program.dto.js';
 
 import {
   type UpdateTrainingProgramDraftDto,
   updateTrainingProgramDraftSchema,
 } from './dto/update-training-program-draft.dto.js';
 
-import {
-  type QueryTrainingProgramsDto,
-  queryTrainingProgramsSchema,
-} from './dto/query-training-programs.dto.js';
+import { type QueryTrainingProgramsDto, queryTrainingProgramsSchema, } from './dto/query-training-programs.dto.js';
 
 import {
   type CreateTrainingProgramWorkoutDto,
@@ -140,7 +123,10 @@ export class TrainingProgramsController {
     assignmentId: string,
     @CurrentUser() actor: TrainingProgramActor,
   ) {
-    return this.trainingProgramsService.findOneAssignment(assignmentId, actor);
+    return this.trainingProgramsService.findOneAssignmentDetails(
+      assignmentId,
+      actor,
+    );
   }
 
   @Post('assignments/:assignmentId/complete')

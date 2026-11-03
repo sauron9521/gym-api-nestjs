@@ -206,6 +206,23 @@ export const trainingProgramAssignmentSelect = {
   updatedAt: true,
 } satisfies Prisma.TrainingProgramAssignmentSelect;
 
+export const trainingProgramAssignmentDetailsSelect = {
+  ...trainingProgramAssignmentSelect,
+
+  version: {
+    select: {
+      ...trainingProgramVersionSelect,
+
+      program: {
+        select: {
+          id: true,
+          trainerId: true,
+          status: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.TrainingProgramAssignmentSelect;
 // -----------------------------------------------------------------------------
 // PARAMS
 // -----------------------------------------------------------------------------
@@ -647,6 +664,18 @@ export class TrainingProgramsRepository {
         AND: [{ id }, where],
       },
       select: trainingProgramAssignmentSelect,
+    });
+  }
+
+  async findAssignmentDetailsById(
+    id: string,
+    where: Prisma.TrainingProgramAssignmentWhereInput = {},
+  ) {
+    return this.prisma.trainingProgramAssignment.findFirst({
+      where: {
+        AND: [{ id }, where],
+      },
+      select: trainingProgramAssignmentDetailsSelect,
     });
   }
 

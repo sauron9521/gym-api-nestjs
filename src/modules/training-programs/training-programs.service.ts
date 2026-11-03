@@ -265,19 +265,15 @@ export class TrainingProgramsService {
       throw new ConflictException('This program already has a draft version');
     }
 
+    let draft: Awaited<
+      ReturnType<TrainingProgramsRepository['createDraftFromLatestPublished']>
+    >;
+
     try {
-      const draft =
+      draft =
         await this.trainingProgramsRepository.createDraftFromLatestPublished(
           programId,
         );
-
-      if (!draft) {
-        throw new ConflictException(
-          'No published version is available to create a new draft',
-        );
-      }
-
-      return draft;
     } catch (error) {
       if (this.isPrismaError(error, 'P2002')) {
         throw new ConflictException(
@@ -287,6 +283,14 @@ export class TrainingProgramsService {
 
       throw error;
     }
+
+    if (!draft) {
+      throw new ConflictException(
+        'No published version is available to create a new draft',
+      );
+    }
+
+    return draft;
   }
 
   // ===========================================================================
@@ -962,8 +966,14 @@ export class TrainingProgramsService {
       },
     } satisfies Prisma.TrainingProgramAssignmentCreateInput;
 
+    let assignment: Awaited<
+      ReturnType<
+        TrainingProgramsRepository['createAssignmentForActiveRelationship']
+      >
+    >;
+
     try {
-      const assignment =
+      assignment =
         await this.trainingProgramsRepository.createAssignmentForActiveRelationship(
           {
             trainerAthleteId: relationship.id,
@@ -972,14 +982,6 @@ export class TrainingProgramsService {
             data,
           },
         );
-
-      if (!assignment) {
-        throw new ConflictException(
-          'The trainer-athlete relationship is no longer active.',
-        );
-      }
-
-      return assignment;
     } catch (error) {
       if (this.isPrismaError(error, 'P2002')) {
         throw new ConflictException('This program assignment already exists.');
@@ -999,6 +1001,14 @@ export class TrainingProgramsService {
 
       throw error;
     }
+
+    if (!assignment) {
+      throw new ConflictException(
+        'The trainer-athlete relationship is no longer active.',
+      );
+    }
+
+    return assignment;
   }
 
   async findManyAssignments(
@@ -1026,6 +1036,25 @@ export class TrainingProgramsService {
       assignmentId,
       this.getAssignmentAccessWhere(actor),
     );
+
+    if (!assignment) {
+      throw new NotFoundException('Training program assignment not found.');
+    }
+
+    return assignment;
+  }
+
+  async findOneAssignmentDetails(
+    assignmentId: string,
+    actor: TrainingProgramActor,
+  ) {
+    this.assertAssignmentParticipant(actor);
+
+    const assignment =
+      await this.trainingProgramsRepository.findAssignmentDetailsById(
+        assignmentId,
+        this.getAssignmentAccessWhere(actor),
+      );
 
     if (!assignment) {
       throw new NotFoundException('Training program assignment not found.');

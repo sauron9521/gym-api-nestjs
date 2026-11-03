@@ -1,4 +1,5 @@
 import {
+  trainingProgramAssignmentDetailsSelect,
   trainingProgramAssignmentSelect,
   trainingProgramSelect,
   TrainingProgramsRepository,
@@ -336,6 +337,54 @@ describe('TrainingProgramsRepository', () => {
           AND: [{ id: 'assignment-1' }, { athleteId: 'athlete-1' }],
         },
         select: trainingProgramAssignmentSelect,
+      });
+
+      expect(result).toEqual(assignment);
+    });
+
+    it('should find assignment details by ID and additional conditions', async () => {
+      const assignment = {
+        id: 'assignment-1',
+        athleteId: 'athlete-1',
+        version: {
+          id: 'version-1',
+          workouts: [
+            {
+              id: 'program-workout-1',
+              exercises: [
+                {
+                  id: 'program-exercise-1',
+                  exerciseNameSnapshot: 'Bench Press',
+                  sets: [
+                    {
+                      id: 'program-set-1',
+                      setNumber: 1,
+                      plannedReps: 10,
+                      plannedWeightKg: 60,
+                      targetRpe: 8,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      models.trainingProgramAssignment.findFirst.mockResolvedValue(assignment);
+
+      const result = await repository.findAssignmentDetailsById(
+        'assignment-1',
+        {
+          athleteId: 'athlete-1',
+        },
+      );
+
+      expect(models.trainingProgramAssignment.findFirst).toHaveBeenCalledWith({
+        where: {
+          AND: [{ id: 'assignment-1' }, { athleteId: 'athlete-1' }],
+        },
+        select: trainingProgramAssignmentDetailsSelect,
       });
 
       expect(result).toEqual(assignment);

@@ -8,6 +8,8 @@ import { Prisma } from '../../../generated/prisma/client.js';
 import { TrainingProgramsRepository } from '../training-programs.repository.js';
 import { TrainingProgramsService } from '../training-programs.service.js';
 import type { TrainingProgramActor } from '../types/training-program.types.js';
+import { ExercisesService } from '../../exercises/exercises.service.js';
+import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
 
 describe('TrainingProgramsService', () => {
   let service: TrainingProgramsService;
@@ -37,6 +39,7 @@ describe('TrainingProgramsService', () => {
     createAssignmentForActiveRelationship: vi.fn(),
     findManyAssignments: vi.fn(),
     findAssignmentById: vi.fn(),
+    findAssignmentDetailsById: vi.fn(),
     updateAssignment: vi.fn(),
   };
 
@@ -927,6 +930,86 @@ describe('TrainingProgramsService', () => {
         'assignment-1',
         { athleteId: athlete.id },
       );
+    });
+
+    describe('findOneAssignmentDetails', () => {
+      it('should return full assignment details for an athlete', async () => {
+        const details = {
+          ...activeAssignment,
+          version: {
+            id: 'version-1',
+            title: 'Beginner Program',
+            workouts: [
+              {
+                id: 'program-workout-1',
+                title: 'Upper Body',
+                exercises: [
+                  {
+                    id: 'program-exercise-1',
+                    exerciseNameSnapshot: 'Bench Press',
+                    sets: [
+                      {
+                        id: 'program-set-1',
+                        plannedReps: 10,
+                        plannedWeightKg: 60,
+                        targetRpe: 8,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        };
+
+        repository.findAssignmentDetailsById.mockResolvedValue(details);
+
+        const result = await service.findOneAssignmentDetails(
+          'assignment-1',
+          athlete,
+        );
+
+        expect(repository.findAssignmentDetailsById).toHaveBeenCalledWith(
+          'assignment-1',
+          {
+            athleteId: athlete.id,
+          },
+        );
+
+        expect(result).toEqual(details);
+      });
+
+      it('should hide assignment details belonging to another athlete', async () => {
+        repository.findAssignmentDetailsById.mockResolvedValue(null);
+
+        await expect(
+          service.findOneAssignmentDetails('assignment-1', athlete),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('should scope trainer access to owned programs', async () => {
+        const details = {
+          id: 'assignment-1',
+          version: {
+            workouts: [],
+          },
+        };
+
+        repository.findAssignmentDetailsById.mockResolvedValue(details);
+
+        await service.findOneAssignmentDetails('assignment-1', trainer);
+
+        expect(repository.findAssignmentDetailsById).toHaveBeenCalledWith(
+          'assignment-1',
+          {
+            version: {
+              program: {
+                trainerId: trainer.id,
+              },
+            },
+          },
+        );
+      });
     });
 
     it('should hide assignments belonging to another athlete', async () => {
