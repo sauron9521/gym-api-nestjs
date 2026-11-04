@@ -745,4 +745,273 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       expect(response.status).toBe(404);
     });
   });
+
+  describe('POST /training-programs/assignments/:assignmentId/complete', () => {
+    it('should return 409 when a planned workout exists', async () => {
+      const workoutResponse = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .send({
+          assignmentId: programAssignmentId,
+          programWorkoutId,
+        });
+
+      expect(workoutResponse.status).toBe(201);
+      expect(workoutResponse.body.status).toBe('PLANNED');
+
+      const response = await request(app!.getHttpServer())
+        .post(`/training-programs/assignments/${programAssignmentId}/complete`)
+        .set('Cookie', ownerCookie);
+
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain('Cannot complete assignment:');
+
+      const assignment = await prisma.trainingProgramAssignment.findUnique({
+        where: { id: programAssignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      });
+
+      expect(assignment).toEqual({
+        status: 'ACTIVE',
+        completedAt: null,
+      });
+    });
+
+    it('should complete an assignment when all linked workouts are completed', async () => {
+      const originalAssignment =
+        await prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: programAssignmentId },
+          select: {
+            versionId: true,
+            trainerAthleteId: true,
+          },
+        });
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: originalAssignment.versionId,
+          trainerAthleteId: originalAssignment.trainerAthleteId,
+          athleteId: ownerId,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentIds.push(assignment.id);
+
+      // Create a workout linked to this assignment.
+      const workoutResponse = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .send({
+          assignmentId: assignment.id,
+          programWorkoutId,
+        });
+
+      expect(workoutResponse.status).toBe(201);
+      expect(workoutResponse.body.status).toBe('PLANNED');
+
+      // Prepare a completed workout for this scenario.
+      await prisma.workout.update({
+        where: { id: workoutResponse.body.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+
+      // Complete the assignment through HTTP.
+      const response = await request(app!.getHttpServer())
+        .post(`/training-programs/assignments/${assignment.id}/complete`)
+        .set('Cookie', ownerCookie);
+
+      expect(response.status).toBe(200);
+
+      expect(response.body).toMatchObject({
+        id: assignment.id,
+        status: 'COMPLETED',
+      });
+
+      expect(response.body.completedAt).toBeTruthy();
+
+      const persistedAssignment =
+        await prisma.trainingProgramAssignment.findUnique({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            completedAt: true,
+          },
+        });
+
+      expect(persistedAssignment).toEqual({
+        status: 'COMPLETED',
+        completedAt: new Date(response.body.completedAt),
+      });
+    });
+
+    it('should reject completing another athlete assignment', async () => {
+      const response = await request(app!.getHttpServer())
+        .post(`/training-programs/assignments/${programAssignmentId}/complete`)
+        .set('Cookie', otherAthleteCookie);
+
+      expect(response.status).toBe(404);
+
+      const assignment = await prisma.trainingProgramAssignment.findUnique({
+        where: { id: programAssignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      });
+
+      expect(assignment).toEqual({
+        status: 'ACTIVE',
+        completedAt: null,
+      });
+    });
+
+    it('should reject assignment completion by a trainer', async () => {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const trainerCookie = await login(trainer.email);
+
+      const response = await request(app!.getHttpServer())
+        .post(`/training-programs/assignments/${programAssignmentId}/complete`)
+        .set('Cookie', trainerCookie);
+
+      expect(response.status).toBe(403);
+
+      const assignment = await prisma.trainingProgramAssignment.findUnique({
+        where: { id: programAssignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      });
+
+      expect(assignment).toEqual({
+        status: 'ACTIVE',
+        completedAt: null,
+      });
+    });
+
+    it('should reject completing an already completed assignment', async () => {
+      const originalAssignment =
+        await prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: programAssignmentId },
+          select: {
+            versionId: true,
+            trainerAthleteId: true,
+          },
+        });
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: originalAssignment.versionId,
+          trainerAthleteId: originalAssignment.trainerAthleteId,
+          athleteId: ownerId,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentIds.push(assignment.id);
+
+      const endpoint = `/training-programs/assignments/${assignment.id}/complete`;
+
+      // First completion succeeds.
+      const firstResponse = await request(app!.getHttpServer())
+        .post(endpoint)
+        .set('Cookie', ownerCookie);
+
+      expect(firstResponse.status).toBe(200);
+      expect(firstResponse.body.status).toBe('COMPLETED');
+
+      const completedAt = firstResponse.body.completedAt;
+
+      // Second completion must be rejected.
+      const secondResponse = await request(app!.getHttpServer())
+        .post(endpoint)
+        .set('Cookie', ownerCookie);
+
+      expect(secondResponse.status).toBe(409);
+
+      expect(secondResponse.body.message).toBe(
+        'Only active assignments can be completed.',
+      );
+
+      const persistedAssignment =
+        await prisma.trainingProgramAssignment.findUnique({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            completedAt: true,
+          },
+        });
+
+      expect(persistedAssignment).toEqual({
+        status: 'COMPLETED',
+        completedAt: new Date(completedAt),
+      });
+    });
+  });
+
+  it('should complete an active assignment without workouts', async () => {
+    const originalAssignment =
+      await prisma.trainingProgramAssignment.findUniqueOrThrow({
+        where: { id: programAssignmentId },
+        select: {
+          versionId: true,
+          trainerAthleteId: true,
+        },
+      });
+
+    const assignment = await prisma.trainingProgramAssignment.create({
+      data: {
+        versionId: originalAssignment.versionId,
+        trainerAthleteId: originalAssignment.trainerAthleteId,
+        athleteId: ownerId,
+        assignedById: trainerId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    assignmentIds.push(assignment.id);
+
+    const response = await request(app!.getHttpServer())
+      .post(`/training-programs/assignments/${assignment.id}/complete`)
+      .set('Cookie', ownerCookie);
+
+    expect(response.status).toBe(200);
+
+    expect(response.body).toMatchObject({
+      id: assignment.id,
+      status: 'COMPLETED',
+    });
+
+    expect(response.body.completedAt).toBeTruthy();
+
+    const persistedAssignment =
+      await prisma.trainingProgramAssignment.findUnique({
+        where: { id: assignment.id },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      });
+
+    expect(persistedAssignment).toEqual({
+      status: 'COMPLETED',
+      completedAt: new Date(response.body.completedAt),
+    });
+  });
 });
