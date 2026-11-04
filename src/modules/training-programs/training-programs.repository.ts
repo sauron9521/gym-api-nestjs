@@ -731,6 +731,61 @@ export class TrainingProgramsRepository {
     });
   }
 
+  async completeAssignmentIfNoUnfinishedWorkouts(input: {
+    assignmentId: string;
+    athleteId: string;
+    completedAt: Date;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const assignments = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "training_program_assignments"
+      WHERE
+        "id" = ${input.assignmentId}
+        AND "athlete_id" = ${input.athleteId}
+        AND "status" = 'ACTIVE'
+      FOR UPDATE
+    `;
+
+      if (assignments.length !== 1) {
+        return { status: 'NOT_ACTIVE' as const };
+      }
+
+      const unfinishedCount = await tx.workout.count({
+        where: {
+          programAssignmentId: input.assignmentId,
+          status: {
+            in: ['PLANNED', 'IN_PROGRESS'],
+          },
+        },
+      });
+
+      if (unfinishedCount > 0) {
+        return {
+          status: 'HAS_UNFINISHED_WORKOUTS' as const,
+          unfinishedCount,
+        };
+      }
+
+      const assignment = await tx.trainingProgramAssignment.update({
+        where: {
+          id: input.assignmentId,
+          status: 'ACTIVE',
+        },
+        data: {
+          status: 'COMPLETED',
+          completedAt: input.completedAt,
+        },
+        select: trainingProgramAssignmentSelect,
+      });
+
+      return {
+        status: 'COMPLETED' as const,
+        assignment,
+      };
+    });
+  }
+
   async createProgramExercise(
     programId: string,
     versionId: string,

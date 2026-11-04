@@ -1076,25 +1076,26 @@ export class TrainingProgramsService {
       throw new ConflictException('Only active assignments can be completed.');
     }
 
-    try {
-      return await this.trainingProgramsRepository.updateAssignment(
-        {
-          id: assignmentId,
-          status: 'ACTIVE',
-        },
-        {
-          status: 'COMPLETED',
-          completedAt: new Date(),
-        },
-      );
-    } catch (error) {
-      if (this.isPrismaError(error, 'P2025')) {
+    const result =
+      await this.trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId,
+        athleteId: actor.id,
+        completedAt: new Date(),
+      });
+
+    switch (result.status) {
+      case 'COMPLETED':
+        return result.assignment;
+
+      case 'HAS_UNFINISHED_WORKOUTS':
+        throw new ConflictException(
+          `Cannot complete assignment: ${result.unfinishedCount} unfinished workout(s) remain.`,
+        );
+
+      case 'NOT_ACTIVE':
         throw new ConflictException(
           'Assignment state has changed. Reload and try again.',
         );
-      }
-
-      throw error;
     }
   }
 
