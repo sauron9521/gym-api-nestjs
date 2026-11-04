@@ -349,4 +349,115 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
       }),
     ).resolves.toBe(0);
   });
+
+  it('should set assignment startedAt only on the first workout start', async () => {
+    const fixture = await createFixture();
+
+    const firstWorkout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+
+    expect(firstWorkout).not.toBeNull();
+
+    const firstStartedAt = new Date('2030-01-15T10:00:00.000Z');
+
+    const firstResult = await repository.startWorkout({
+      id: firstWorkout!.id,
+      athleteId: fixture.athleteId,
+      startedAt: firstStartedAt,
+    });
+
+    expect(firstResult).toMatchObject({
+      id: firstWorkout!.id,
+      status: 'IN_PROGRESS',
+      startedAt: firstStartedAt,
+    });
+
+    const assignmentAfterFirstStart =
+      await prisma.trainingProgramAssignment.findUnique({
+        where: { id: fixture.assignmentId },
+        select: { startedAt: true },
+      });
+
+    expect(assignmentAfterFirstStart?.startedAt).toEqual(firstStartedAt);
+
+    // Create another workout from the same assignment.
+    const secondWorkout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+
+    expect(secondWorkout).not.toBeNull();
+
+    const secondStartedAt = new Date('2030-01-16T10:00:00.000Z');
+
+    const secondResult = await repository.startWorkout({
+      id: secondWorkout!.id,
+      athleteId: fixture.athleteId,
+      startedAt: secondStartedAt,
+    });
+
+    expect(secondResult).toMatchObject({
+      id: secondWorkout!.id,
+      status: 'IN_PROGRESS',
+      startedAt: secondStartedAt,
+    });
+
+    const assignmentAfterSecondStart =
+      await prisma.trainingProgramAssignment.findUnique({
+        where: { id: fixture.assignmentId },
+        select: { startedAt: true },
+      });
+
+    // Assignment keeps the timestamp of its first workout.
+    expect(assignmentAfterSecondStart?.startedAt).toEqual(firstStartedAt);
+  });
+
+  it('should not start a workout when its assignment is inactive', async () => {
+    const fixture = await createFixture();
+
+    const workout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+
+    expect(workout).not.toBeNull();
+
+    await prisma.trainingProgramAssignment.update({
+      where: { id: fixture.assignmentId },
+      data: { status: 'CANCELLED' },
+    });
+
+    const result = await repository.startWorkout({
+      id: workout!.id,
+      athleteId: fixture.athleteId,
+      startedAt: new Date('2030-01-15T10:00:00.000Z'),
+    });
+
+    expect(result).toBeNull();
+
+    const persistedWorkout = await prisma.workout.findUnique({
+      where: { id: workout!.id },
+      select: {
+        status: true,
+        startedAt: true,
+      },
+    });
+
+    expect(persistedWorkout).toMatchObject({
+      status: 'PLANNED',
+      startedAt: null,
+    });
+
+    const assignment = await prisma.trainingProgramAssignment.findUnique({
+      where: { id: fixture.assignmentId },
+      select: { startedAt: true },
+    });
+
+    expect(assignment?.startedAt).toBeNull();
+  });
 });

@@ -298,4 +298,82 @@ export class WorkoutsRepository {
       });
     });
   }
+
+  async startWorkout(input: {
+    id: string;
+    athleteId: string;
+    startedAt: Date;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const workout = await tx.workout.findFirst({
+        where: {
+          id: input.id,
+          athleteId: input.athleteId,
+          status: 'PLANNED',
+        },
+        select: {
+          id: true,
+          programAssignmentId: true,
+        },
+      });
+
+      if (!workout) {
+        return null;
+      }
+
+      if (workout.programAssignmentId) {
+        // Lock the assignment row to serialize workout start
+        // with cancellation, completion and termination.
+        const assignments = await tx.$queryRaw<
+          Array<{
+            id: string;
+            status: string;
+            startedAt: Date | null;
+          }>
+        >`
+        SELECT
+          "id",
+          "status",
+          "started_at" AS "startedAt"
+        FROM "training_program_assignments"
+        WHERE
+          "id" = ${workout.programAssignmentId}
+          AND "athlete_id" = ${input.athleteId}
+        FOR UPDATE
+      `;
+
+        const assignment = assignments[0];
+
+        // A workout from an inactive assignment cannot be started.
+        if (!assignment || assignment.status !== 'ACTIVE') {
+          return null;
+        }
+
+        // Preserve the timestamp of the first workout start.
+        if (!assignment.startedAt) {
+          await tx.trainingProgramAssignment.update({
+            where: {
+              id: assignment.id,
+            },
+            data: {
+              startedAt: input.startedAt,
+            },
+          });
+        }
+      }
+
+      return tx.workout.update({
+        where: {
+          id: input.id,
+          athleteId: input.athleteId,
+          status: 'PLANNED',
+        },
+        data: {
+          status: 'IN_PROGRESS',
+          startedAt: input.startedAt,
+        },
+        select: workoutSelect,
+      });
+    });
+  }
 }

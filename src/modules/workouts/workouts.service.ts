@@ -229,6 +229,7 @@ export class WorkoutsService {
   }
 
   // START WORKOUT
+
   async start(id: string, actor: WorkoutActor) {
     const workout = await this.findOne(id, actor);
 
@@ -236,17 +237,32 @@ export class WorkoutsService {
       throw new BadRequestException('Only planned workouts can be started');
     }
 
-    return this.updateWithConflictHandling(
-      {
+    try {
+      const result = await this.workoutsRepository.startWorkout({
         id,
         athleteId: actor.id,
-        status: 'PLANNED',
-      },
-      {
-        status: 'IN_PROGRESS',
         startedAt: new Date(),
-      },
-    );
+      });
+
+      if (!result) {
+        throw new ConflictException(
+          'Workout or training program assignment state has changed. Reload and try again.',
+        );
+      }
+
+      return result;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new ConflictException(
+          'Workout state has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
   }
 
   // UPDATE SET RESULT

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, } from '@nestjs/common';
 
 import { Prisma } from '../../../generated/prisma/client.js';
 
@@ -11,11 +6,7 @@ import { ExercisesService } from '../../exercises/exercises.service.js';
 import { WorkoutsRepository } from '../workouts.repository.js';
 import { WorkoutsService } from '../workouts.service.js';
 
-import type {
-  CreateWorkoutFromProgramInput,
-  CreateWorkoutInput,
-  WorkoutActor,
-} from '../types/workout.types.js';
+import type { CreateWorkoutFromProgramInput, CreateWorkoutInput, WorkoutActor, } from '../types/workout.types.js';
 import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
 
 describe('WorkoutsService', () => {
@@ -28,6 +19,7 @@ describe('WorkoutsService', () => {
     findById: vi.fn(),
     update: vi.fn(),
     updateSet: vi.fn(),
+    startWorkout: vi.fn(),
   };
 
   const exercisesService = {
@@ -474,7 +466,8 @@ describe('WorkoutsService', () => {
   describe('start', () => {
     it('should start a planned workout', async () => {
       repository.findById.mockResolvedValue(plannedWorkout);
-      repository.update.mockResolvedValue({
+
+      repository.startWorkout.mockResolvedValue({
         ...plannedWorkout,
         status: 'IN_PROGRESS',
       });
@@ -483,17 +476,13 @@ describe('WorkoutsService', () => {
 
       expect(result.status).toBe('IN_PROGRESS');
 
-      expect(repository.update).toHaveBeenCalledWith(
-        {
-          id: 'workout-1',
-          athleteId: athlete.id,
-          status: 'PLANNED',
-        },
-        expect.objectContaining({
-          status: 'IN_PROGRESS',
-          startedAt: expect.any(Date),
-        }),
-      );
+      expect(repository.startWorkout).toHaveBeenCalledWith({
+        id: 'workout-1',
+        athleteId: athlete.id,
+        startedAt: expect.any(Date),
+      });
+
+      expect(repository.update).not.toHaveBeenCalled();
     });
 
     it('should reject starting an already started workout', async () => {
@@ -724,7 +713,7 @@ describe('WorkoutsService', () => {
         },
       );
 
-      repository.update.mockRejectedValue(prismaError);
+      repository.startWorkout.mockRejectedValue(prismaError);
 
       await expect(service.start('workout-1', athlete)).rejects.toThrow(
         ConflictException,
