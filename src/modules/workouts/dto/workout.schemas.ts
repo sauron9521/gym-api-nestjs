@@ -48,8 +48,8 @@ export const createWorkoutSetSchema = z.strictObject({
   plannedDistanceMeters: workoutDistanceSchema.nullable().optional(),
 
   restSeconds: workoutRestSchema.nullable().optional(),
-  rpe: workoutRpeSchema.nullable().optional(),
-  rir: workoutRirSchema.nullable().optional(),
+  targetRpe: workoutRpeSchema.nullable().optional(),
+  targetRir: workoutRirSchema.nullable().optional(),
 });
 
 export const createWorkoutExerciseSchema = z.strictObject({

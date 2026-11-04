@@ -9,6 +9,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { ExercisesService } from '../exercises/exercises.service.js';
 import { WorkoutsRepository } from './workouts.repository.js';
 import type {
+  CreateWorkoutFromProgramInput,
   CreateWorkoutInput,
   UpdateWorkoutInput,
   UpdateWorkoutSetInput,
@@ -104,8 +105,8 @@ export class WorkoutsService {
                 plannedDistanceMeters: set.plannedDistanceMeters ?? null,
 
                 restSeconds: set.restSeconds ?? null,
-                rpe: set.rpe ?? null,
-                rir: set.rir ?? null,
+                targetRpe: set.targetRpe ?? null,
+                targetRir: set.targetRir ?? null,
               })),
             },
           };
@@ -114,6 +115,29 @@ export class WorkoutsService {
     } satisfies Prisma.WorkoutCreateInput;
 
     return this.workoutsRepository.create(data);
+  }
+
+  // CREATE WORKOUT FROM PROGRAM
+  async createFromProgram(
+    actor: WorkoutActor,
+    input: CreateWorkoutFromProgramInput,
+  ) {
+    this.assertAthlete(actor);
+
+    const workout = await this.workoutsRepository.createFromProgram({
+      athleteId: actor.id,
+      assignmentId: input.assignmentId,
+      programWorkoutId: input.programWorkoutId,
+      scheduledAt: input.scheduledAt,
+    });
+
+    if (!workout) {
+      throw new NotFoundException(
+        'Active training program assignment or workout not found',
+      );
+    }
+
+    return workout;
   }
 
   // FIND MANY

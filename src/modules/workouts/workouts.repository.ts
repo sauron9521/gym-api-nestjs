@@ -13,6 +13,8 @@ export const workoutSelect = {
   scheduledAt: true,
   startedAt: true,
   completedAt: true,
+  programAssignmentId: true,
+  programWorkoutId: true,
 
   exercises: {
     orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -47,6 +49,8 @@ export const workoutSelect = {
           actualDistanceMeters: true,
 
           restSeconds: true,
+          targetRpe: true,
+          targetRir: true,
           rpe: true,
           rir: true,
 
@@ -81,6 +85,8 @@ export const workoutSetSelect = {
   actualDistanceMeters: true,
 
   restSeconds: true,
+  targetRpe: true,
+  targetRir: true,
   rpe: true,
   rir: true,
 
@@ -166,6 +172,130 @@ export class WorkoutsRepository {
       where: { id },
       data,
       select: workoutSetSelect,
+    });
+  }
+
+  async createFromProgram(input: {
+    athleteId: string;
+    assignmentId: string;
+    programWorkoutId: string;
+    scheduledAt?: Date | null;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const assignment = await tx.trainingProgramAssignment.findFirst({
+        where: {
+          id: input.assignmentId,
+          athleteId: input.athleteId,
+          status: 'ACTIVE',
+          trainerAthlete: {
+            is: {
+              status: 'ACTIVE',
+            },
+          },
+          version: {
+            is: {
+              status: 'PUBLISHED',
+            },
+          },
+        },
+        select: {
+          id: true,
+          version: {
+            select: {
+              workouts: {
+                where: {
+                  id: input.programWorkoutId,
+                },
+                select: {
+                  id: true,
+                  title: true,
+                  notes: true,
+                  exercises: {
+                    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+                    select: {
+                      exerciseId: true,
+                      exerciseNameSnapshot: true,
+                      exerciseTypeSnapshot: true,
+                      sortOrder: true,
+                      notes: true,
+                      sets: {
+                        orderBy: { setNumber: 'asc' },
+                        select: {
+                          setNumber: true,
+                          setType: true,
+                          plannedReps: true,
+                          plannedWeightKg: true,
+                          plannedDurationSeconds: true,
+                          plannedDistanceMeters: true,
+                          restSeconds: true,
+                          targetRpe: true,
+                          targetRir: true,
+                          notes: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const programWorkout = assignment?.version.workouts[0];
+
+      if (!assignment || !programWorkout) {
+        return null;
+      }
+
+      return tx.workout.create({
+        data: {
+          title: programWorkout.title,
+          notes: programWorkout.notes,
+          scheduledAt: input.scheduledAt ?? null,
+
+          athlete: {
+            connect: { id: input.athleteId },
+          },
+          createdBy: {
+            connect: { id: input.athleteId },
+          },
+          programAssignment: {
+            connect: { id: assignment.id },
+          },
+          programWorkout: {
+            connect: { id: programWorkout.id },
+          },
+
+          exercises: {
+            create: programWorkout.exercises.map((exercise) => ({
+              exercise: {
+                connect: { id: exercise.exerciseId },
+              },
+              exerciseNameSnapshot: exercise.exerciseNameSnapshot,
+              exerciseTypeSnapshot: exercise.exerciseTypeSnapshot,
+              sortOrder: exercise.sortOrder,
+              notes: exercise.notes,
+
+              sets: {
+                create: exercise.sets.map((set) => ({
+                  setNumber: set.setNumber,
+                  setType: set.setType,
+                  plannedReps: set.plannedReps,
+                  plannedWeightKg: set.plannedWeightKg,
+                  plannedDurationSeconds: set.plannedDurationSeconds,
+                  plannedDistanceMeters: set.plannedDistanceMeters,
+                  restSeconds: set.restSeconds,
+                  targetRpe: set.targetRpe,
+                  targetRir: set.targetRir,
+                  notes: set.notes,
+                })),
+              },
+            })),
+          },
+        },
+        select: workoutSelect,
+      });
     });
   }
 }

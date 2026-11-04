@@ -37,5 +37,12 @@ model User {
   initiatedTrainerAthleteRequests  TrainerAthlete[] @relation("TrainerAthleteInitiator")
   endedTrainerAthleteRelationships TrainerAthlete[] @relation("TrainerAthleteEndedBy")
 
+  // Training Programs
+  createdTrainingPrograms TrainingProgram[] @relation("TrainingProgramTrainer")
+
+  receivedProgramAssignments TrainingProgramAssignment[] @relation("ProgramAssignmentAthlete")
+  createdProgramAssignments  TrainingProgramAssignment[] @relation("ProgramAssignmentAssignedBy")
+  endedProgramAssignments    TrainingProgramAssignment[] @relation("ProgramAssignmentEndedBy")
+
   @@map("users")
 }

@@ -32,6 +32,12 @@ model Workout {
   startedAt   DateTime? @map("started_at") @db.Timestamptz(3)
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
 
+  programAssignmentId String? @map("program_assignment_id")
+  programWorkoutId    String? @map("program_workout_id")
+
+  programAssignment TrainingProgramAssignment? @relation(fields: [programAssignmentId], references: [id], onDelete: Restrict)
+  programWorkout    TrainingProgramWorkout?    @relation(fields: [programWorkoutId], references: [id], onDelete: Restrict)
+
   athlete   User @relation("WorkoutAthlete", fields: [athleteId], references: [id], onDelete: Restrict)
   createdBy User @relation("WorkoutCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
@@ -40,6 +46,8 @@ model Workout {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  @@index([programAssignmentId])
+  @@index([programWorkoutId])
   @@index([athleteId, scheduledAt])
   @@index([athleteId, status, scheduledAt])
   @@index([createdById, createdAt])
@@ -91,10 +99,14 @@ model WorkoutSet {
   actualDurationSeconds Int?     @map("actual_duration_seconds")
   actualDistanceMeters  Decimal? @map("actual_distance_meters") @db.Decimal(10, 2)
 
-  // Additional training metrics
+  // Planned training targets
   restSeconds Int?     @map("rest_seconds")
-  rpe         Decimal? @db.Decimal(3, 1)
-  rir         Int?
+  targetRpe   Decimal? @map("target_rpe") @db.Decimal(3, 1)
+  targetRir   Int?     @map("target_rir")
+
+  // Actual training metrics
+  rpe Decimal? @db.Decimal(3, 1)
+  rir Int?
 
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
   notes       String?   @db.Text

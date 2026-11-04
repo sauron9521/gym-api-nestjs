@@ -18,6 +18,7 @@ import { WorkoutsModule } from './modules/workouts/workouts.module.js';
 import { PrismaModule } from './database/index.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { TrainerAthletesModule } from './modules/trainer-athletes/trainer-athletes.module.js';
+import { TrainingProgramsModule } from './modules/training-programs/training-programs.module.js';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { TrainerAthletesModule } from './modules/trainer-athletes/trainer-athlet
     ExercisesModule,
     WorkoutsModule,
     TrainerAthletesModule,
+    TrainingProgramsModule,
   ],
   controllers: [],
   providers: [

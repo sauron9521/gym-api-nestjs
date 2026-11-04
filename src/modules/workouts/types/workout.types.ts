@@ -16,8 +16,8 @@ export type CreateWorkoutSetInput = {
   plannedDistanceMeters?: number | null;
 
   restSeconds?: number | null;
-  rpe?: number | null;
-  rir?: number | null;
+  targetRpe?: number | null;
+  targetRir?: number | null;
 };
 
 export type CreateWorkoutExerciseInput = {
@@ -60,4 +60,10 @@ export type WorkoutListQuery = {
   status?: WorkoutStatus;
   scheduledFrom?: Date;
   scheduledTo?: Date;
+};
+
+export type CreateWorkoutFromProgramInput = {
+  assignmentId: string;
+  programWorkoutId: string;
+  scheduledAt?: Date | null;
 };

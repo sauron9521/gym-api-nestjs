@@ -10,11 +10,16 @@ import {
   Query,
 } from '@nestjs/common';
 
+import type {
+  CreateWorkoutFromProgramInput,
+  WorkoutActor,
+} from './types/workout.types.js';
+
+import { createWorkoutFromProgramSchema } from './dto/create-workout-from-program.dto.js';
+
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 
 import { WorkoutsService } from './workouts.service.js';
-
-import type { WorkoutActor } from './types/workout.types.js';
 
 import { workoutIdSchema, workoutSetIdSchema } from './dto/workout.schemas.js';
 
@@ -115,5 +120,14 @@ export class WorkoutsController {
     @CurrentUser() user: WorkoutActor,
   ) {
     return this.workoutsService.cancel(id, user);
+  }
+
+  @Post('from-program')
+  createFromProgram(
+    @CurrentUser() actor: WorkoutActor,
+    @Body({ schema: createWorkoutFromProgramSchema })
+    body: CreateWorkoutFromProgramInput,
+  ) {
+    return this.workoutsService.createFromProgram(actor, body);
   }
 }

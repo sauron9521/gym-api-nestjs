@@ -8,9 +8,9 @@ import { ExercisesService } from '../exercises.service.js';
 import { ExercisesRepository } from '../exercises.repository.js';
 
 import type {
-  ExerciseActor,
-  ExerciseAccessContext,
   CreateExerciseInput,
+  ExerciseAccessContext,
+  ExerciseActor,
 } from '../types/exercise.types.js';
 
 describe('ExercisesService', () => {
@@ -359,6 +359,90 @@ describe('ExercisesService', () => {
           activeTrainerIds: [],
           activeAthleteIds: [],
         }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAvailableForTrainingProgram', () => {
+    it('should allow global exercises', async () => {
+      const globalExercise = {
+        ...exercise,
+        source: 'GLOBAL',
+        visibility: null,
+        createdById: null,
+      };
+
+      repository.findById.mockResolvedValue(globalExercise);
+
+      const result = await service.findAvailableForTrainingProgram(
+        'exercise-1',
+        trainer,
+      );
+
+      expect(result).toEqual(globalExercise);
+
+      expect(repository.findById).toHaveBeenCalledWith('exercise-1', {
+        isArchived: false,
+        OR: [
+          { source: 'GLOBAL' },
+          {
+            source: 'TRAINER_CUSTOM',
+            createdById: trainer.id,
+          },
+        ],
+      });
+    });
+
+    it('should allow trainer-owned custom exercises', async () => {
+      const trainerExercise = {
+        ...exercise,
+        source: 'TRAINER_CUSTOM',
+        visibility: null,
+        createdById: trainer.id,
+      };
+
+      repository.findById.mockResolvedValue(trainerExercise);
+
+      const result = await service.findAvailableForTrainingProgram(
+        'exercise-1',
+        trainer,
+      );
+
+      expect(result).toEqual(trainerExercise);
+    });
+
+    it('should reject athlete custom exercises', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.findAvailableForTrainingProgram('exercise-1', trainer),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(repository.findById).toHaveBeenCalledWith('exercise-1', {
+        isArchived: false,
+        OR: [
+          { source: 'GLOBAL' },
+          {
+            source: 'TRAINER_CUSTOM',
+            createdById: trainer.id,
+          },
+        ],
+      });
+    });
+
+    it('should reject non-trainers', async () => {
+      await expect(
+        service.findAvailableForTrainingProgram('exercise-1', athlete),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(repository.findById).not.toHaveBeenCalled();
+    });
+
+    it('should reject missing exercises', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.findAvailableForTrainingProgram('missing-id', trainer),
       ).rejects.toThrow(NotFoundException);
     });
   });

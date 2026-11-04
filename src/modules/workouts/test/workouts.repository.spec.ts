@@ -1,7 +1,7 @@
 import { PrismaService } from '../../../database/index.js';
 import { Prisma } from '../../../generated/prisma/client.js';
 
-import { WorkoutsRepository, workoutSelect } from '../workouts.repository.js';
+import { workoutSelect, WorkoutsRepository } from '../workouts.repository.js';
 
 describe('WorkoutsRepository', () => {
   let repository: WorkoutsRepository;
@@ -22,6 +22,25 @@ describe('WorkoutsRepository', () => {
     vi.resetAllMocks();
 
     repository = new WorkoutsRepository(prisma as unknown as PrismaService);
+  });
+
+  it('should include program references and planned set targets', () => {
+    expect(workoutSelect).toMatchObject({
+      programAssignmentId: true,
+      programWorkoutId: true,
+      exercises: {
+        select: {
+          sets: {
+            select: {
+              targetRpe: true,
+              targetRir: true,
+              rpe: true,
+              rir: true,
+            },
+          },
+        },
+      },
+    });
   });
 
   describe('findMany', () => {

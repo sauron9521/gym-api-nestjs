@@ -143,6 +143,34 @@ export class ExercisesService {
     return exercise;
   }
 
+  // FIND EXERCISE AVAILABLE FOR TRAINING PROGRAM
+  async findAvailableForTrainingProgram(id: string, actor: ExerciseActor) {
+    if (actor.role !== 'TRAINER') {
+      throw new ForbiddenException(
+        'Only trainers can use exercises in training programs',
+      );
+    }
+
+    const exercise = await this.exercisesRepository.findById(id, {
+      isArchived: false,
+      OR: [
+        {
+          source: 'GLOBAL',
+        },
+        {
+          source: 'TRAINER_CUSTOM',
+          createdById: actor.id,
+        },
+      ],
+    });
+
+    if (!exercise) {
+      throw new NotFoundException('Exercise not found');
+    }
+
+    return exercise;
+  }
+
   // UPDATE
   async update(id: string, actor: ExerciseActor, input: UpdateExerciseInput) {
     const exercise = await this.exercisesRepository.findById(id, {
