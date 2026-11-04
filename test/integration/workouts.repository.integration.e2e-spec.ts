@@ -643,4 +643,297 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
       completedAt: null,
     });
   });
+
+  it('should keep assignment and workouts consistent during concurrent creation and completion', async () => {
+    const fixture = await createFixture();
+
+    const [createdWorkout, completionResult] = await Promise.all([
+      repository.createFromProgram({
+        athleteId: fixture.athleteId,
+        assignmentId: fixture.assignmentId,
+        programWorkoutId: fixture.programWorkoutId,
+      }),
+
+      trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt: new Date(),
+      }),
+    ]);
+
+    const assignment = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+      {
+        where: { id: fixture.assignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      },
+    );
+
+    const workoutCount = await prisma.workout.count({
+      where: {
+        programAssignmentId: fixture.assignmentId,
+      },
+    });
+
+    if (completionResult.status === 'COMPLETED') {
+      // Completion won the race.
+      expect(createdWorkout).toBeNull();
+      expect(assignment.status).toBe('COMPLETED');
+      expect(assignment.completedAt).not.toBeNull();
+      expect(workoutCount).toBe(0);
+    } else {
+      // Creation won the race.
+      expect(completionResult).toEqual({
+        status: 'HAS_UNFINISHED_WORKOUTS',
+        unfinishedCount: 1,
+      });
+
+      expect(createdWorkout).not.toBeNull();
+      expect(assignment.status).toBe('ACTIVE');
+      expect(assignment.completedAt).toBeNull();
+      expect(workoutCount).toBe(1);
+    }
+  });
+
+  it('should complete an assignment only once under concurrent requests', async () => {
+    const fixture = await createFixture();
+
+    const firstCompletedAt = new Date('2030-01-15T12:00:00.000Z');
+    const secondCompletedAt = new Date('2030-01-16T12:00:00.000Z');
+
+    const results = await Promise.all([
+      trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt: firstCompletedAt,
+      }),
+
+      trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt: secondCompletedAt,
+      }),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      'COMPLETED',
+      'NOT_ACTIVE',
+    ]);
+
+    const completedResult = results.find(
+      (result) => result.status === 'COMPLETED',
+    );
+
+    if (!completedResult || completedResult.status !== 'COMPLETED') {
+      throw new Error('Expected exactly one successful completion');
+    }
+
+    const persistedAssignment =
+      await prisma.trainingProgramAssignment.findUniqueOrThrow({
+        where: { id: fixture.assignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      });
+
+    expect(persistedAssignment).toEqual({
+      status: 'COMPLETED',
+      completedAt: completedResult.assignment.completedAt,
+    });
+  });
+
+  it('should wait for assignment lock and reject workout creation after completion', async () => {
+    const fixture = await createFixture();
+
+    let creationPromise:
+      ReturnType<WorkoutsRepository['createFromProgram']> | undefined;
+
+    let observedBlocking = false;
+
+    // Transaction A locks the assignment row.
+    await prisma.$transaction(
+      async (tx) => {
+        const [lockedRow] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "training_program_assignments"
+        WHERE "id" = ${fixture.assignmentId}
+        FOR UPDATE
+      `;
+
+        expect(lockedRow).toBeDefined();
+
+        // Transaction B attempts to create a workout.
+        creationPromise = repository.createFromProgram({
+          athleteId: fixture.athleteId,
+          assignmentId: fixture.assignmentId,
+          programWorkoutId: fixture.programWorkoutId,
+        });
+
+        // Wait until PostgreSQL reports that B is blocked by A.
+        for (let attempt = 0; attempt < 60; attempt++) {
+          const [state] = await prisma.$queryRaw<
+            Array<{ is_blocked: boolean }>
+          >`
+          SELECT EXISTS (
+            SELECT 1
+            FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${lockedRow!.pid} = ANY(
+                pg_blocking_pids(activity.pid)
+              )
+          ) AS is_blocked
+        `;
+
+          if (state?.is_blocked) {
+            observedBlocking = true;
+            break;
+          }
+
+          await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        }
+
+        // Transaction A completes the assignment before releasing its lock.
+        await tx.trainingProgramAssignment.update({
+          where: { id: fixture.assignmentId },
+          data: {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+          },
+        });
+      },
+      { timeout: 15_000 },
+    );
+
+    // After A commits, transaction B can continue.
+    const createdWorkout = await creationPromise;
+
+    expect(observedBlocking).toBe(true);
+    expect(createdWorkout).toBeNull();
+
+    const assignment = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+      {
+        where: { id: fixture.assignmentId },
+        select: { status: true },
+      },
+    );
+
+    expect(assignment.status).toBe('COMPLETED');
+
+    const workoutCount = await prisma.workout.count({
+      where: {
+        programAssignmentId: fixture.assignmentId,
+      },
+    });
+
+    expect(workoutCount).toBe(0);
+  }, 20_000);
+
+  it('should reject assignment completion when a concurrent transaction creates a workout', async () => {
+    const fixture = await createFixture();
+
+    let completionPromise:
+      | ReturnType<
+          TrainingProgramsRepository['completeAssignmentIfNoUnfinishedWorkouts']
+        >
+      | undefined;
+
+    let observedBlocking = false;
+
+    // Transaction A locks the assignment and creates a workout.
+    await prisma.$transaction(
+      async (tx) => {
+        const [lockedRow] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "training_program_assignments"
+        WHERE "id" = ${fixture.assignmentId}
+        FOR UPDATE
+      `;
+
+        expect(lockedRow).toBeDefined();
+
+        await tx.workout.create({
+          data: {
+            title: 'Concurrent Workout',
+            athleteId: fixture.athleteId,
+            createdById: fixture.athleteId,
+            programAssignmentId: fixture.assignmentId,
+            programWorkoutId: fixture.programWorkoutId,
+            status: 'PLANNED',
+          },
+        });
+
+        // Transaction B attempts to complete the assignment.
+        completionPromise =
+          trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+            assignmentId: fixture.assignmentId,
+            athleteId: fixture.athleteId,
+            completedAt: new Date(),
+          });
+
+        // Verify B is waiting for A.
+        for (let attempt = 0; attempt < 60; attempt++) {
+          const [state] = await prisma.$queryRaw<
+            Array<{ is_blocked: boolean }>
+          >`
+          SELECT EXISTS (
+            SELECT 1
+            FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${lockedRow!.pid} = ANY(
+                pg_blocking_pids(activity.pid)
+              )
+          ) AS is_blocked
+        `;
+
+          if (state?.is_blocked) {
+            observedBlocking = true;
+            break;
+          }
+
+          await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        }
+
+        // Transaction A commits after leaving this callback.
+      },
+      { timeout: 15_000 },
+    );
+
+    const completionResult = await completionPromise;
+
+    expect(observedBlocking).toBe(true);
+
+    expect(completionResult).toEqual({
+      status: 'HAS_UNFINISHED_WORKOUTS',
+      unfinishedCount: 1,
+    });
+
+    const assignment = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+      {
+        where: { id: fixture.assignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      },
+    );
+
+    expect(assignment).toEqual({
+      status: 'ACTIVE',
+      completedAt: null,
+    });
+
+    const workouts = await prisma.workout.findMany({
+      where: {
+        programAssignmentId: fixture.assignmentId,
+      },
+      select: {
+        status: true,
+      },
+    });
+
+    expect(workouts).toEqual([{ status: 'PLANNED' }]);
+  }, 20_000);
 });
