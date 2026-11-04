@@ -41,6 +41,7 @@ describe('TrainingProgramsService', () => {
     findAssignmentById: vi.fn(),
     findAssignmentDetailsById: vi.fn(),
     updateAssignment: vi.fn(),
+    completeAssignmentIfNoUnfinishedWorkouts: vi.fn(),
   };
 
   const exercisesServiceMock = {
@@ -1024,22 +1025,25 @@ describe('TrainingProgramsService', () => {
       const completed = {
         ...activeAssignment,
         status: 'COMPLETED',
+        completedAt: new Date(),
       };
 
-      repository.updateAssignment.mockResolvedValue(completed);
+      repository.completeAssignmentIfNoUnfinishedWorkouts.mockResolvedValue({
+        status: 'COMPLETED',
+        assignment: completed,
+      });
 
       const result = await service.completeAssignment('assignment-1', athlete);
 
-      expect(repository.updateAssignment).toHaveBeenCalledWith(
-        {
-          id: 'assignment-1',
-          status: 'ACTIVE',
-        },
-        expect.objectContaining({
-          status: 'COMPLETED',
-          completedAt: expect.any(Date),
-        }),
-      );
+      expect(
+        repository.completeAssignmentIfNoUnfinishedWorkouts,
+      ).toHaveBeenCalledWith({
+        assignmentId: 'assignment-1',
+        athleteId: athlete.id,
+        completedAt: expect.any(Date),
+      });
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
 
       expect(result).toEqual(completed);
     });
@@ -1121,6 +1125,55 @@ describe('TrainingProgramsService', () => {
       ).rejects.toThrow(BadRequestException);
 
       expect(repository.findManyAssignments).not.toHaveBeenCalled();
+    });
+
+    it('should reject completion when unfinished workouts exist', async () => {
+      repository.completeAssignmentIfNoUnfinishedWorkouts.mockResolvedValue({
+        status: 'HAS_UNFINISHED_WORKOUTS',
+        unfinishedCount: 2,
+      });
+
+      await expect(
+        service.completeAssignment('assignment-1', athlete),
+      ).rejects.toThrow(
+        new ConflictException(
+          'Cannot complete assignment: 2 unfinished workout(s) remain.',
+        ),
+      );
+
+      expect(
+        repository.completeAssignmentIfNoUnfinishedWorkouts,
+      ).toHaveBeenCalledWith({
+        assignmentId: 'assignment-1',
+        athleteId: athlete.id,
+        completedAt: expect.any(Date),
+      });
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
+    });
+
+    it('should reject completion when assignment becomes inactive', async () => {
+      repository.completeAssignmentIfNoUnfinishedWorkouts.mockResolvedValue({
+        status: 'NOT_ACTIVE',
+      });
+
+      await expect(
+        service.completeAssignment('assignment-1', athlete),
+      ).rejects.toThrow(
+        new ConflictException(
+          'Assignment state has changed. Reload and try again.',
+        ),
+      );
+
+      expect(
+        repository.completeAssignmentIfNoUnfinishedWorkouts,
+      ).toHaveBeenCalledWith({
+        assignmentId: 'assignment-1',
+        athleteId: athlete.id,
+        completedAt: expect.any(Date),
+      });
+
+      expect(repository.updateAssignment).not.toHaveBeenCalled();
     });
   });
 });
