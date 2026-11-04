@@ -182,6 +182,20 @@ export class WorkoutsRepository {
     scheduledAt?: Date | null;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      // Serialize workout creation with assignment completion.
+      const assignments = await tx.$queryRaw<Array<{ id: string }>>`
+  SELECT "id"
+  FROM "training_program_assignments"
+  WHERE
+    "id" = ${input.assignmentId}
+    AND "athlete_id" = ${input.athleteId}
+    AND "status" = 'ACTIVE'
+  FOR UPDATE
+`;
+
+      if (assignments.length !== 1) {
+        return null;
+      }
       const assignment = await tx.trainingProgramAssignment.findFirst({
         where: {
           id: input.assignmentId,
