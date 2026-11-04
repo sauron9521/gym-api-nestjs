@@ -9,12 +9,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaModule, PrismaService } from '../../src/database/index.js';
 import { WorkoutsModule } from '../../src/modules/workouts/workouts.module.js';
 import { WorkoutsRepository } from '../../src/modules/workouts/workouts.repository.js';
+import { TrainingProgramsRepository } from '../../src/modules/training-programs/training-programs.repository.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
   let app: INestApplication | undefined;
   let prisma: PrismaService;
   let repository: WorkoutsRepository;
+  let trainingProgramsRepository: TrainingProgramsRepository;
 
   const cleanup = {
     userIds: [] as string[],
@@ -191,6 +193,7 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
+    trainingProgramsRepository = new TrainingProgramsRepository(prisma);
     repository = app.get(WorkoutsRepository);
   }, 20_000);
 
@@ -459,5 +462,185 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     });
 
     expect(assignment?.startedAt).toBeNull();
+  });
+
+  it('should complete an assignment when all workouts are completed', async () => {
+    const fixture = await createFixture();
+
+    const workout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+
+    expect(workout).not.toBeNull();
+
+    await prisma.workout.update({
+      where: { id: workout!.id },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date('2030-01-15T11:00:00.000Z'),
+      },
+    });
+
+    const completedAt = new Date('2030-01-15T12:00:00.000Z');
+
+    const result =
+      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
+        {
+          assignmentId: fixture.assignmentId,
+          athleteId: fixture.athleteId,
+          completedAt,
+        },
+      );
+
+    expect(result.status).toBe('COMPLETED');
+
+    if (result.status !== 'COMPLETED') {
+      throw new Error('Expected assignment to be completed');
+    }
+
+    expect(result.assignment).toMatchObject({
+      id: fixture.assignmentId,
+      status: 'COMPLETED',
+      completedAt,
+    });
+
+    const persistedAssignment =
+      await prisma.trainingProgramAssignment.findUnique({
+        where: { id: fixture.assignmentId },
+        select: {
+          status: true,
+          completedAt: true,
+        },
+      });
+
+    expect(persistedAssignment).toEqual({
+      status: 'COMPLETED',
+      completedAt,
+    });
+  });
+
+  it('should not complete an assignment when a planned workout exists', async () => {
+    const fixture = await createFixture();
+
+    const workout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+
+    expect(workout).not.toBeNull();
+
+    const result =
+      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
+        {
+          assignmentId: fixture.assignmentId,
+          athleteId: fixture.athleteId,
+          completedAt: new Date('2030-01-15T12:00:00.000Z'),
+        },
+      );
+
+    expect(result).toEqual({
+      status: 'HAS_UNFINISHED_WORKOUTS',
+      unfinishedCount: 1,
+    });
+
+    const assignment = await prisma.trainingProgramAssignment.findUnique({
+      where: { id: fixture.assignmentId },
+      select: {
+        status: true,
+        completedAt: true,
+      },
+    });
+
+    expect(assignment).toEqual({
+      status: 'ACTIVE',
+      completedAt: null,
+    });
+  });
+
+  it('should not complete an assignment when an in-progress workout exists', async () => {
+    const fixture = await createFixture();
+
+    const workout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+
+    expect(workout).not.toBeNull();
+
+    await prisma.workout.update({
+      where: { id: workout!.id },
+      data: {
+        status: 'IN_PROGRESS',
+        startedAt: new Date('2030-01-15T10:00:00.000Z'),
+      },
+    });
+
+    const result =
+      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
+        {
+          assignmentId: fixture.assignmentId,
+          athleteId: fixture.athleteId,
+          completedAt: new Date('2030-01-15T12:00:00.000Z'),
+        },
+      );
+
+    expect(result).toEqual({
+      status: 'HAS_UNFINISHED_WORKOUTS',
+      unfinishedCount: 1,
+    });
+
+    const assignment = await prisma.trainingProgramAssignment.findUnique({
+      where: { id: fixture.assignmentId },
+      select: {
+        status: true,
+        completedAt: true,
+      },
+    });
+
+    expect(assignment).toEqual({
+      status: 'ACTIVE',
+      completedAt: null,
+    });
+  });
+
+  it('should not complete an inactive assignment', async () => {
+    const fixture = await createFixture();
+
+    await prisma.trainingProgramAssignment.update({
+      where: { id: fixture.assignmentId },
+      data: {
+        status: 'CANCELLED',
+      },
+    });
+
+    const result =
+      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
+        {
+          assignmentId: fixture.assignmentId,
+          athleteId: fixture.athleteId,
+          completedAt: new Date('2030-01-15T12:00:00.000Z'),
+        },
+      );
+
+    expect(result).toEqual({
+      status: 'NOT_ACTIVE',
+    });
+
+    const assignment = await prisma.trainingProgramAssignment.findUnique({
+      where: { id: fixture.assignmentId },
+      select: {
+        status: true,
+        completedAt: true,
+      },
+    });
+
+    expect(assignment).toEqual({
+      status: 'CANCELLED',
+      completedAt: null,
+    });
   });
 });
