@@ -6,6 +6,13 @@ import {
   trainingProgramVersionSelect,
 } from '../training-programs.repository.js';
 
+import { TrainingProgramCrudRepository } from '../repositories/training-program-crud.repository.js';
+import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
+import { TrainingProgramAssignmentRepository } from '../repositories/training-program-assignment.repository.js';
+import { TrainingProgramExerciseRepository } from '../repositories/training-program-exercise.repository.js';
+import { TrainingProgramSetRepository } from '../repositories/training-program-set.repository.js';
+import { TrainingProgramWorkoutRepository } from '../repositories/training-program-workout.repository.js';
+
 describe('TrainingProgramsRepository', () => {
   const models = {
     $transaction: vi.fn(),
@@ -40,7 +47,16 @@ describe('TrainingProgramsRepository', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    repository = new TrainingProgramsRepository(models as never);
+    const prisma = models as never;
+
+    repository = new TrainingProgramsRepository(
+      new TrainingProgramCrudRepository(prisma),
+      new TrainingProgramVersionRepository(prisma),
+      new TrainingProgramAssignmentRepository(prisma),
+      new TrainingProgramExerciseRepository(prisma),
+      new TrainingProgramSetRepository(prisma),
+      new TrainingProgramWorkoutRepository(prisma),
+    );
   });
 
   describe('programs', () => {

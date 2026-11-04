@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/index.js';
 import type {
   ExerciseType,
   WorkoutSetType,
@@ -11,218 +10,25 @@ import type {
   UpdateTrainingProgramSetInput,
   UpdateTrainingProgramWorkoutInput,
 } from './types/training-program.types.js';
-// -----------------------------------------------------------------------------
-// SELECTS
-// -----------------------------------------------------------------------------
 
-export const trainingProgramSelect = {
-  id: true,
-  trainerId: true,
-  status: true,
+import { TrainingProgramCrudRepository } from './repositories/training-program-crud.repository.js';
+import { TrainingProgramVersionRepository } from './repositories/training-program-version.repository.js';
+import { TrainingProgramAssignmentRepository } from './repositories/training-program-assignment.repository.js';
+import { TrainingProgramExerciseRepository } from './repositories/training-program-exercise.repository.js';
+import { TrainingProgramSetRepository } from './repositories/training-program-set.repository.js';
+import { TrainingProgramWorkoutRepository } from './repositories/training-program-workout.repository.js';
 
-  versions: {
-    orderBy: {
-      version: 'desc',
-    },
-    take: 1,
-    select: {
-      id: true,
-      version: true,
-      title: true,
-      description: true,
-      durationWeeks: true,
-      status: true,
-      publishedAt: true,
-    },
-  },
+import type { FindManyTrainingProgramAssignmentsParams } from './repositories/training-program-assignment.repository.js';
 
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.TrainingProgramSelect;
+//ТИМЧАСОВО Шляпа
+export { trainingProgramSelect } from './selects/training-program.select.js';
+export { trainingProgramVersionSelect } from './selects/training-program-version.select.js';
+export {
+  trainingProgramAssignmentSelect,
+  trainingProgramAssignmentDetailsSelect,
+} from './selects/training-program-assignment.select.js';
+export type { FindManyTrainingProgramAssignmentsParams } from './repositories/training-program-assignment.repository.js';
 
-export const trainingProgramVersionSelect = {
-  id: true,
-  programId: true,
-  version: true,
-
-  title: true,
-  description: true,
-  durationWeeks: true,
-
-  status: true,
-  publishedAt: true,
-
-  workouts: {
-    orderBy: [{ weekNumber: 'asc' }, { dayNumber: 'asc' }, { id: 'asc' }],
-    select: {
-      id: true,
-      versionId: true,
-
-      weekNumber: true,
-      dayNumber: true,
-
-      title: true,
-      notes: true,
-
-      exercises: {
-        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-        select: {
-          id: true,
-          workoutId: true,
-          exerciseId: true,
-
-          exerciseNameSnapshot: true,
-          exerciseTypeSnapshot: true,
-
-          sortOrder: true,
-          notes: true,
-
-          sets: {
-            orderBy: {
-              setNumber: 'asc',
-            },
-            select: {
-              id: true,
-              programExerciseId: true,
-
-              setNumber: true,
-              setType: true,
-
-              plannedReps: true,
-              plannedWeightKg: true,
-              plannedDurationSeconds: true,
-              plannedDistanceMeters: true,
-
-              restSeconds: true,
-              targetRpe: true,
-              targetRir: true,
-
-              notes: true,
-            },
-          },
-
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-
-      createdAt: true,
-      updatedAt: true,
-    },
-  },
-
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.TrainingProgramVersionSelect;
-
-export const trainingProgramAssignmentSelect = {
-  id: true,
-
-  versionId: true,
-  trainerAthleteId: true,
-
-  athleteId: true,
-  assignedById: true,
-
-  status: true,
-
-  assignedAt: true,
-  startedAt: true,
-  completedAt: true,
-
-  endedAt: true,
-  endedById: true,
-  endReason: true,
-
-  version: {
-    select: {
-      id: true,
-      programId: true,
-      version: true,
-      title: true,
-      description: true,
-      durationWeeks: true,
-      status: true,
-      publishedAt: true,
-
-      program: {
-        select: {
-          id: true,
-          trainerId: true,
-          status: true,
-        },
-      },
-    },
-  },
-
-  trainerAthlete: {
-    select: {
-      id: true,
-      trainerId: true,
-      athleteId: true,
-      status: true,
-    },
-  },
-
-  athlete: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  assignedBy: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  endedBy: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  workouts: {
-    select: {
-      id: true,
-      title: true,
-      status: true,
-      scheduledAt: true,
-      startedAt: true,
-      completedAt: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  },
-
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.TrainingProgramAssignmentSelect;
-
-export const trainingProgramAssignmentDetailsSelect = {
-  ...trainingProgramAssignmentSelect,
-
-  version: {
-    select: {
-      ...trainingProgramVersionSelect,
-
-      program: {
-        select: {
-          id: true,
-          trainerId: true,
-          status: true,
-        },
-      },
-    },
-  },
-} satisfies Prisma.TrainingProgramAssignmentSelect;
 // -----------------------------------------------------------------------------
 // PARAMS
 // -----------------------------------------------------------------------------
@@ -234,20 +40,20 @@ export type FindManyTrainingProgramsParams = {
   orderBy?: Prisma.TrainingProgramOrderByWithRelationInput[];
 };
 
-export type FindManyTrainingProgramAssignmentsParams = {
-  where: Prisma.TrainingProgramAssignmentWhereInput;
-  skip: number;
-  take: number;
-  orderBy?: Prisma.TrainingProgramAssignmentOrderByWithRelationInput[];
-};
-
 // -----------------------------------------------------------------------------
 // REPOSITORY
 // -----------------------------------------------------------------------------
 
 @Injectable()
 export class TrainingProgramsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly crudRepository: TrainingProgramCrudRepository,
+    private readonly versionRepository: TrainingProgramVersionRepository,
+    private readonly assignmentRepository: TrainingProgramAssignmentRepository,
+    private readonly exerciseRepository: TrainingProgramExerciseRepository,
+    private readonly setRepository: TrainingProgramSetRepository,
+    private readonly workoutRepository: TrainingProgramWorkoutRepository,
+  ) {}
 
   async createProgramWithDraft(input: {
     trainerId: string;
@@ -255,189 +61,26 @@ export class TrainingProgramsRepository {
     description?: string | null;
     durationWeeks?: number | null;
   }) {
-    return this.prisma.trainingProgram.create({
-      data: {
-        trainer: {
-          connect: { id: input.trainerId },
-        },
-        versions: {
-          create: {
-            version: 1,
-            title: input.title,
-            description: input.description ?? null,
-            durationWeeks: input.durationWeeks ?? null,
-            status: 'DRAFT',
-          },
-        },
-      },
-      select: trainingProgramSelect,
-    });
+    return this.crudRepository.createProgramWithDraft(input);
   }
 
   async createDraftFromLatestPublished(programId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const program = await tx.trainingProgram.findFirst({
-        where: {
-          id: programId,
-          status: { not: 'ARCHIVED' },
-        },
-        select: { id: true },
-      });
-
-      if (!program) {
-        return null;
-      }
-
-      const existingDraft = await tx.trainingProgramVersion.findFirst({
-        where: {
-          programId,
-          status: 'DRAFT',
-        },
-        select: { id: true },
-      });
-
-      if (existingDraft) {
-        return null;
-      }
-
-      const source = await tx.trainingProgramVersion.findFirst({
-        where: {
-          programId,
-          status: 'PUBLISHED',
-        },
-        orderBy: {
-          version: 'desc',
-        },
-        select: trainingProgramVersionSelect,
-      });
-
-      if (!source) {
-        return null;
-      }
-
-      return tx.trainingProgramVersion.create({
-        data: {
-          program: {
-            connect: { id: programId },
-          },
-
-          version: source.version + 1,
-          title: source.title,
-          description: source.description,
-          durationWeeks: source.durationWeeks,
-          status: 'DRAFT',
-
-          workouts: {
-            create: source.workouts.map((workout) => ({
-              weekNumber: workout.weekNumber,
-              dayNumber: workout.dayNumber,
-              title: workout.title,
-              notes: workout.notes,
-
-              exercises: {
-                create: workout.exercises.map((exercise) => ({
-                  exercise: {
-                    connect: { id: exercise.exerciseId },
-                  },
-
-                  exerciseNameSnapshot: exercise.exerciseNameSnapshot,
-                  exerciseTypeSnapshot: exercise.exerciseTypeSnapshot,
-
-                  sortOrder: exercise.sortOrder,
-                  notes: exercise.notes,
-
-                  sets: {
-                    create: exercise.sets.map((set) => ({
-                      setNumber: set.setNumber,
-                      setType: set.setType,
-
-                      plannedReps: set.plannedReps,
-                      plannedWeightKg: set.plannedWeightKg,
-                      plannedDurationSeconds: set.plannedDurationSeconds,
-                      plannedDistanceMeters: set.plannedDistanceMeters,
-
-                      restSeconds: set.restSeconds,
-                      targetRpe: set.targetRpe,
-                      targetRir: set.targetRir,
-
-                      notes: set.notes,
-                    })),
-                  },
-                })),
-              },
-            })),
-          },
-        },
-        select: trainingProgramVersionSelect,
-      });
-    });
+    return this.versionRepository.createDraftFromLatestPublished(programId);
   }
 
   async publishVersion(programId: string, versionId: string) {
-    return this.prisma
-      .$transaction(async (tx) => {
-        const published = await tx.trainingProgramVersion.updateMany({
-          where: {
-            id: versionId,
-            programId,
-            status: 'DRAFT',
-          },
-          data: {
-            status: 'PUBLISHED',
-            publishedAt: new Date(),
-          },
-        });
-
-        if (published.count !== 1) {
-          return null;
-        }
-
-        const programUpdate = await tx.trainingProgram.updateMany({
-          where: {
-            id: programId,
-            status: { not: 'ARCHIVED' },
-          },
-          data: {
-            status: 'PUBLISHED',
-          },
-        });
-
-        if (programUpdate.count !== 1) {
-          throw new Error('PROGRAM_ARCHIVED');
-        }
-
-        return tx.trainingProgramVersion.findUnique({
-          where: { id: versionId },
-          select: trainingProgramVersionSelect,
-        });
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.message === 'PROGRAM_ARCHIVED') {
-          return null;
-        }
-
-        throw error;
-      });
+    return this.versionRepository.publishVersion(programId, versionId);
   }
 
+  // ===========================================================================
+  // WORKOUTS
+  // ===========================================================================
   async createWorkout(
     programId: string,
     versionId: string,
     input: CreateTrainingProgramWorkoutInput,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          create: input,
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.workoutRepository.createWorkout(programId, versionId, input);
   }
 
   async updateWorkout(
@@ -446,101 +89,46 @@ export class TrainingProgramsRepository {
     workoutId: string,
     input: UpdateTrainingProgramWorkoutInput,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: input,
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.workoutRepository.updateWorkout(
+      programId,
+      versionId,
+      workoutId,
+      input,
+    );
   }
 
   async deleteWorkout(programId: string, versionId: string, workoutId: string) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          delete: { id: workoutId },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.workoutRepository.deleteWorkout(
+      programId,
+      versionId,
+      workoutId,
+    );
   }
 
   // ===========================================================================
   // TRAINING PROGRAMS
   // ===========================================================================
 
-  async findMany({
-    where,
-    skip,
-    take,
-    orderBy = [{ updatedAt: 'desc' }, { id: 'desc' }],
-  }: FindManyTrainingProgramsParams) {
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.trainingProgram.findMany({
-        where,
-        skip,
-        take,
-        orderBy,
-        select: trainingProgramSelect,
-      }),
-
-      this.prisma.trainingProgram.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: {
-        total,
-        skip,
-        take,
-        totalPages: Math.ceil(total / take),
-      },
-    };
+  async findMany(params: FindManyTrainingProgramsParams) {
+    return this.crudRepository.findMany(params);
   }
 
   async findProgramById(
     id: string,
     where: Prisma.TrainingProgramWhereInput = {},
   ) {
-    return this.prisma.trainingProgram.findFirst({
-      where: {
-        AND: [{ id }, where],
-      },
-      select: trainingProgramSelect,
-    });
+    return this.crudRepository.findProgramById(id, where);
   }
 
   async createProgram(data: Prisma.TrainingProgramCreateInput) {
-    return this.prisma.trainingProgram.create({
-      data,
-      select: trainingProgramSelect,
-    });
+    return this.crudRepository.createProgram(data);
   }
 
   async updateProgram(
     where: Prisma.TrainingProgramWhereUniqueInput,
     data: Prisma.TrainingProgramUpdateInput,
   ) {
-    return this.prisma.trainingProgram.update({
-      where,
-      data,
-      select: trainingProgramSelect,
-    });
+    return this.crudRepository.updateProgram(where, data);
   }
 
   // ===========================================================================
@@ -548,145 +136,61 @@ export class TrainingProgramsRepository {
   // ===========================================================================
 
   async findVersions(programId: string) {
-    return this.prisma.trainingProgramVersion.findMany({
-      where: {
-        programId,
-      },
-      orderBy: {
-        version: 'desc',
-      },
-      select: {
-        id: true,
-        programId: true,
-        version: true,
-        title: true,
-        description: true,
-        durationWeeks: true,
-        status: true,
-        publishedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    return this.versionRepository.findVersions(programId);
   }
 
   async findVersionById(
     id: string,
     where: Prisma.TrainingProgramVersionWhereInput = {},
   ) {
-    return this.prisma.trainingProgramVersion.findFirst({
-      where: {
-        AND: [{ id }, where],
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.versionRepository.findVersionById(id, where);
   }
 
   async findVersionByNumber(programId: string, version: number) {
-    return this.prisma.trainingProgramVersion.findUnique({
-      where: {
-        programId_version: {
-          programId,
-          version,
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.versionRepository.findVersionByNumber(programId, version);
   }
 
   async findDraftVersion(programId: string) {
-    return this.prisma.trainingProgramVersion.findFirst({
-      where: {
-        programId,
-        status: 'DRAFT',
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.versionRepository.findDraftVersion(programId);
   }
 
   async createVersion(data: Prisma.TrainingProgramVersionCreateInput) {
-    return this.prisma.trainingProgramVersion.create({
-      data,
-      select: trainingProgramVersionSelect,
-    });
+    return this.versionRepository.createVersion(data);
   }
 
   async updateVersion(
     where: Prisma.TrainingProgramVersionWhereUniqueInput,
     data: Prisma.TrainingProgramVersionUpdateInput,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where,
-      data,
-      select: trainingProgramVersionSelect,
-    });
+    return this.versionRepository.updateVersion(where, data);
   }
 
   // ===========================================================================
   // PROGRAM ASSIGNMENTS
   // ===========================================================================
 
-  async findManyAssignments({
-    where,
-    skip,
-    take,
-    orderBy = [{ assignedAt: 'desc' }, { id: 'desc' }],
-  }: FindManyTrainingProgramAssignmentsParams) {
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.trainingProgramAssignment.findMany({
-        where,
-        skip,
-        take,
-        orderBy,
-        select: trainingProgramAssignmentSelect,
-      }),
-
-      this.prisma.trainingProgramAssignment.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: {
-        total,
-        skip,
-        take,
-        totalPages: Math.ceil(total / take),
-      },
-    };
+  async findManyAssignments(params: FindManyTrainingProgramAssignmentsParams) {
+    return this.assignmentRepository.findManyAssignments(params);
   }
 
   async findAssignmentById(
     id: string,
     where: Prisma.TrainingProgramAssignmentWhereInput = {},
   ) {
-    return this.prisma.trainingProgramAssignment.findFirst({
-      where: {
-        AND: [{ id }, where],
-      },
-      select: trainingProgramAssignmentSelect,
-    });
+    return this.assignmentRepository.findAssignmentById(id, where);
   }
 
   async findAssignmentDetailsById(
     id: string,
     where: Prisma.TrainingProgramAssignmentWhereInput = {},
   ) {
-    return this.prisma.trainingProgramAssignment.findFirst({
-      where: {
-        AND: [{ id }, where],
-      },
-      select: trainingProgramAssignmentDetailsSelect,
-    });
+    return this.assignmentRepository.findAssignmentDetailsById(id, where);
   }
 
   async findActiveAssignmentByRelationship(trainerAthleteId: string) {
-    return this.prisma.trainingProgramAssignment.findMany({
-      where: {
-        trainerAthleteId,
-        status: 'ACTIVE',
-      },
-      select: trainingProgramAssignmentSelect,
-    });
+    return this.assignmentRepository.findActiveAssignmentByRelationship(
+      trainerAthleteId,
+    );
   }
 
   async createAssignmentForActiveRelationship(input: {
@@ -695,40 +199,16 @@ export class TrainingProgramsRepository {
     athleteId: string;
     data: Prisma.TrainingProgramAssignmentCreateInput;
   }) {
-    return this.prisma.$transaction(async (tx) => {
-      // Lock the active relationship row.
-      const relationships = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
-      FROM "trainer_athletes"
-      WHERE
-        "id" = ${input.trainerAthleteId}
-        AND "trainer_id" = ${input.trainerId}
-        AND "athlete_id" = ${input.athleteId}
-        AND "status" = 'ACTIVE'
-      FOR UPDATE
-    `;
-
-      if (relationships.length !== 1) {
-        return null;
-      }
-
-      // Create assignment while holding the relationship lock.
-      return tx.trainingProgramAssignment.create({
-        data: input.data,
-        select: trainingProgramAssignmentSelect,
-      });
-    });
+    return this.assignmentRepository.createAssignmentForActiveRelationship(
+      input,
+    );
   }
 
   async updateAssignment(
     where: Prisma.TrainingProgramAssignmentWhereUniqueInput,
     data: Prisma.TrainingProgramAssignmentUpdateInput,
   ) {
-    return this.prisma.trainingProgramAssignment.update({
-      where,
-      data,
-      select: trainingProgramAssignmentSelect,
-    });
+    return this.assignmentRepository.updateAssignment(where, data);
   }
 
   async completeAssignmentIfNoUnfinishedWorkouts(input: {
@@ -736,56 +216,14 @@ export class TrainingProgramsRepository {
     athleteId: string;
     completedAt: Date;
   }) {
-    return this.prisma.$transaction(async (tx) => {
-      const assignments = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
-      FROM "training_program_assignments"
-      WHERE
-        "id" = ${input.assignmentId}
-        AND "athlete_id" = ${input.athleteId}
-        AND "status" = 'ACTIVE'
-      FOR UPDATE
-    `;
-
-      if (assignments.length !== 1) {
-        return { status: 'NOT_ACTIVE' as const };
-      }
-
-      const unfinishedCount = await tx.workout.count({
-        where: {
-          programAssignmentId: input.assignmentId,
-          status: {
-            in: ['PLANNED', 'IN_PROGRESS'],
-          },
-        },
-      });
-
-      if (unfinishedCount > 0) {
-        return {
-          status: 'HAS_UNFINISHED_WORKOUTS' as const,
-          unfinishedCount,
-        };
-      }
-
-      const assignment = await tx.trainingProgramAssignment.update({
-        where: {
-          id: input.assignmentId,
-          status: 'ACTIVE',
-        },
-        data: {
-          status: 'COMPLETED',
-          completedAt: input.completedAt,
-        },
-        select: trainingProgramAssignmentSelect,
-      });
-
-      return {
-        status: 'COMPLETED' as const,
-        assignment,
-      };
-    });
+    return this.assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts(
+      input,
+    );
   }
 
+  // ===========================================================================
+  // PROGRAM EXERCISES
+  // ===========================================================================
   async createProgramExercise(
     programId: string,
     versionId: string,
@@ -798,35 +236,14 @@ export class TrainingProgramsRepository {
       notes: string | null;
     },
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: {
-              exercises: {
-                create: {
-                  exercise: {
-                    connect: { id: data.exerciseId },
-                  },
-                  exerciseNameSnapshot: data.exerciseNameSnapshot,
-                  exerciseTypeSnapshot: data.exerciseTypeSnapshot,
-                  sortOrder: data.sortOrder,
-                  notes: data.notes,
-                },
-              },
-            },
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.exerciseRepository.createProgramExercise(
+      programId,
+      versionId,
+      workoutId,
+      data,
+    );
   }
+
   async updateProgramExercise(
     programId: string,
     versionId: string,
@@ -834,29 +251,13 @@ export class TrainingProgramsRepository {
     exerciseId: string,
     data: UpdateTrainingProgramExerciseInput,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: {
-              exercises: {
-                update: {
-                  where: { id: exerciseId },
-                  data,
-                },
-              },
-            },
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.exerciseRepository.updateProgramExercise(
+      programId,
+      versionId,
+      workoutId,
+      exerciseId,
+      data,
+    );
   }
 
   async deleteProgramExercise(
@@ -865,26 +266,12 @@ export class TrainingProgramsRepository {
     workoutId: string,
     exerciseId: string,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: {
-              exercises: {
-                delete: { id: exerciseId },
-              },
-            },
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.exerciseRepository.deleteProgramExercise(
+      programId,
+      versionId,
+      workoutId,
+      exerciseId,
+    );
   }
 
   async reorderProgramExercises(
@@ -893,62 +280,17 @@ export class TrainingProgramsRepository {
     workoutId: string,
     exerciseIds: string[],
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      // Lock the draft version through a conditional update.
-      await tx.trainingProgramVersion.update({
-        where: {
-          id: versionId,
-          programId,
-          status: 'DRAFT',
-        },
-        data: {
-          updatedAt: new Date(),
-        },
-      });
-
-      const exercises = await tx.trainingProgramExercise.findMany({
-        where: { workoutId },
-        select: { id: true, sortOrder: true },
-      });
-
-      if (
-        exercises.length !== exerciseIds.length ||
-        new Set(exerciseIds).size !== exerciseIds.length ||
-        !exerciseIds.every((id) => exercises.some((item) => item.id === id))
-      ) {
-        throw new Error('INVALID_EXERCISE_ORDER');
-      }
-
-      const maxSortOrder = Math.max(
-        -1,
-        ...exercises.map((item) => item.sortOrder),
-      );
-
-      const offset = maxSortOrder + exercises.length + 1;
-
-      // Move to temporary positions.
-      for (const [index, id] of exerciseIds.entries()) {
-        await tx.trainingProgramExercise.update({
-          where: { id, workoutId },
-          data: { sortOrder: offset + index },
-        });
-      }
-
-      // Apply the final positions.
-      for (const [index, id] of exerciseIds.entries()) {
-        await tx.trainingProgramExercise.update({
-          where: { id, workoutId },
-          data: { sortOrder: index },
-        });
-      }
-
-      return tx.trainingProgramVersion.findUnique({
-        where: { id: versionId },
-        select: trainingProgramVersionSelect,
-      });
-    });
+    return this.exerciseRepository.reorderProgramExercises(
+      programId,
+      versionId,
+      workoutId,
+      exerciseIds,
+    );
   }
 
+  // ===========================================================================
+  // PROGRAM SETS
+  // ===========================================================================
   async createProgramSet(
     programId: string,
     versionId: string,
@@ -967,36 +309,13 @@ export class TrainingProgramsRepository {
       notes?: string | null;
     },
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: {
-              exercises: {
-                update: {
-                  where: { id: programExerciseId },
-                  data: {
-                    sets: {
-                      create: {
-                        ...data,
-                        setType: data.setType ?? 'WORKING',
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.setRepository.createProgramSet(
+      programId,
+      versionId,
+      workoutId,
+      programExerciseId,
+      data,
+    );
   }
 
   async updateProgramSet(
@@ -1007,36 +326,14 @@ export class TrainingProgramsRepository {
     setId: string,
     data: UpdateTrainingProgramSetInput,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: {
-              exercises: {
-                update: {
-                  where: { id: programExerciseId },
-                  data: {
-                    sets: {
-                      update: {
-                        where: { id: setId },
-                        data,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.setRepository.updateProgramSet(
+      programId,
+      versionId,
+      workoutId,
+      programExerciseId,
+      setId,
+      data,
+    );
   }
 
   async deleteProgramSet(
@@ -1046,33 +343,13 @@ export class TrainingProgramsRepository {
     programExerciseId: string,
     setId: string,
   ) {
-    return this.prisma.trainingProgramVersion.update({
-      where: {
-        id: versionId,
-        programId,
-        status: 'DRAFT',
-      },
-      data: {
-        workouts: {
-          update: {
-            where: { id: workoutId },
-            data: {
-              exercises: {
-                update: {
-                  where: { id: programExerciseId },
-                  data: {
-                    sets: {
-                      delete: { id: setId },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      select: trainingProgramVersionSelect,
-    });
+    return this.setRepository.deleteProgramSet(
+      programId,
+      versionId,
+      workoutId,
+      programExerciseId,
+      setId,
+    );
   }
 
   async reorderProgramSets(
@@ -1082,55 +359,12 @@ export class TrainingProgramsRepository {
     programExerciseId: string,
     setIds: string[],
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.trainingProgramVersion.update({
-        where: {
-          id: versionId,
-          programId,
-          status: 'DRAFT',
-        },
-        data: {
-          updatedAt: new Date(),
-        },
-      });
-
-      const sets = await tx.trainingProgramSet.findMany({
-        where: { programExerciseId },
-        select: { id: true, setNumber: true },
-      });
-
-      if (
-        sets.length !== setIds.length ||
-        new Set(setIds).size !== setIds.length ||
-        !setIds.every((id) => sets.some((set) => set.id === id))
-      ) {
-        throw new Error('INVALID_SET_ORDER');
-      }
-
-      const maxSetNumber = Math.max(0, ...sets.map((set) => set.setNumber));
-
-      const offset = maxSetNumber + sets.length + 1;
-
-      // Temporary positions
-      for (const [index, id] of setIds.entries()) {
-        await tx.trainingProgramSet.update({
-          where: { id, programExerciseId },
-          data: { setNumber: offset + index + 1 },
-        });
-      }
-
-      // Final positions
-      for (const [index, id] of setIds.entries()) {
-        await tx.trainingProgramSet.update({
-          where: { id, programExerciseId },
-          data: { setNumber: index + 1 },
-        });
-      }
-
-      return tx.trainingProgramVersion.findUnique({
-        where: { id: versionId },
-        select: trainingProgramVersionSelect,
-      });
-    });
+    return this.setRepository.reorderProgramSets(
+      programId,
+      versionId,
+      workoutId,
+      programExerciseId,
+      setIds,
+    );
   }
 }
