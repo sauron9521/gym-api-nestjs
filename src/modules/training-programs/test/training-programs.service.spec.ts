@@ -10,6 +10,13 @@ import { TrainingProgramsService } from '../training-programs.service.js';
 import type { TrainingProgramActor } from '../types/training-program.types.js';
 import { ExercisesService } from '../../exercises/exercises.service.js';
 import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
+import { TrainingProgramAccessService } from '../services/training-program-access.service.js';
+import { TrainingProgramWorkoutService } from '../services/training-program-workout.service.js';
+import { TrainingProgramExerciseService } from '../services/training-program-exercise.service.js';
+import { TrainingProgramSetService } from '../services/training-program-set.service.js';
+import { TrainingProgramCrudService } from '../services/training-program-crud.service.js';
+import { TrainingProgramVersionService } from '../services/training-program-version.service.js';
+import { TrainingProgramAssignmentService } from '../services/training-program-assignment.service.js';
 
 describe('TrainingProgramsService', () => {
   let service: TrainingProgramsService;
@@ -133,10 +140,54 @@ describe('TrainingProgramsService', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    service = new TrainingProgramsService(
-      repository as unknown as TrainingProgramsRepository,
-      exercisesServiceMock as unknown as ExercisesService,
+    const repositoryMock = repository as unknown as TrainingProgramsRepository;
+
+    const exercisesService =
+      exercisesServiceMock as unknown as ExercisesService;
+
+    const accessService = new TrainingProgramAccessService(repositoryMock);
+
+    const workoutService = new TrainingProgramWorkoutService(
+      repositoryMock,
+      accessService,
+    );
+
+    const exerciseService = new TrainingProgramExerciseService(
+      repositoryMock,
+      exercisesService,
+      accessService,
+    );
+
+    const setService = new TrainingProgramSetService(
+      repositoryMock,
+      accessService,
+    );
+
+    const crudService = new TrainingProgramCrudService(
+      repositoryMock,
+      accessService,
+    );
+
+    const versionService = new TrainingProgramVersionService(
+      repositoryMock,
+      crudService,
+    );
+
+    const assignmentService = new TrainingProgramAssignmentService(
+      repositoryMock,
+      crudService,
+      versionService,
+      accessService,
       trainerAthletesServiceMock as unknown as TrainerAthletesService,
+    );
+
+    service = new TrainingProgramsService(
+      crudService,
+      versionService,
+      assignmentService,
+      workoutService,
+      exerciseService,
+      setService,
     );
   });
 
