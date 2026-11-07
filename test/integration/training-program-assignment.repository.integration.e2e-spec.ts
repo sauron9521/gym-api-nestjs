@@ -1562,4 +1562,341 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       }
     }
   }, 20_000);
+
+  it('prevents duplicate active assignments for the same athlete and version', async () => {
+    const userIds: string[] = [];
+    let relationshipId: string | undefined;
+    let programId: string | undefined;
+
+    try {
+      const suffix = randomUUID();
+
+      const trainer = await prisma.user.create({
+        data: {
+          email: `duplicate-trainer-${suffix}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'TRAINER',
+        },
+        select: { id: true },
+      });
+      userIds.push(trainer.id);
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `duplicate-athlete-${suffix}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'ATHLETE',
+        },
+        select: { id: true },
+      });
+      userIds.push(athlete.id);
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId: trainer.id,
+          athleteId: athlete.id,
+          initiatedById: trainer.id,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      relationshipId = relationship.id;
+
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId: trainer.id,
+          status: 'PUBLISHED',
+          versions: {
+            create: {
+              version: 1,
+              title: 'Duplicate Assignment Test',
+              status: 'PUBLISHED',
+              publishedAt: new Date(),
+            },
+          },
+        },
+        select: {
+          id: true,
+          versions: {
+            select: { id: true },
+          },
+        },
+      });
+      programId = program.id;
+
+      const versionId = program.versions[0]!.id;
+
+      const createAssignment = () =>
+        repository.createAssignmentForActiveRelationship({
+          trainerAthleteId: relationship.id,
+          trainerId: trainer.id,
+          athleteId: athlete.id,
+          data: {
+            version: {
+              connect: { id: versionId },
+            },
+            trainerAthlete: {
+              connect: { id: relationship.id },
+            },
+            athlete: {
+              connect: { id: athlete.id },
+            },
+            assignedBy: {
+              connect: { id: trainer.id },
+            },
+          },
+        });
+
+      // First assignment must succeed.
+      const first = await createAssignment();
+
+      expect(first).not.toBeNull();
+      expect(first?.status).toBe('ACTIVE');
+
+      // Second active assignment must violate uniqueness.
+      await expect(createAssignment()).rejects.toMatchObject({
+        code: 'P2002',
+      });
+
+      const activeAssignments = await prisma.trainingProgramAssignment.findMany(
+        {
+          where: {
+            versionId,
+            athleteId: athlete.id,
+            status: 'ACTIVE',
+          },
+        },
+      );
+
+      expect(activeAssignments).toHaveLength(1);
+      expect(activeAssignments[0]?.id).toBe(first?.id);
+    } finally {
+      if (relationshipId) {
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { trainerAthleteId: relationshipId },
+        });
+      }
+
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+
+        await prisma.trainingProgram.delete({
+          where: { id: programId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.delete({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (userIds.length > 0) {
+        await prisma.user.deleteMany({
+          where: { id: { in: userIds } },
+        });
+      }
+    }
+  }, 20_000);
+
+  it('allows reassignment after completed, cancelled and terminated assignments', async () => {
+    const userIds: string[] = [];
+    let relationshipId: string | undefined;
+    let programId: string | undefined;
+
+    try {
+      const suffix = randomUUID();
+
+      const trainer = await prisma.user.create({
+        data: {
+          email: `reassign-trainer-${suffix}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'TRAINER',
+        },
+        select: { id: true },
+      });
+
+      userIds.push(trainer.id);
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `reassign-athlete-${suffix}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'ATHLETE',
+        },
+        select: { id: true },
+      });
+
+      userIds.push(athlete.id);
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId: trainer.id,
+          athleteId: athlete.id,
+          initiatedById: trainer.id,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId: trainer.id,
+          status: 'PUBLISHED',
+          versions: {
+            create: {
+              version: 1,
+              title: 'Reassignment Test Program',
+              status: 'PUBLISHED',
+              publishedAt: new Date(),
+            },
+          },
+        },
+        select: {
+          id: true,
+          versions: {
+            select: { id: true },
+          },
+        },
+      });
+
+      programId = program.id;
+      const versionId = program.versions[0]!.id;
+
+      const createAssignment = () =>
+        repository.createAssignmentForActiveRelationship({
+          trainerAthleteId: relationship.id,
+          trainerId: trainer.id,
+          athleteId: athlete.id,
+          data: {
+            version: { connect: { id: versionId } },
+            trainerAthlete: {
+              connect: { id: relationship.id },
+            },
+            athlete: { connect: { id: athlete.id } },
+            assignedBy: { connect: { id: trainer.id } },
+          },
+        });
+
+      let current = await createAssignment();
+
+      expect(current).not.toBeNull();
+
+      const terminalStatuses = [
+        'COMPLETED',
+        'CANCELLED',
+        'TERMINATED',
+      ] as const;
+
+      for (const status of terminalStatuses) {
+        if (!current) {
+          throw new Error('Expected an active assignment');
+        }
+
+        // Finish the current assignment.
+        await prisma.trainingProgramAssignment.update({
+          where: { id: current.id },
+          data:
+            status === 'COMPLETED'
+              ? {
+                  status,
+                  completedAt: new Date(),
+                }
+              : {
+                  status,
+                  endedAt: new Date(),
+                  endedById: trainer.id,
+                },
+        });
+
+        // The same version can be assigned again.
+        const next = await createAssignment();
+
+        expect(next).toMatchObject({
+          versionId,
+          athleteId: athlete.id,
+          status: 'ACTIVE',
+        });
+
+        if (!next) {
+          throw new Error(`Reassignment failed after ${status}`);
+        }
+
+        expect(next.id).not.toBe(current.id);
+
+        current = next;
+
+        const activeCount = await prisma.trainingProgramAssignment.count({
+          where: {
+            versionId,
+            athleteId: athlete.id,
+            status: 'ACTIVE',
+          },
+        });
+
+        expect(activeCount).toBe(1);
+      }
+
+      // All assignments remain in history.
+      const assignments = await prisma.trainingProgramAssignment.findMany({
+        where: {
+          versionId,
+          athleteId: athlete.id,
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+      expect(assignments).toHaveLength(4);
+
+      expect(assignments.map((item) => item.status).sort()).toEqual([
+        'ACTIVE',
+        'CANCELLED',
+        'COMPLETED',
+        'TERMINATED',
+      ]);
+
+      const activeAssignment = assignments.find(
+        (item) => item.status === 'ACTIVE',
+      );
+
+      expect(activeAssignment?.id).toBe(current?.id);
+    } finally {
+      if (relationshipId) {
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { trainerAthleteId: relationshipId },
+        });
+      }
+
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+
+        await prisma.trainingProgram.delete({
+          where: { id: programId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.delete({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (userIds.length > 0) {
+        await prisma.user.deleteMany({
+          where: {
+            id: { in: userIds },
+          },
+        });
+      }
+    }
+  }, 20_000);
 });

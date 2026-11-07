@@ -55,6 +55,8 @@ describe('TrainingProgramsService', () => {
     findAssignmentDetailsById: vi.fn(),
     updateAssignment: vi.fn(),
     completeAssignmentIfNoUnfinishedWorkouts: vi.fn(),
+    findManyAssignmentsForTrainer: vi.fn(),
+    findHistoricalAssignmentDetailsById: vi.fn(),
   };
 
   const exercisesServiceMock = {
@@ -172,6 +174,9 @@ describe('TrainingProgramsService', () => {
       updateAssignment: repository.updateAssignment,
       completeAssignmentIfNoUnfinishedWorkouts:
         repository.completeAssignmentIfNoUnfinishedWorkouts,
+      findManyAssignmentsForTrainer: repository.findManyAssignmentsForTrainer,
+      findHistoricalAssignmentDetailsById:
+        repository.findHistoricalAssignmentDetailsById,
     } as unknown as TrainingProgramAssignmentRepository;
 
     const exerciseRepositoryMock = {
@@ -982,7 +987,7 @@ describe('TrainingProgramsService', () => {
         },
       };
 
-      repository.findManyAssignments.mockResolvedValue(response);
+      repository.findManyAssignmentsForTrainer.mockResolvedValue(response);
 
       const result = await service.findManyAssignments(trainer, {
         page: 1,
@@ -990,7 +995,7 @@ describe('TrainingProgramsService', () => {
         status: 'ACTIVE',
       });
 
-      expect(repository.findManyAssignments).toHaveBeenCalledWith({
+      expect(repository.findManyAssignmentsForTrainer).toHaveBeenCalledWith({
         where: {
           AND: [
             {
@@ -1006,6 +1011,8 @@ describe('TrainingProgramsService', () => {
         skip: 0,
         take: 20,
       });
+
+      expect(repository.findManyAssignments).not.toHaveBeenCalled();
 
       expect(result).toEqual(response);
     });
@@ -1104,18 +1111,38 @@ describe('TrainingProgramsService', () => {
 
         repository.findAssignmentDetailsById.mockResolvedValue(details);
 
-        await service.findOneAssignmentDetails('assignment-1', trainer);
+        const result = await service.findOneAssignmentDetails(
+          'assignment-1',
+          trainer,
+        );
 
         expect(repository.findAssignmentDetailsById).toHaveBeenCalledWith(
           'assignment-1',
           {
-            version: {
-              program: {
-                trainerId: trainer.id,
+            AND: [
+              {
+                version: {
+                  program: {
+                    trainerId: trainer.id,
+                  },
+                },
               },
-            },
+              {
+                trainerAthlete: {
+                  is: {
+                    status: 'ACTIVE',
+                  },
+                },
+              },
+            ],
           },
         );
+
+        expect(
+          repository.findHistoricalAssignmentDetailsById,
+        ).not.toHaveBeenCalled();
+
+        expect(result).toEqual(details);
       });
     });
 

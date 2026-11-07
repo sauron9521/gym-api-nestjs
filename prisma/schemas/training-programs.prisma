@@ -162,6 +162,7 @@ model TrainingProgramAssignment {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  @@unique([versionId, athleteId], where: raw("status = 'ACTIVE'"), map: "training_program_assignments_one_active_version_key")
   @@index([trainerAthleteId, status])
   @@index([athleteId, status, assignedAt])
   @@index([versionId])

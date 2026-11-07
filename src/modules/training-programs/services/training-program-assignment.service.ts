@@ -139,13 +139,22 @@ export class TrainingProgramAssignmentService {
 
     const accessWhere = this.getAssignmentAccessWhere(actor);
 
-    return this.repository.findManyAssignments({
+    const params = {
       where: {
         AND: [accessWhere, ...(query.status ? [{ status: query.status }] : [])],
       },
       skip: (query.page - 1) * query.limit,
       take: query.limit,
-    });
+    } satisfies Parameters<
+      TrainingProgramAssignmentRepository['findManyAssignments']
+    >[0];
+
+    if (actor.role === 'TRAINER') {
+      return this.repository.findManyAssignmentsForTrainer(params);
+    }
+
+    // Athletes retain full access to their own history.
+    return this.repository.findManyAssignments(params);
   }
 
   async findOneAssignment(assignmentId: string, actor: TrainingProgramActor) {
@@ -169,9 +178,48 @@ export class TrainingProgramAssignmentService {
   ) {
     this.assertAssignmentParticipant(actor);
 
+    const accessWhere = this.getAssignmentAccessWhere(actor);
+
+    if (actor.role === 'TRAINER') {
+      // Full details only while collaboration is active.
+      const activeAssignment = await this.repository.findAssignmentDetailsById(
+        assignmentId,
+        {
+          AND: [
+            accessWhere,
+            {
+              trainerAthlete: {
+                is: {
+                  status: 'ACTIVE',
+                },
+              },
+            },
+          ],
+        },
+      );
+
+      if (activeAssignment) {
+        return activeAssignment;
+      }
+
+      // Historical access excludes sensitive fields.
+      const historicalAssignment =
+        await this.repository.findHistoricalAssignmentDetailsById(
+          assignmentId,
+          accessWhere,
+        );
+
+      if (!historicalAssignment) {
+        throw new NotFoundException('Training program assignment not found.');
+      }
+
+      return historicalAssignment;
+    }
+
+    // Athletes can access their own complete history.
     const assignment = await this.repository.findAssignmentDetailsById(
       assignmentId,
-      this.getAssignmentAccessWhere(actor),
+      accessWhere,
     );
 
     if (!assignment) {

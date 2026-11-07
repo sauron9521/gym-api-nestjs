@@ -4,6 +4,7 @@ import type { Prisma } from '../../../generated/prisma/client.js';
 import {
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentDetailsSelect,
+  trainingProgramAssignmentHistoricalSelect,
 } from '../selects/training-program-assignment.select.js';
 import type {
   TrainingProgramAssignmentPayload,
@@ -52,6 +53,74 @@ export class TrainingProgramAssignmentRepository {
     };
   }
 
+  async findManyAssignmentsForTrainer({
+    where,
+    skip,
+    take,
+    orderBy = [{ assignedAt: 'desc' }, { id: 'desc' }],
+  }: FindManyTrainingProgramAssignmentsParams) {
+    // 1. Load a paginated list without sensitive fields.
+    const [historicalAssignments, total] = await this.prisma.$transaction([
+      this.prisma.trainingProgramAssignment.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        select: trainingProgramAssignmentHistoricalSelect,
+      }),
+
+      this.prisma.trainingProgramAssignment.count({
+        where,
+      }),
+    ]);
+
+    // 2. Find assignments whose relationship is still active.
+    const activeIds = historicalAssignments
+      .filter((assignment) => assignment.trainerAthlete.status === 'ACTIVE')
+      .map((assignment) => assignment.id);
+
+    // 3. Load full details in a single additional query.
+    // Recheck the relationship state in the database.
+    const activeAssignments =
+      activeIds.length > 0
+        ? await this.prisma.trainingProgramAssignment.findMany({
+            where: {
+              AND: [
+                where,
+                {
+                  id: { in: activeIds },
+                  trainerAthlete: {
+                    is: {
+                      status: 'ACTIVE',
+                    },
+                  },
+                },
+              ],
+            },
+            select: trainingProgramAssignmentSelect,
+          })
+        : [];
+
+    const activeById = new Map(
+      activeAssignments.map((assignment) => [assignment.id, assignment]),
+    );
+
+    // 4. Preserve the original page order.
+    const data = historicalAssignments.map(
+      (assignment) => activeById.get(assignment.id) ?? assignment,
+    );
+
+    return {
+      data,
+      meta: {
+        total,
+        skip,
+        take,
+        totalPages: Math.ceil(total / take),
+      },
+    };
+  }
+
   async findAssignmentById(
     id: string,
     where: Prisma.TrainingProgramAssignmentWhereInput = {},
@@ -73,6 +142,28 @@ export class TrainingProgramAssignmentRepository {
         AND: [{ id }, where],
       },
       select: trainingProgramAssignmentDetailsSelect,
+    });
+  }
+
+  async findHistoricalAssignmentDetailsById(
+    id: string,
+    where: Prisma.TrainingProgramAssignmentWhereInput,
+  ) {
+    return this.prisma.trainingProgramAssignment.findFirst({
+      where: {
+        AND: [
+          { id },
+          where,
+          {
+            trainerAthlete: {
+              is: {
+                status: { not: 'ACTIVE' },
+              },
+            },
+          },
+        ],
+      },
+      select: trainingProgramAssignmentHistoricalSelect,
     });
   }
 
