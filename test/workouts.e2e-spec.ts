@@ -2180,7 +2180,7 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
           ],
         });
 
-        // The workout retains its historical reference,
+        // The workout retains its historical reference
         // but cannot be started after termination.
         const startResponse = await request(app!.getHttpServer())
           .post(`/workouts/${workouts[0].id}/start`)
@@ -2252,6 +2252,439 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       }
     }
   }, 30_000);
+
+  it('should preserve completed workout history after trainer relationship termination', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+    let programId: string | undefined;
+    let sourceExerciseId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `workout-history-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: { id: true, email: true },
+      });
+
+      athleteId = athlete.id;
+
+      const sourceExercise = await prisma.exercise.create({
+        data: {
+          name: 'Original Trainer Press',
+          source: 'TRAINER_CUSTOM',
+          exerciseType: 'STRENGTH',
+          createdById: trainerId,
+        },
+        select: { id: true },
+      });
+
+      sourceExerciseId = sourceExercise.id;
+
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId,
+          status: 'PUBLISHED',
+        },
+        select: { id: true },
+      });
+
+      programId = program.id;
+
+      const version = await prisma.trainingProgramVersion.create({
+        data: {
+          programId: program.id,
+          version: 1,
+          title: 'Historical Workout Program',
+          status: 'PUBLISHED',
+          publishedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      const programWorkout = await prisma.trainingProgramWorkout.create({
+        data: {
+          versionId: version.id,
+          weekNumber: 1,
+          dayNumber: 1,
+          title: 'Historical Strength Workout',
+        },
+        select: { id: true },
+      });
+
+      const programExercise = await prisma.trainingProgramExercise.create({
+        data: {
+          workoutId: programWorkout.id,
+          exerciseId: sourceExercise.id,
+          exerciseNameSnapshot: 'Original Trainer Press',
+          exerciseTypeSnapshot: 'STRENGTH',
+          sortOrder: 0,
+        },
+        select: { id: true },
+      });
+
+      await prisma.trainingProgramSet.create({
+        data: {
+          programExerciseId: programExercise.id,
+          setNumber: 1,
+          setType: 'WORKING',
+          plannedReps: 10,
+          plannedWeightKg: 60,
+        },
+      });
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: version.id,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      const [athleteCookie, trainerCookie] = await Promise.all([
+        login(athlete.email),
+        login(trainer.email),
+      ]);
+
+      // 1. Create an actual workout.
+      const created = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', athleteCookie)
+        .send({
+          assignmentId: assignment.id,
+          programWorkoutId: programWorkout.id,
+        });
+
+      expect(created.status).toBe(201);
+
+      const workoutId = created.body.id as string;
+      const setId = created.body.exercises[0].sets[0].id as string;
+
+      // 2. Start the workout.
+      const started = await request(app!.getHttpServer())
+        .post(`/workouts/${workoutId}/start`)
+        .set('Cookie', athleteCookie);
+
+      expect(started.status).toBe(200);
+      expect(started.body.status).toBe('IN_PROGRESS');
+
+      // 3. Record actual performance.
+      const updatedSet = await request(app!.getHttpServer())
+        .patch(`/workouts/${workoutId}/sets/${setId}`)
+        .set('Cookie', athleteCookie)
+        .send({
+          status: 'COMPLETED',
+          actualReps: 8,
+          actualWeightKg: 60,
+          rpe: 8,
+          rir: 2,
+        });
+
+      expect(updatedSet.status).toBe(200);
+
+      // 4. Complete the workout.
+      const completed = await request(app!.getHttpServer())
+        .post(`/workouts/${workoutId}/complete`)
+        .set('Cookie', athleteCookie);
+
+      expect(completed.status).toBe(200);
+      expect(completed.body.status).toBe('COMPLETED');
+
+      // 5. Terminate collaboration.
+      const terminated = await request(app!.getHttpServer())
+        .post(`/trainer-athletes/${relationship.id}/terminate`)
+        .set('Cookie', trainerCookie)
+        .send({ reason: 'Historical data preservation test' });
+
+      expect(terminated.status).toBe(200);
+      expect(terminated.body.status).toBe('TERMINATED');
+
+      // 6. The original trainer exercise is now inaccessible.
+      const originalResponse = await request(app!.getHttpServer())
+        .get(`/exercises/${sourceExercise.id}`)
+        .set('Cookie', athleteCookie);
+
+      expect(originalResponse.status).toBe(404);
+
+      // The athlete received a personal copy.
+      const copies = await prisma.exercise.findMany({
+        where: {
+          copiedFromExerciseId: sourceExercise.id,
+          createdById: athlete.id,
+        },
+        select: {
+          id: true,
+          source: true,
+          visibility: true,
+        },
+      });
+
+      expect(copies).toHaveLength(1);
+      expect(copies[0]).toMatchObject({
+        source: 'ATHLETE_CUSTOM',
+        visibility: 'PRIVATE',
+      });
+
+      const copyResponse = await request(app!.getHttpServer())
+        .get(`/exercises/${copies[0].id}`)
+        .set('Cookie', athleteCookie);
+
+      expect(copyResponse.status).toBe(200);
+
+      // 7. Trainer changes and archives the original exercise.
+      await prisma.exercise.update({
+        where: { id: sourceExercise.id },
+        data: {
+          name: 'Renamed And Archived Trainer Press',
+          isArchived: true,
+        },
+      });
+
+      // 8. Historical workout must remain unchanged.
+      const historical = await request(app!.getHttpServer())
+        .get(`/workouts/${workoutId}`)
+        .set('Cookie', athleteCookie);
+
+      expect(historical.status).toBe(200);
+
+      expect(historical.body).toMatchObject({
+        id: workoutId,
+        status: 'COMPLETED',
+        athleteId: athlete.id,
+        programAssignmentId: assignment.id,
+        exercises: [
+          {
+            exerciseId: sourceExercise.id,
+            exerciseNameSnapshot: 'Original Trainer Press',
+            exerciseTypeSnapshot: 'STRENGTH',
+            sets: [
+              {
+                status: 'COMPLETED',
+                plannedReps: 10,
+                plannedWeightKg: '60',
+                actualReps: 8,
+                actualWeightKg: '60',
+                rpe: '8',
+                rir: 2,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(historical.body.completedAt).toBeTruthy();
+
+      // 9. Another athlete cannot read the history.
+      const unrelatedResponse = await request(app!.getHttpServer())
+        .get(`/workouts/${workoutId}`)
+        .set('Cookie', otherAthleteCookie);
+
+      expect(unrelatedResponse.status).toBe(404);
+
+      // Former trainer cannot access an athlete-only endpoint.
+      const trainerResponse = await request(app!.getHttpServer())
+        .get(`/workouts/${workoutId}`)
+        .set('Cookie', trainerCookie);
+
+      expect(trainerResponse.status).toBe(403);
+
+      // 10. Historical workout remains in the athlete's list.
+      const listResponse = await request(app!.getHttpServer())
+        .get('/workouts')
+        .set('Cookie', athleteCookie)
+        .query({ status: 'COMPLETED' });
+
+      expect(listResponse.status).toBe(200);
+
+      expect(
+        listResponse.body.data.map((item: { id: string }) => item.id),
+      ).toContain(workoutId);
+    } finally {
+      if (assignmentId) {
+        await prisma.workout.deleteMany({
+          where: { programAssignmentId: assignmentId },
+        });
+
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+
+        await prisma.trainingProgram.deleteMany({
+          where: { id: programId },
+        });
+      }
+
+      // Copies must be deleted before their original.
+      if (sourceExerciseId && athleteId) {
+        await prisma.exercise.deleteMany({
+          where: {
+            copiedFromExerciseId: sourceExerciseId,
+            createdById: athleteId,
+          },
+        });
+      }
+
+      if (sourceExerciseId) {
+        await prisma.exercise.deleteMany({
+          where: { id: sourceExerciseId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should hide athlete email from former trainers across relationship endpoints', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `relationship-privacy-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const trainerCookie = await login(trainer.email);
+
+      // Active trainer may see athlete contact information.
+      const activeResponse = await request(app!.getHttpServer())
+        .get(`/trainer-athletes/${relationship.id}`)
+        .set('Cookie', trainerCookie);
+
+      expect(activeResponse.status).toBe(200);
+      expect(activeResponse.body.athlete.email).toBe(athlete.email);
+
+      // Terminate collaboration.
+      const terminated = await request(app!.getHttpServer())
+        .post(`/trainer-athletes/${relationship.id}/terminate`)
+        .set('Cookie', trainerCookie)
+        .send({ reason: 'Privacy verification' });
+
+      expect(terminated.status).toBe(200);
+      expect(terminated.body.status).toBe('TERMINATED');
+
+      // Read historical relationship details.
+      const details = await request(app!.getHttpServer())
+        .get(`/trainer-athletes/${relationship.id}`)
+        .set('Cookie', trainerCookie);
+
+      expect(details.status).toBe(200);
+      expect(details.body.status).toBe('TERMINATED');
+
+      // Read historical relationships list.
+      const list = await request(app!.getHttpServer())
+        .get('/trainer-athletes')
+        .set('Cookie', trainerCookie)
+        .query({
+          status: 'TERMINATED',
+          page: 1,
+          limit: 100,
+        });
+
+      expect(list.status).toBe(200);
+
+      const historicalItem = list.body.data.find(
+        (item: { id: string }) => item.id === relationship.id,
+      );
+
+      expect(historicalItem).toBeDefined();
+
+      // Historical metadata must remain available.
+      expect(details.body).toMatchObject({
+        id: relationship.id,
+        trainerId,
+        athleteId: athlete.id,
+        status: 'TERMINATED',
+      });
+
+      // But the former trainer must not receive the athlete email.
+      // Check the entire JSON payload to catch nested leaks.
+      expect.soft(JSON.stringify(terminated.body)).not.toContain(athlete.email);
+
+      expect.soft(JSON.stringify(details.body)).not.toContain(athlete.email);
+
+      expect.soft(JSON.stringify(historicalItem)).not.toContain(athlete.email);
+    } finally {
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 20_000);
 
   describe('POST /workouts', () => {
     it('should reject unauthenticated requests', async () => {

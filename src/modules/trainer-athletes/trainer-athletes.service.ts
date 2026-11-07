@@ -108,20 +108,64 @@ export class TrainerAthletesService {
       ...(query.status ? { status: query.status } : {}),
     };
 
-    return this.trainerAthletesRepository.findMany({
+    const params = {
       where,
       skip: (query.page - 1) * query.limit,
       take: query.limit,
-    });
+    };
+
+    if (actor.role === 'TRAINER') {
+      return this.trainerAthletesRepository.findManyForTrainer(params);
+    }
+
+    return this.trainerAthletesRepository.findMany(params);
   }
 
   // FIND ONE
+
   async findOne(id: string, actor: TrainerAthleteActor) {
     this.assertParticipantRole(actor);
 
-    const relationship = await this.trainerAthletesRepository.findById(id, {
+    const accessWhere: Prisma.TrainerAthleteWhereInput = {
       OR: [{ trainerId: actor.id }, { athleteId: actor.id }],
-    });
+    };
+
+    if (actor.role === 'TRAINER') {
+      const openRelationship = await this.trainerAthletesRepository.findById(
+        id,
+        {
+          AND: [
+            accessWhere,
+            {
+              status: {
+                in: ['ACTIVE', 'PENDING'],
+              },
+            },
+          ],
+        },
+      );
+
+      if (openRelationship) {
+        return openRelationship;
+      }
+
+      const historical =
+        await this.trainerAthletesRepository.findHistoricalById(
+          id,
+          accessWhere,
+        );
+
+      if (!historical) {
+        throw new NotFoundException('Relationship not found');
+      }
+
+      return historical;
+    }
+
+    const relationship = await this.trainerAthletesRepository.findById(
+      id,
+      accessWhere,
+    );
 
     if (!relationship) {
       throw new NotFoundException('Relationship not found');
@@ -165,6 +209,7 @@ export class TrainerAthletesService {
         status: 'DECLINED',
         respondedAt: new Date(),
       },
+      actor.role === 'TRAINER',
     );
   }
 
@@ -195,6 +240,7 @@ export class TrainerAthletesService {
         },
         endReason: input.reason ?? null,
       },
+      actor.role === 'TRAINER',
     );
   }
 
@@ -213,6 +259,7 @@ export class TrainerAthletesService {
         id,
         actorId: actor.id,
         reason: input.reason,
+        redactForTrainer: actor.role === 'TRAINER',
       });
 
     if (!terminated) {
@@ -303,9 +350,14 @@ export class TrainerAthletesService {
   private async updateWithConflictHandling(
     where: Prisma.TrainerAthleteWhereUniqueInput,
     data: Prisma.TrainerAthleteUpdateInput,
+    redactForTrainer = false,
   ) {
     try {
-      return await this.trainerAthletesRepository.update(where, data);
+      return await this.trainerAthletesRepository.update(
+        where,
+        data,
+        redactForTrainer,
+      );
     } catch (error) {
       if (this.isPrismaError(error, 'P2025')) {
         throw new ConflictException(
