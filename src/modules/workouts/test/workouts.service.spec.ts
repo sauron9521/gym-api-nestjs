@@ -28,6 +28,7 @@ describe('WorkoutsService', () => {
     findById: vi.fn(),
     update: vi.fn(),
     updateSet: vi.fn(),
+    completeWorkout: vi.fn(),
     startWorkout: vi.fn(),
   };
 
@@ -586,6 +587,26 @@ describe('WorkoutsService', () => {
 
       expect(repository.updateSet).not.toHaveBeenCalled();
     });
+
+    it('should reject a set update when workout state changes concurrently', async () => {
+      repository.findById.mockResolvedValue({
+        ...plannedWorkout,
+        status: 'IN_PROGRESS',
+      });
+
+      // Repository detects the completed workout under row lock.
+      repository.updateSet.mockResolvedValue(null);
+
+      await expect(
+        service.updateSet('workout-1', 'set-1', athlete, {
+          status: 'COMPLETED',
+          actualReps: 8,
+          actualWeightKg: 60,
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.updateSet).toHaveBeenCalledOnce();
+    });
   });
 
   describe('complete', () => {
@@ -604,26 +625,33 @@ describe('WorkoutsService', () => {
         ],
       });
 
-      repository.update.mockResolvedValue({
-        ...plannedWorkout,
+      // Arrange
+      repository.completeWorkout.mockResolvedValue({
         status: 'COMPLETED',
+        workout: {
+          ...plannedWorkout,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
       });
 
+      // Act
       const result = await service.complete('workout-1', athlete);
 
+      // Assert
       expect(result.status).toBe('COMPLETED');
+      expect(result.completedAt).toBeInstanceOf(Date);
 
-      expect(repository.update).toHaveBeenCalledWith(
-        {
-          id: 'workout-1',
-          athleteId: athlete.id,
-          status: 'IN_PROGRESS',
-        },
-        expect.objectContaining({
-          status: 'COMPLETED',
-          completedAt: expect.any(Date),
-        }),
-      );
+      expect(repository.completeWorkout).toHaveBeenCalledOnce();
+
+      expect(repository.completeWorkout).toHaveBeenCalledWith({
+        id: 'workout-1',
+        athleteId: athlete.id,
+        completedAt: expect.any(Date),
+      });
+
+      // Legacy update must not be used for completion.
+      expect(repository.update).not.toHaveBeenCalled();
     });
 
     it('should reject completion when pending sets remain', async () => {
@@ -671,6 +699,36 @@ describe('WorkoutsService', () => {
       await expect(service.complete('workout-1', athlete)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('should reject completion if set results changed after initial validation', async () => {
+      repository.findById.mockResolvedValue({
+        ...plannedWorkout,
+        status: 'IN_PROGRESS',
+        exercises: [
+          {
+            ...plannedWorkout.exercises[0],
+            sets: [
+              { id: 'set-1', status: 'COMPLETED' },
+              { id: 'set-2', status: 'SKIPPED' },
+            ],
+          },
+        ],
+      });
+
+      repository.completeWorkout.mockResolvedValue({
+        status: 'INVALID_SETS',
+      });
+
+      await expect(service.complete('workout-1', athlete)).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(repository.completeWorkout).toHaveBeenCalledWith({
+        id: 'workout-1',
+        athleteId: athlete.id,
+        completedAt: expect.any(Date),
+      });
     });
   });
 

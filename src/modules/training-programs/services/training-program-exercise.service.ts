@@ -69,6 +69,10 @@ export class TrainingProgramExerciseService {
         );
       }
 
+      if (this.isPrismaError(error, 'P2025')) {
+        throw new ConflictException('The draft version is no longer editable.');
+      }
+
       throw error;
     }
   }

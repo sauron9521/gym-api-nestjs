@@ -10,10 +10,11 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 
 import request from 'supertest';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/index.js';
+import { WorkoutsRepository } from '../src/modules/workouts/workouts.repository.js';
 import { useTestDatabase } from './utility/test-db-helper.js';
 
 describe('Workouts (HTTP + PostgreSQL)', () => {
@@ -2685,6 +2686,431 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       }
     }
   }, 20_000);
+
+  it('should reject set updates when workout completes during the request', async () => {
+    let workoutId: string | undefined;
+
+    try {
+      // 1. Create an isolated workout.
+      const created = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .send(workoutPayload('Concurrent Set Update Test'));
+
+      expect(created.status).toBe(201);
+
+      workoutId = created.body.id as string;
+
+      const setIds = (
+        created.body.exercises[0].sets as Array<{ id: string }>
+      ).map((set) => set.id);
+
+      expect(setIds).toHaveLength(2);
+
+      // 2. Start the workout.
+      const started = await request(app!.getHttpServer())
+        .post(`/workouts/${workoutId}/start`)
+        .set('Cookie', ownerCookie);
+
+      expect(started.status).toBe(200);
+
+      // 3. Complete both sets so workout completion is allowed.
+      for (const setId of setIds) {
+        const response = await request(app!.getHttpServer())
+          .patch(`/workouts/${workoutId}/sets/${setId}`)
+          .set('Cookie', ownerCookie)
+          .send({
+            status: 'COMPLETED',
+            actualReps: 8,
+            actualWeightKg: 60,
+          });
+
+        expect(response.status).toBe(200);
+      }
+
+      // 4. Intercept repository.updateSet().
+      // The service has already checked IN_PROGRESS by this point.
+      const repository = app!.get(WorkoutsRepository);
+      const originalUpdateSet = repository.updateSet.bind(repository);
+
+      let notifyUpdateEntered!: () => void;
+      let resumeUpdate!: () => void;
+
+      const updateEntered = new Promise<void>((resolve) => {
+        notifyUpdateEntered = resolve;
+      });
+
+      const allowUpdate = new Promise<void>((resolve) => {
+        resumeUpdate = resolve;
+      });
+
+      const updateSpy = vi
+        .spyOn(repository, 'updateSet')
+        .mockImplementation(async (setId, data) => {
+          notifyUpdateEntered();
+
+          // Pause before writing to PostgreSQL.
+          await allowUpdate;
+
+          return originalUpdateSet(setId, data);
+        });
+
+      let pendingUpdate: Promise<unknown> | undefined;
+
+      try {
+        // 5. Begin an update, but pause it before database write.
+        const updateRequest = request(app!.getHttpServer())
+          .patch(`/workouts/${workoutId}/sets/${setIds[0]}`)
+          .set('Cookie', ownerCookie)
+          .send({
+            status: 'COMPLETED',
+            actualReps: 99,
+            actualWeightKg: 100,
+          });
+
+        const updateResponsePromise = updateRequest.then(
+          (response) => response,
+        );
+
+        pendingUpdate = updateResponsePromise;
+
+        // Wait until updateSet() reaches the repository.
+        await updateEntered;
+
+        // 6. Complete the workout while the set update is paused.
+        const completed = await request(app!.getHttpServer())
+          .post(`/workouts/${workoutId}/complete`)
+          .set('Cookie', ownerCookie);
+
+        expect(completed.status).toBe(200);
+        expect(completed.body.status).toBe('COMPLETED');
+
+        // 7. Resume the old update request.
+        resumeUpdate();
+
+        const updateResponse = await updateResponsePromise;
+
+        // An update cannot modify a completed workout.
+        expect(updateResponse.status).toBe(409);
+
+        // 8. Verify persisted data.
+        const persisted = await prisma.workout.findUniqueOrThrow({
+          where: { id: workoutId },
+          select: {
+            status: true,
+            completedAt: true,
+            exercises: {
+              select: {
+                sets: {
+                  where: { id: setIds[0] },
+                  select: {
+                    status: true,
+                    actualReps: true,
+                    actualWeightKg: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        expect(persisted.status).toBe('COMPLETED');
+        expect(persisted.completedAt).not.toBeNull();
+
+        const persistedSet = persisted.exercises[0].sets[0];
+
+        expect(persistedSet).toMatchObject({
+          status: 'COMPLETED',
+          actualReps: 8,
+        });
+
+        expect(persistedSet.actualWeightKg?.toString()).toBe('60');
+      } finally {
+        // Always release a paused request, even if an assertion fails.
+        resumeUpdate();
+
+        if (pendingUpdate) {
+          await pendingUpdate.catch(() => undefined);
+        }
+
+        updateSpy.mockRestore();
+      }
+    } finally {
+      if (workoutId) {
+        await prisma.workout.deleteMany({
+          where: { id: workoutId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should reject completion when set results change concurrently', async () => {
+    let workoutId: string | undefined;
+
+    try {
+      const workout = await createWorkout('Concurrent Workout Completion Test');
+
+      workoutId = workout.id;
+
+      const started = await request(app!.getHttpServer())
+        .post(`/workouts/${workoutId}/start`)
+        .set('Cookie', ownerCookie);
+
+      expect(started.status).toBe(200);
+
+      const details = await request(app!.getHttpServer())
+        .get(`/workouts/${workoutId}`)
+        .set('Cookie', ownerCookie);
+
+      expect(details.status).toBe(200);
+
+      const sets = details.body.exercises[0].sets as Array<{
+        id: string;
+      }>;
+
+      expect(sets).toHaveLength(2);
+
+      // One completed set and one skipped set.
+      const completedSet = await request(app!.getHttpServer())
+        .patch(`/workouts/${workoutId}/sets/${sets[0].id}`)
+        .set('Cookie', ownerCookie)
+        .send({
+          status: 'COMPLETED',
+          actualReps: 8,
+          actualWeightKg: 60,
+        });
+
+      expect(completedSet.status).toBe(200);
+
+      const skippedSet = await request(app!.getHttpServer())
+        .patch(`/workouts/${workoutId}/sets/${sets[1].id}`)
+        .set('Cookie', ownerCookie)
+        .send({ status: 'SKIPPED' });
+
+      expect(skippedSet.status).toBe(200);
+
+      const repository = app!.get(WorkoutsRepository);
+      const originalFindById = repository.findById.bind(repository);
+
+      let notifyReadCompleted!: () => void;
+      let resumeCompletion!: () => void;
+      let completionBlocked = false;
+
+      const readCompleted = new Promise<void>((resolve) => {
+        notifyReadCompleted = resolve;
+      });
+
+      const allowCompletion = new Promise<void>((resolve) => {
+        resumeCompletion = resolve;
+      });
+
+      // Pause completion after the repository returns
+      // the original snapshot, but before the service uses it.
+      const findSpy = vi
+        .spyOn(repository, 'findById')
+        .mockImplementation(async (id, where) => {
+          const result = await originalFindById(id, where);
+
+          if (id === workoutId && !completionBlocked) {
+            completionBlocked = true;
+            notifyReadCompleted();
+            await allowCompletion;
+          }
+
+          return result;
+        });
+
+      let pendingCompletion: Promise<unknown> | undefined;
+
+      try {
+        const completionRequest = request(app!.getHttpServer())
+          .post(`/workouts/${workoutId}/complete`)
+          .set('Cookie', ownerCookie);
+
+        const completionPromise = completionRequest.then(
+          (response) => response,
+        );
+
+        pendingCompletion = completionPromise;
+
+        // Wait until complete() has read the original set statuses.
+        await readCompleted;
+
+        // Change the only completed set to SKIPPED.
+        const concurrentUpdate = await request(app!.getHttpServer())
+          .patch(`/workouts/${workoutId}/sets/${sets[0].id}`)
+          .set('Cookie', ownerCookie)
+          .send({ status: 'SKIPPED' });
+
+        expect(concurrentUpdate.status).toBe(200);
+
+        // The workout now contains no completed sets.
+        resumeCompletion();
+
+        const completionResponse = await completionPromise;
+
+        expect(completionResponse.status).toBe(409);
+
+        const persisted = await prisma.workout.findUniqueOrThrow({
+          where: { id: workoutId },
+          select: {
+            status: true,
+            completedAt: true,
+            exercises: {
+              select: {
+                sets: {
+                  select: { status: true },
+                },
+              },
+            },
+          },
+        });
+
+        expect(persisted.status).toBe('IN_PROGRESS');
+        expect(persisted.completedAt).toBeNull();
+
+        const statuses = persisted.exercises.flatMap((exercise) =>
+          exercise.sets.map((set) => set.status),
+        );
+
+        expect(statuses).toEqual(['SKIPPED', 'SKIPPED']);
+      } finally {
+        resumeCompletion();
+
+        if (pendingCompletion) {
+          await pendingCompletion.catch(() => undefined);
+        }
+
+        findSpy.mockRestore();
+      }
+    } finally {
+      if (workoutId) {
+        await prisma.workout.deleteMany({
+          where: { id: workoutId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should reject set updates when workout is cancelled concurrently', async () => {
+    const workout = await createWorkout('Concurrent Workout Cancellation Test');
+
+    try {
+      const started = await request(app!.getHttpServer())
+        .post(`/workouts/${workout.id}/start`)
+        .set('Cookie', ownerCookie);
+
+      expect(started.status).toBe(200);
+
+      const details = await request(app!.getHttpServer())
+        .get(`/workouts/${workout.id}`)
+        .set('Cookie', ownerCookie);
+
+      expect(details.status).toBe(200);
+
+      const setId = details.body.exercises[0].sets[0].id as string;
+
+      const repository = app!.get(WorkoutsRepository);
+      const originalUpdateSet = repository.updateSet.bind(repository);
+
+      let notifyEntered!: () => void;
+      let resumeUpdate!: () => void;
+
+      const entered = new Promise<void>((resolve) => {
+        notifyEntered = resolve;
+      });
+
+      const allowed = new Promise<void>((resolve) => {
+        resumeUpdate = resolve;
+      });
+
+      const spy = vi
+        .spyOn(repository, 'updateSet')
+        .mockImplementation(async (id, data) => {
+          notifyEntered();
+          await allowed;
+
+          return originalUpdateSet(id, data);
+        });
+
+      let pendingUpdate: Promise<unknown> | undefined;
+
+      try {
+        const updatePromise = request(app!.getHttpServer())
+          .patch(`/workouts/${workout.id}/sets/${setId}`)
+          .set('Cookie', ownerCookie)
+          .send({
+            status: 'COMPLETED',
+            actualReps: 10,
+            actualWeightKg: 80,
+          })
+          .then((response) => response);
+
+        pendingUpdate = updatePromise;
+
+        // Wait until updateSet reaches the repository.
+        await entered;
+
+        // Cancel the workout before the set update writes to DB.
+        const cancelled = await request(app!.getHttpServer())
+          .post(`/workouts/${workout.id}/cancel`)
+          .set('Cookie', ownerCookie);
+
+        expect(cancelled.status).toBe(200);
+        expect(cancelled.body.status).toBe('CANCELLED');
+
+        // Resume the original update.
+        resumeUpdate();
+
+        const updateResponse = await updatePromise;
+
+        expect(updateResponse.status).toBe(409);
+
+        const persisted = await prisma.workout.findUniqueOrThrow({
+          where: { id: workout.id },
+          select: {
+            status: true,
+            exercises: {
+              select: {
+                sets: {
+                  where: { id: setId },
+                  select: {
+                    status: true,
+                    actualReps: true,
+                    actualWeightKg: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        expect(persisted.status).toBe('CANCELLED');
+
+        const persistedSet = persisted.exercises.flatMap(
+          (exercise) => exercise.sets,
+        )[0];
+
+        expect(persistedSet).toMatchObject({
+          status: 'PENDING',
+          actualReps: null,
+          actualWeightKg: null,
+        });
+      } finally {
+        resumeUpdate();
+
+        if (pendingUpdate) {
+          await pendingUpdate.catch(() => undefined);
+        }
+
+        spy.mockRestore();
+      }
+    } finally {
+      await prisma.workout.deleteMany({
+        where: { id: workout.id },
+      });
+    }
+  }, 30_000);
 
   describe('POST /workouts', () => {
     it('should reject unauthenticated requests', async () => {

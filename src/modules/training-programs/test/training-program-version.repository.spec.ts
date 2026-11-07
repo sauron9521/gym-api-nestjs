@@ -232,7 +232,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result =
@@ -323,7 +324,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result =
@@ -362,7 +364,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result =
@@ -400,7 +403,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result =
@@ -451,7 +455,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result = await repository.publishVersion('program-1', 'version-1');
@@ -500,7 +505,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result = await repository.publishVersion('program-1', 'version-1');
@@ -538,7 +544,8 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       models.$transaction.mockImplementation(
-        (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
       );
 
       const result = await repository.publishVersion('program-1', 'version-1');

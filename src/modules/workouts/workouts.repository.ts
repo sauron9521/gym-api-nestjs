@@ -168,10 +168,96 @@ export class WorkoutsRepository {
   }
 
   async updateSet(id: string, data: Prisma.WorkoutSetUpdateInput) {
-    return this.prisma.workoutSet.update({
-      where: { id },
-      data,
-      select: workoutSetSelect,
+    return this.prisma.$transaction(async (tx) => {
+      // Lock the parent workout row before modifying its set.
+      const workouts = await tx.$queryRaw<
+        Array<{ id: string; status: string }>
+      >`
+      SELECT
+        w."id",
+        w."status"
+      FROM "workouts" AS w
+      INNER JOIN "workout_exercises" AS we
+        ON we."workout_id" = w."id"
+      INNER JOIN "workout_sets" AS ws
+        ON ws."workout_exercise_id" = we."id"
+      WHERE ws."id" = ${id}
+      FOR UPDATE OF w
+    `;
+
+      if (workouts.length !== 1 || workouts[0].status !== 'IN_PROGRESS') {
+        return null;
+      }
+
+      // This update executes while holding the workout lock.
+      return tx.workoutSet.update({
+        where: { id },
+        data,
+        select: workoutSetSelect,
+      });
+    });
+  }
+
+  async completeWorkout(input: {
+    id: string;
+    athleteId: string;
+    completedAt: Date;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      // Use the same parent-row lock as updateSet().
+      const workouts = await tx.$queryRaw<
+        Array<{ id: string; status: string }>
+      >`
+      SELECT "id", "status"
+      FROM "workouts"
+      WHERE "id" = ${input.id}
+        AND "athlete_id" = ${input.athleteId}
+      FOR UPDATE
+    `;
+
+      if (workouts.length !== 1 || workouts[0].status !== 'IN_PROGRESS') {
+        return { status: 'NOT_IN_PROGRESS' as const };
+      }
+
+      // Re-read actual set statuses AFTER acquiring the lock.
+      const sets = await tx.workoutSet.findMany({
+        where: {
+          workoutExercise: {
+            is: {
+              workoutId: input.id,
+            },
+          },
+        },
+        select: {
+          status: true,
+        },
+      });
+
+      const hasPendingSets = sets.some((set) => set.status === 'PENDING');
+
+      const hasCompletedSet = sets.some((set) => set.status === 'COMPLETED');
+
+      if (sets.length === 0 || hasPendingSets || !hasCompletedSet) {
+        return { status: 'INVALID_SETS' as const };
+      }
+
+      const workout = await tx.workout.update({
+        where: {
+          id: input.id,
+          athleteId: input.athleteId,
+          status: 'IN_PROGRESS',
+        },
+        data: {
+          status: 'COMPLETED',
+          completedAt: input.completedAt,
+        },
+        select: workoutSelect,
+      });
+
+      return {
+        status: 'COMPLETED' as const,
+        workout,
+      };
     });
   }
 
