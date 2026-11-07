@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { Prisma } from '../../../generated/prisma/client.js';
 
@@ -6,7 +11,11 @@ import { ExercisesService } from '../../exercises/exercises.service.js';
 import { WorkoutsRepository } from '../workouts.repository.js';
 import { WorkoutsService } from '../workouts.service.js';
 
-import type { CreateWorkoutFromProgramInput, CreateWorkoutInput, WorkoutActor, } from '../types/workout.types.js';
+import type {
+  CreateWorkoutFromProgramInput,
+  CreateWorkoutInput,
+  WorkoutActor,
+} from '../types/workout.types.js';
 import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
 
 describe('WorkoutsService', () => {

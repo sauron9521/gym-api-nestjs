@@ -306,6 +306,38 @@ describe('TrainingProgramsService', () => {
         id: 'program-exercise-new',
       });
     });
+
+    it('should return ConflictException when the draft is published concurrently', async () => {
+      repository.findProgramById.mockResolvedValue(program);
+      repository.findVersionById.mockResolvedValue(draftVersion);
+
+      exercisesServiceMock.findAvailableForTrainingProgram.mockResolvedValue({
+        id: 'exercise-1',
+        name: 'Bench Press',
+        exerciseType: 'STRENGTH',
+      });
+
+      repository.createProgramExercise.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+          code: 'P2025',
+          clientVersion: '7.10.1',
+        }),
+      );
+
+      await expect(
+        service.addExercise(
+          trainer,
+          'program-1',
+          'version-1',
+          'program-workout-1',
+          {
+            exerciseId: 'exercise-1',
+          },
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.createProgramExercise).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('create', () => {
