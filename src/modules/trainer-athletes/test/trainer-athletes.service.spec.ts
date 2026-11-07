@@ -19,7 +19,9 @@ describe('TrainerAthletesService', () => {
   const repository = {
     create: vi.fn(),
     findMany: vi.fn(),
+    findManyForTrainer: vi.fn(),
     findById: vi.fn(),
+    findHistoricalById: vi.fn(),
     findOpenByPair: vi.fn(),
     update: vi.fn(),
     findActiveTrainerIdsForAthlete: vi.fn(),
@@ -226,7 +228,7 @@ describe('TrainerAthletesService', () => {
         },
       };
 
-      repository.findMany.mockResolvedValue(response);
+      repository.findManyForTrainer.mockResolvedValue(response);
 
       const result = await service.findMany(trainer, {
         page: 1,
@@ -236,7 +238,7 @@ describe('TrainerAthletesService', () => {
 
       expect(result).toEqual(response);
 
-      expect(repository.findMany).toHaveBeenCalledWith({
+      expect(repository.findManyForTrainer).toHaveBeenCalledWith({
         where: {
           OR: [{ trainerId: trainer.id }, { athleteId: trainer.id }],
           status: 'PENDING',
@@ -267,8 +269,19 @@ describe('TrainerAthletesService', () => {
       expect(result).toEqual(pendingRelationship);
 
       expect(repository.findById).toHaveBeenCalledWith(pendingRelationship.id, {
-        OR: [{ trainerId: trainer.id }, { athleteId: trainer.id }],
+        AND: [
+          {
+            OR: [{ trainerId: trainer.id }, { athleteId: trainer.id }],
+          },
+          {
+            status: {
+              in: ['ACTIVE', 'PENDING'],
+            },
+          },
+        ],
       });
+
+      expect(repository.findHistoricalById).not.toHaveBeenCalled();
     });
 
     it('should hide relationships from unrelated users', async () => {
@@ -280,6 +293,92 @@ describe('TrainerAthletesService', () => {
           role: 'ATHLETE',
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should return historical relationship data for a former trainer', async () => {
+      const historicalRelationship = {
+        ...activeRelationship,
+        status: 'TERMINATED',
+        athlete: {
+          id: athlete.id,
+          role: 'ATHLETE',
+        },
+        trainer: {
+          id: trainer.id,
+          role: 'TRAINER',
+        },
+        initiatedBy: {
+          id: trainer.id,
+          role: 'TRAINER',
+        },
+        endedBy: null,
+      };
+
+      // No active or pending relationship exists.
+      repository.findById.mockResolvedValue(null);
+
+      // The repository returns a safe historical projection.
+      repository.findHistoricalById.mockResolvedValue(historicalRelationship);
+
+      const result = await service.findOne(historicalRelationship.id, trainer);
+
+      expect(result).toEqual(historicalRelationship);
+
+      expect(repository.findHistoricalById).toHaveBeenCalledWith(
+        historicalRelationship.id,
+        {
+          OR: [{ trainerId: trainer.id }, { athleteId: trainer.id }],
+        },
+      );
+
+      expect(repository.findById).toHaveBeenCalledWith(
+        historicalRelationship.id,
+        {
+          AND: [
+            {
+              OR: [{ trainerId: trainer.id }, { athleteId: trainer.id }],
+            },
+            {
+              status: {
+                in: ['ACTIVE', 'PENDING'],
+              },
+            },
+          ],
+        },
+      );
+    });
+
+    it('should preserve full historical relationship access for the athlete', async () => {
+      const historicalRelationship = {
+        ...activeRelationship,
+        status: 'TERMINATED',
+        athlete: {
+          id: athlete.id,
+          email: 'athlete@example.com',
+          role: 'ATHLETE',
+        },
+        trainer: {
+          id: trainer.id,
+          email: 'trainer@example.com',
+          role: 'TRAINER',
+        },
+      };
+
+      repository.findById.mockResolvedValue(historicalRelationship);
+
+      const result = await service.findOne(historicalRelationship.id, athlete);
+
+      expect(result).toEqual(historicalRelationship);
+
+      expect(repository.findById).toHaveBeenCalledWith(
+        historicalRelationship.id,
+        {
+          OR: [{ trainerId: athlete.id }, { athleteId: athlete.id }],
+        },
+      );
+
+      // The athlete must not use the restricted trainer path.
+      expect(repository.findHistoricalById).not.toHaveBeenCalled();
     });
   });
 
@@ -301,6 +400,7 @@ describe('TrainerAthletesService', () => {
           status: 'ACTIVE',
           respondedAt: expect.any(Date),
         }),
+        false,
       );
     });
 
@@ -347,6 +447,7 @@ describe('TrainerAthletesService', () => {
           status: 'DECLINED',
           respondedAt: expect.any(Date),
         }),
+        false,
       );
     });
 
@@ -389,6 +490,7 @@ describe('TrainerAthletesService', () => {
           },
           endReason: 'Changed my plans',
         }),
+        true,
       );
     });
 
@@ -428,6 +530,7 @@ describe('TrainerAthletesService', () => {
         id: 'relationship-1',
         actorId: trainer.id,
         reason: 'Cooperation ended',
+        redactForTrainer: true,
       });
     });
 
@@ -455,6 +558,7 @@ describe('TrainerAthletesService', () => {
         id: 'relationship-1',
         actorId: athlete.id,
         reason: 'Cooperation ended by athlete',
+        redactForTrainer: false,
       });
     });
 

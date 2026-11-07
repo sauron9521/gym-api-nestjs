@@ -348,10 +348,32 @@ export class WorkoutsService {
       data.notes = input.notes;
     }
 
-    return this.workoutsRepository.updateSet(setId, data);
+    try {
+      const updatedSet = await this.workoutsRepository.updateSet(setId, data);
+
+      if (!updatedSet) {
+        throw new ConflictException(
+          'Workout is no longer in progress. Reload and try again.',
+        );
+      }
+
+      return updatedSet;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new ConflictException(
+          'Workout set state has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
   }
 
   // COMPLETE WORKOUT
+
   async complete(id: string, actor: WorkoutActor) {
     const workout = await this.findOne(id, actor);
 
@@ -373,17 +395,40 @@ export class WorkoutsService {
       throw new BadRequestException('At least one set must be completed');
     }
 
-    return this.updateWithConflictHandling(
-      {
+    try {
+      // Atomic validation and completion under a row lock.
+      const result = await this.workoutsRepository.completeWorkout({
         id,
         athleteId: actor.id,
-        status: 'IN_PROGRESS',
-      },
-      {
-        status: 'COMPLETED',
         completedAt: new Date(),
-      },
-    );
+      });
+
+      switch (result.status) {
+        case 'COMPLETED':
+          return result.workout;
+
+        case 'NOT_IN_PROGRESS':
+          throw new ConflictException(
+            'Workout state has changed. Reload and try again.',
+          );
+
+        case 'INVALID_SETS':
+          throw new ConflictException(
+            'Workout sets have changed. Reload and try again.',
+          );
+      }
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new ConflictException(
+          'Workout state has changed. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
   }
 
   // CANCEL WORKOUT

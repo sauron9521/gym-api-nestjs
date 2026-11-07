@@ -179,6 +179,136 @@ describe('TrainerAthletes (HTTP + PostgreSQL)', () => {
     }
   }, 20_000);
 
+  it('should hide athlete identity details when athlete initiated and ended collaboration', async () => {
+    let relationshipId: string | undefined;
+
+    // createUser() registers users for afterAll cleanup.
+    const newAthlete = await createUser(
+      `athlete-history-privacy-${randomUUID()}@example.com`,
+      'ATHLETE',
+    );
+
+    try {
+      const athleteCookie = await login(newAthlete.email);
+
+      // Athlete initiated the relationship.
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId: trainerOne.id,
+          athleteId: newAthlete.id,
+          initiatedById: newAthlete.id,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      // Athlete terminates the collaboration.
+      const terminateResponse = await request(app!.getHttpServer())
+        .post(`/trainer-athletes/${relationship.id}/terminate`)
+        .set('Cookie', athleteCookie)
+        .send({
+          reason: 'Collaboration ended by athlete',
+        });
+
+      expect(terminateResponse.status).toBe(200);
+
+      expect(terminateResponse.body).toMatchObject({
+        id: relationship.id,
+        status: 'TERMINATED',
+        initiatedById: newAthlete.id,
+        endedById: newAthlete.id,
+      });
+
+      // Former trainer reads relationship details.
+      const trainerDetails = await request(app!.getHttpServer())
+        .get(`/trainer-athletes/${relationship.id}`)
+        .set('Cookie', trainerOneCookie);
+
+      expect(trainerDetails.status).toBe(200);
+
+      expect(trainerDetails.body).toMatchObject({
+        id: relationship.id,
+        status: 'TERMINATED',
+        athlete: {
+          id: newAthlete.id,
+          role: 'ATHLETE',
+        },
+        initiatedBy: {
+          id: newAthlete.id,
+          role: 'ATHLETE',
+        },
+        endedBy: {
+          id: newAthlete.id,
+          role: 'ATHLETE',
+        },
+      });
+
+      // None of the nested user objects may expose email.
+      expect(trainerDetails.body.athlete).not.toHaveProperty('email');
+      expect(trainerDetails.body.initiatedBy).not.toHaveProperty('email');
+      expect(trainerDetails.body.endedBy).not.toHaveProperty('email');
+
+      expect(JSON.stringify(trainerDetails.body)).not.toContain(
+        newAthlete.email,
+      );
+
+      // Verify historical list response as well.
+      const trainerList = await request(app!.getHttpServer())
+        .get('/trainer-athletes')
+        .set('Cookie', trainerOneCookie)
+        .query({
+          status: 'TERMINATED',
+          page: 1,
+          limit: 100,
+        });
+
+      expect(trainerList.status).toBe(200);
+
+      const historicalItem = trainerList.body.data.find(
+        (item: { id: string }) => item.id === relationship.id,
+      );
+
+      expect(historicalItem).toBeDefined();
+
+      expect(historicalItem).toMatchObject({
+        id: relationship.id,
+        status: 'TERMINATED',
+      });
+
+      expect(JSON.stringify(historicalItem)).not.toContain(newAthlete.email);
+
+      // Athlete retains full access to their own relationship history.
+      const athleteDetails = await request(app!.getHttpServer())
+        .get(`/trainer-athletes/${relationship.id}`)
+        .set('Cookie', athleteCookie);
+
+      expect(athleteDetails.status).toBe(200);
+
+      expect(athleteDetails.body).toMatchObject({
+        athlete: {
+          id: newAthlete.id,
+          email: newAthlete.email,
+        },
+        initiatedBy: {
+          id: newAthlete.id,
+          email: newAthlete.email,
+        },
+        endedBy: {
+          id: newAthlete.id,
+          email: newAthlete.email,
+        },
+      });
+    } finally {
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+    }
+  }, 20_000);
+
   describe('Authentication and validation', () => {
     it('should reject unauthenticated requests', async () => {
       const response = await request(app!.getHttpServer()).get(

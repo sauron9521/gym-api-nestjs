@@ -5,11 +5,24 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
 import { TrainingProgramsService } from '../training-programs.service.js';
 import type { TrainingProgramActor } from '../types/training-program.types.js';
 import { ExercisesService } from '../../exercises/exercises.service.js';
 import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
+import { TrainingProgramAccessService } from '../services/training-program-access.service.js';
+import { TrainingProgramWorkoutService } from '../services/training-program-workout.service.js';
+import { TrainingProgramExerciseService } from '../services/training-program-exercise.service.js';
+import { TrainingProgramSetService } from '../services/training-program-set.service.js';
+import { TrainingProgramCrudService } from '../services/training-program-crud.service.js';
+import { TrainingProgramVersionService } from '../services/training-program-version.service.js';
+import { TrainingProgramAssignmentService } from '../services/training-program-assignment.service.js';
+
+import { TrainingProgramWorkoutRepository } from '../repositories/training-program-workout.repository.js';
+import { TrainingProgramExerciseRepository } from '../repositories/training-program-exercise.repository.js';
+import { TrainingProgramCrudRepository } from '../repositories/training-program-crud.repository.js';
+import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
+import { TrainingProgramAssignmentRepository } from '../repositories/training-program-assignment.repository.js';
+import { TrainingProgramSetRepository } from '../repositories/training-program-set.repository.js';
 
 describe('TrainingProgramsService', () => {
   let service: TrainingProgramsService;
@@ -42,6 +55,8 @@ describe('TrainingProgramsService', () => {
     findAssignmentDetailsById: vi.fn(),
     updateAssignment: vi.fn(),
     completeAssignmentIfNoUnfinishedWorkouts: vi.fn(),
+    findManyAssignmentsForTrainer: vi.fn(),
+    findHistoricalAssignmentDetailsById: vi.fn(),
   };
 
   const exercisesServiceMock = {
@@ -133,10 +148,106 @@ describe('TrainingProgramsService', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    service = new TrainingProgramsService(
-      repository as unknown as TrainingProgramsRepository,
-      exercisesServiceMock as unknown as ExercisesService,
+    const crudRepositoryMock = {
+      createProgramWithDraft: repository.createProgramWithDraft,
+      findMany: repository.findMany,
+      findProgramById: repository.findProgramById,
+      createProgram: vi.fn(),
+      updateProgram: repository.updateProgram,
+    } as unknown as TrainingProgramCrudRepository;
+
+    const versionRepositoryMock = {
+      findVersions: repository.findVersions,
+      findVersionById: repository.findVersionById,
+      findDraftVersion: repository.findDraftVersion,
+      createDraftFromLatestPublished: repository.createDraftFromLatestPublished,
+      updateVersion: repository.updateVersion,
+      publishVersion: repository.publishVersion,
+    } as unknown as TrainingProgramVersionRepository;
+
+    const assignmentRepositoryMock = {
+      createAssignmentForActiveRelationship:
+        repository.createAssignmentForActiveRelationship,
+      findManyAssignments: repository.findManyAssignments,
+      findAssignmentById: repository.findAssignmentById,
+      findAssignmentDetailsById: repository.findAssignmentDetailsById,
+      updateAssignment: repository.updateAssignment,
+      completeAssignmentIfNoUnfinishedWorkouts:
+        repository.completeAssignmentIfNoUnfinishedWorkouts,
+      findManyAssignmentsForTrainer: repository.findManyAssignmentsForTrainer,
+      findHistoricalAssignmentDetailsById:
+        repository.findHistoricalAssignmentDetailsById,
+    } as unknown as TrainingProgramAssignmentRepository;
+
+    const exerciseRepositoryMock = {
+      createProgramExercise: repository.createProgramExercise,
+      updateProgramExercise: repository.updateProgramExercise,
+      deleteProgramExercise: repository.deleteProgramExercise,
+      reorderProgramExercises: repository.reorderProgramExercises,
+    } as unknown as TrainingProgramExerciseRepository;
+
+    const workoutRepositoryMock = {
+      createWorkout: repository.createWorkout,
+      updateWorkout: repository.updateWorkout,
+      deleteWorkout: repository.deleteWorkout,
+    } as unknown as TrainingProgramWorkoutRepository;
+
+    const setRepositoryMock = {
+      createProgramSet: repository.createProgramSet,
+      updateProgramSet: repository.updateProgramSet,
+      deleteProgramSet: repository.deleteProgramSet,
+      reorderProgramSets: repository.reorderProgramSets,
+    } as unknown as TrainingProgramSetRepository;
+
+    const accessService = new TrainingProgramAccessService(
+      crudRepositoryMock,
+      versionRepositoryMock,
+    );
+
+    const crudService = new TrainingProgramCrudService(
+      crudRepositoryMock,
+      accessService,
+    );
+
+    const versionService = new TrainingProgramVersionService(
+      versionRepositoryMock,
+      crudService,
+    );
+
+    const exercisesService =
+      exercisesServiceMock as unknown as ExercisesService;
+
+    const workoutService = new TrainingProgramWorkoutService(
+      workoutRepositoryMock,
+      accessService,
+    );
+
+    const exerciseService = new TrainingProgramExerciseService(
+      exerciseRepositoryMock,
+      exercisesService,
+      accessService,
+    );
+
+    const setService = new TrainingProgramSetService(
+      setRepositoryMock,
+      accessService,
+    );
+
+    const assignmentService = new TrainingProgramAssignmentService(
+      assignmentRepositoryMock,
+      crudService,
+      versionService,
+      accessService,
       trainerAthletesServiceMock as unknown as TrainerAthletesService,
+    );
+
+    service = new TrainingProgramsService(
+      crudService,
+      versionService,
+      assignmentService,
+      workoutService,
+      exerciseService,
+      setService,
     );
   });
 
@@ -194,6 +305,38 @@ describe('TrainingProgramsService', () => {
       expect(result).toEqual({
         id: 'program-exercise-new',
       });
+    });
+
+    it('should return ConflictException when the draft is published concurrently', async () => {
+      repository.findProgramById.mockResolvedValue(program);
+      repository.findVersionById.mockResolvedValue(draftVersion);
+
+      exercisesServiceMock.findAvailableForTrainingProgram.mockResolvedValue({
+        id: 'exercise-1',
+        name: 'Bench Press',
+        exerciseType: 'STRENGTH',
+      });
+
+      repository.createProgramExercise.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+          code: 'P2025',
+          clientVersion: '7.10.1',
+        }),
+      );
+
+      await expect(
+        service.addExercise(
+          trainer,
+          'program-1',
+          'version-1',
+          'program-workout-1',
+          {
+            exerciseId: 'exercise-1',
+          },
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.createProgramExercise).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -876,7 +1019,7 @@ describe('TrainingProgramsService', () => {
         },
       };
 
-      repository.findManyAssignments.mockResolvedValue(response);
+      repository.findManyAssignmentsForTrainer.mockResolvedValue(response);
 
       const result = await service.findManyAssignments(trainer, {
         page: 1,
@@ -884,7 +1027,7 @@ describe('TrainingProgramsService', () => {
         status: 'ACTIVE',
       });
 
-      expect(repository.findManyAssignments).toHaveBeenCalledWith({
+      expect(repository.findManyAssignmentsForTrainer).toHaveBeenCalledWith({
         where: {
           AND: [
             {
@@ -900,6 +1043,8 @@ describe('TrainingProgramsService', () => {
         skip: 0,
         take: 20,
       });
+
+      expect(repository.findManyAssignments).not.toHaveBeenCalled();
 
       expect(result).toEqual(response);
     });
@@ -998,18 +1143,38 @@ describe('TrainingProgramsService', () => {
 
         repository.findAssignmentDetailsById.mockResolvedValue(details);
 
-        await service.findOneAssignmentDetails('assignment-1', trainer);
+        const result = await service.findOneAssignmentDetails(
+          'assignment-1',
+          trainer,
+        );
 
         expect(repository.findAssignmentDetailsById).toHaveBeenCalledWith(
           'assignment-1',
           {
-            version: {
-              program: {
-                trainerId: trainer.id,
+            AND: [
+              {
+                version: {
+                  program: {
+                    trainerId: trainer.id,
+                  },
+                },
               },
-            },
+              {
+                trainerAthlete: {
+                  is: {
+                    status: 'ACTIVE',
+                  },
+                },
+              },
+            ],
           },
         );
+
+        expect(
+          repository.findHistoricalAssignmentDetailsById,
+        ).not.toHaveBeenCalled();
+
+        expect(result).toEqual(details);
       });
     });
 

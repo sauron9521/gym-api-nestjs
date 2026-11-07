@@ -10,7 +10,6 @@ import {
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../database/index.js';
 
-
 /** PostgreSQL-backed stores for opaque refresh tokens and email links. */
 @Injectable()
 export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
