@@ -11,13 +11,13 @@ import { TrainingProgramsModule } from '../../src/modules/training-programs/trai
 import { PrismaModule, PrismaService } from '../../src/database/index.js';
 import { WorkoutsModule } from '../../src/modules/workouts/workouts.module.js';
 import { WorkoutsRepository } from '../../src/modules/workouts/workouts.repository.js';
-import { TrainingProgramsRepository } from '../../src/modules/training-programs/training-programs.repository.js';
+import { TrainingProgramAssignmentRepository } from '../../src/modules/training-programs/repositories/training-program-assignment.repository.js';
 
 describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
   let app: INestApplication | undefined;
   let prisma: PrismaService;
   let repository: WorkoutsRepository;
-  let trainingProgramsRepository: TrainingProgramsRepository;
+  let assignmentRepository: TrainingProgramAssignmentRepository;
 
   const cleanup = {
     userIds: [] as string[],
@@ -196,7 +196,7 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
 
     prisma = app.get(PrismaService);
     repository = app.get(WorkoutsRepository);
-    trainingProgramsRepository = app.get(TrainingProgramsRepository);
+    assignmentRepository = app.get(TrainingProgramAssignmentRepository);
   }, 20_000);
 
   afterAll(async () => {
@@ -488,13 +488,11 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     const completedAt = new Date('2030-01-15T12:00:00.000Z');
 
     const result =
-      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
-        {
-          assignmentId: fixture.assignmentId,
-          athleteId: fixture.athleteId,
-          completedAt,
-        },
-      );
+      await assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt,
+      });
 
     expect(result.status).toBe('COMPLETED');
 
@@ -535,13 +533,11 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     expect(workout).not.toBeNull();
 
     const result =
-      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
-        {
-          assignmentId: fixture.assignmentId,
-          athleteId: fixture.athleteId,
-          completedAt: new Date('2030-01-15T12:00:00.000Z'),
-        },
-      );
+      await assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt: new Date('2030-01-15T12:00:00.000Z'),
+      });
 
     expect(result).toEqual({
       status: 'HAS_UNFINISHED_WORKOUTS',
@@ -582,13 +578,11 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     });
 
     const result =
-      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
-        {
-          assignmentId: fixture.assignmentId,
-          athleteId: fixture.athleteId,
-          completedAt: new Date('2030-01-15T12:00:00.000Z'),
-        },
-      );
+      await assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt: new Date('2030-01-15T12:00:00.000Z'),
+      });
 
     expect(result).toEqual({
       status: 'HAS_UNFINISHED_WORKOUTS',
@@ -620,13 +614,11 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     });
 
     const result =
-      await trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts(
-        {
-          assignmentId: fixture.assignmentId,
-          athleteId: fixture.athleteId,
-          completedAt: new Date('2030-01-15T12:00:00.000Z'),
-        },
-      );
+      await assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
+        assignmentId: fixture.assignmentId,
+        athleteId: fixture.athleteId,
+        completedAt: new Date('2030-01-15T12:00:00.000Z'),
+      });
 
     expect(result).toEqual({
       status: 'NOT_ACTIVE',
@@ -656,7 +648,7 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
         programWorkoutId: fixture.programWorkoutId,
       }),
 
-      trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+      assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
         assignmentId: fixture.assignmentId,
         athleteId: fixture.athleteId,
         completedAt: new Date(),
@@ -706,13 +698,13 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     const secondCompletedAt = new Date('2030-01-16T12:00:00.000Z');
 
     const results = await Promise.all([
-      trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+      assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
         assignmentId: fixture.assignmentId,
         athleteId: fixture.athleteId,
         completedAt: firstCompletedAt,
       }),
 
-      trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+      assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
         assignmentId: fixture.assignmentId,
         athleteId: fixture.athleteId,
         completedAt: secondCompletedAt,
@@ -838,7 +830,7 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
 
     let completionPromise:
       | ReturnType<
-          TrainingProgramsRepository['completeAssignmentIfNoUnfinishedWorkouts']
+          TrainingProgramAssignmentRepository['completeAssignmentIfNoUnfinishedWorkouts']
         >
       | undefined;
 
@@ -869,7 +861,7 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
 
         // Transaction B attempts to complete the assignment.
         completionPromise =
-          trainingProgramsRepository.completeAssignmentIfNoUnfinishedWorkouts({
+          assignmentRepository.completeAssignmentIfNoUnfinishedWorkouts({
             assignmentId: fixture.assignmentId,
             athleteId: fixture.athleteId,
             completedAt: new Date(),

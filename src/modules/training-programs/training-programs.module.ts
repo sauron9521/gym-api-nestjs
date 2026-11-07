@@ -4,7 +4,6 @@ import { ExercisesModule } from '../exercises/exercises.module.js';
 import { TrainerAthletesModule } from '../trainer-athletes/trainer-athletes.module.js';
 
 import { TrainingProgramsController } from './training-programs.controller.js';
-import { TrainingProgramsRepository } from './training-programs.repository.js';
 import { TrainingProgramsService } from './training-programs.service.js';
 
 import { TrainingProgramCrudRepository } from './repositories/training-program-crud.repository.js';
@@ -28,6 +27,7 @@ import { TrainingProgramAssignmentService } from './services/training-program-as
   controllers: [TrainingProgramsController],
   providers: [
     TrainingProgramsService,
+
     TrainingProgramAccessService,
     TrainingProgramWorkoutService,
     TrainingProgramExerciseService,
@@ -35,8 +35,6 @@ import { TrainingProgramAssignmentService } from './services/training-program-as
     TrainingProgramCrudService,
     TrainingProgramVersionService,
     TrainingProgramAssignmentService,
-
-    TrainingProgramsRepository,
 
     TrainingProgramCrudRepository,
     TrainingProgramVersionRepository,

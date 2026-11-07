@@ -5,12 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
+import { TrainingProgramCrudRepository } from '../repositories/training-program-crud.repository.js';
+import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
+
 import type { TrainingProgramActor } from '../types/training-program.types.js';
 
 @Injectable()
 export class TrainingProgramAccessService {
-  constructor(private readonly repository: TrainingProgramsRepository) {}
+  constructor(
+    private readonly crudRepository: TrainingProgramCrudRepository,
+    private readonly versionRepository: TrainingProgramVersionRepository,
+  ) {}
 
   assertTrainer(actor: TrainingProgramActor): void {
     if (actor.role !== 'TRAINER') {
@@ -27,7 +32,7 @@ export class TrainingProgramAccessService {
   ) {
     this.assertTrainer(actor);
 
-    const program = await this.repository.findProgramById(programId, {
+    const program = await this.crudRepository.findProgramById(programId, {
       trainerId: actor.id,
     });
 
@@ -39,7 +44,7 @@ export class TrainingProgramAccessService {
       throw new ConflictException('Archived programs cannot be modified.');
     }
 
-    const version = await this.repository.findVersionById(versionId, {
+    const version = await this.versionRepository.findVersionById(versionId, {
       programId,
     });
 

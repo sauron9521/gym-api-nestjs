@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
 import { TrainingProgramsService } from '../training-programs.service.js';
 import type { TrainingProgramActor } from '../types/training-program.types.js';
 import { ExercisesService } from '../../exercises/exercises.service.js';
@@ -17,6 +16,13 @@ import { TrainingProgramSetService } from '../services/training-program-set.serv
 import { TrainingProgramCrudService } from '../services/training-program-crud.service.js';
 import { TrainingProgramVersionService } from '../services/training-program-version.service.js';
 import { TrainingProgramAssignmentService } from '../services/training-program-assignment.service.js';
+
+import { TrainingProgramWorkoutRepository } from '../repositories/training-program-workout.repository.js';
+import { TrainingProgramExerciseRepository } from '../repositories/training-program-exercise.repository.js';
+import { TrainingProgramCrudRepository } from '../repositories/training-program-crud.repository.js';
+import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
+import { TrainingProgramAssignmentRepository } from '../repositories/training-program-assignment.repository.js';
+import { TrainingProgramSetRepository } from '../repositories/training-program-set.repository.js';
 
 describe('TrainingProgramsService', () => {
   let service: TrainingProgramsService;
@@ -140,41 +146,90 @@ describe('TrainingProgramsService', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    const repositoryMock = repository as unknown as TrainingProgramsRepository;
+    const crudRepositoryMock = {
+      createProgramWithDraft: repository.createProgramWithDraft,
+      findMany: repository.findMany,
+      findProgramById: repository.findProgramById,
+      createProgram: vi.fn(),
+      updateProgram: repository.updateProgram,
+    } as unknown as TrainingProgramCrudRepository;
+
+    const versionRepositoryMock = {
+      findVersions: repository.findVersions,
+      findVersionById: repository.findVersionById,
+      findDraftVersion: repository.findDraftVersion,
+      createDraftFromLatestPublished: repository.createDraftFromLatestPublished,
+      updateVersion: repository.updateVersion,
+      publishVersion: repository.publishVersion,
+    } as unknown as TrainingProgramVersionRepository;
+
+    const assignmentRepositoryMock = {
+      createAssignmentForActiveRelationship:
+        repository.createAssignmentForActiveRelationship,
+      findManyAssignments: repository.findManyAssignments,
+      findAssignmentById: repository.findAssignmentById,
+      findAssignmentDetailsById: repository.findAssignmentDetailsById,
+      updateAssignment: repository.updateAssignment,
+      completeAssignmentIfNoUnfinishedWorkouts:
+        repository.completeAssignmentIfNoUnfinishedWorkouts,
+    } as unknown as TrainingProgramAssignmentRepository;
+
+    const exerciseRepositoryMock = {
+      createProgramExercise: repository.createProgramExercise,
+      updateProgramExercise: repository.updateProgramExercise,
+      deleteProgramExercise: repository.deleteProgramExercise,
+      reorderProgramExercises: repository.reorderProgramExercises,
+    } as unknown as TrainingProgramExerciseRepository;
+
+    const workoutRepositoryMock = {
+      createWorkout: repository.createWorkout,
+      updateWorkout: repository.updateWorkout,
+      deleteWorkout: repository.deleteWorkout,
+    } as unknown as TrainingProgramWorkoutRepository;
+
+    const setRepositoryMock = {
+      createProgramSet: repository.createProgramSet,
+      updateProgramSet: repository.updateProgramSet,
+      deleteProgramSet: repository.deleteProgramSet,
+      reorderProgramSets: repository.reorderProgramSets,
+    } as unknown as TrainingProgramSetRepository;
+
+    const accessService = new TrainingProgramAccessService(
+      crudRepositoryMock,
+      versionRepositoryMock,
+    );
+
+    const crudService = new TrainingProgramCrudService(
+      crudRepositoryMock,
+      accessService,
+    );
+
+    const versionService = new TrainingProgramVersionService(
+      versionRepositoryMock,
+      crudService,
+    );
 
     const exercisesService =
       exercisesServiceMock as unknown as ExercisesService;
 
-    const accessService = new TrainingProgramAccessService(repositoryMock);
-
     const workoutService = new TrainingProgramWorkoutService(
-      repositoryMock,
+      workoutRepositoryMock,
       accessService,
     );
 
     const exerciseService = new TrainingProgramExerciseService(
-      repositoryMock,
+      exerciseRepositoryMock,
       exercisesService,
       accessService,
     );
 
     const setService = new TrainingProgramSetService(
-      repositoryMock,
+      setRepositoryMock,
       accessService,
-    );
-
-    const crudService = new TrainingProgramCrudService(
-      repositoryMock,
-      accessService,
-    );
-
-    const versionService = new TrainingProgramVersionService(
-      repositoryMock,
-      crudService,
     );
 
     const assignmentService = new TrainingProgramAssignmentService(
-      repositoryMock,
+      assignmentRepositoryMock,
       crudService,
       versionService,
       accessService,

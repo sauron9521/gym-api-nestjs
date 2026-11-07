@@ -7,7 +7,7 @@ import {
 
 import { Prisma } from '../../../generated/prisma/client.js';
 
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
+import { TrainingProgramCrudRepository } from '../repositories/training-program-crud.repository.js';
 import { TrainingProgramAccessService } from './training-program-access.service.js';
 
 import type {
@@ -19,7 +19,7 @@ import type {
 @Injectable()
 export class TrainingProgramCrudService {
   constructor(
-    private readonly repository: TrainingProgramsRepository,
+    private readonly repository: TrainingProgramCrudRepository,
     private readonly accessService: TrainingProgramAccessService,
   ) {}
 

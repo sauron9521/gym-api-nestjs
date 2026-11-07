@@ -10,7 +10,7 @@ import { Prisma } from '../../../generated/prisma/client.js';
 
 import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
 
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
+import { TrainingProgramAssignmentRepository } from '../repositories/training-program-assignment.repository.js';
 import { TrainingProgramAccessService } from './training-program-access.service.js';
 import { TrainingProgramCrudService } from './training-program-crud.service.js';
 import { TrainingProgramVersionService } from './training-program-version.service.js';
@@ -25,7 +25,7 @@ import type {
 @Injectable()
 export class TrainingProgramAssignmentService {
   constructor(
-    private readonly repository: TrainingProgramsRepository,
+    private readonly repository: TrainingProgramAssignmentRepository,
     private readonly crudService: TrainingProgramCrudService,
     private readonly versionService: TrainingProgramVersionService,
     private readonly accessService: TrainingProgramAccessService,
@@ -90,7 +90,7 @@ export class TrainingProgramAssignmentService {
 
     let assignment: Awaited<
       ReturnType<
-        TrainingProgramsRepository['createAssignmentForActiveRelationship']
+        TrainingProgramAssignmentRepository['createAssignmentForActiveRelationship']
       >
     >;
 

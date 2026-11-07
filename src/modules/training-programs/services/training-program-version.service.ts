@@ -7,7 +7,7 @@ import {
 
 import { Prisma } from '../../../generated/prisma/client.js';
 
-import { TrainingProgramsRepository } from '../training-programs.repository.js';
+import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
 import { TrainingProgramCrudService } from './training-program-crud.service.js';
 
 import type {
@@ -18,7 +18,7 @@ import type {
 @Injectable()
 export class TrainingProgramVersionService {
   constructor(
-    private readonly repository: TrainingProgramsRepository,
+    private readonly repository: TrainingProgramVersionRepository,
     private readonly crudService: TrainingProgramCrudService,
   ) {}
 
@@ -69,7 +69,9 @@ export class TrainingProgramVersionService {
     }
 
     let draft: Awaited<
-      ReturnType<TrainingProgramsRepository['createDraftFromLatestPublished']>
+      ReturnType<
+        TrainingProgramVersionRepository['createDraftFromLatestPublished']
+      >
     >;
 
     try {
