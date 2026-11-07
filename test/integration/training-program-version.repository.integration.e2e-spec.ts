@@ -471,7 +471,7 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       });
 
       // The second request can return null if it sees
-      // the existing draft, or fail with a unique violation.
+      // the existing draft or fail with a unique violation.
       for (const result of results) {
         if (result.status === 'rejected') {
           expect(result.reason).toMatchObject({
@@ -603,6 +603,259 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       });
 
       expect(published.status).toBe('PUBLISHED');
+    } finally {
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+
+        await prisma.trainingProgram.delete({
+          where: { id: programId },
+        });
+      }
+
+      if (trainerId) {
+        await prisma.user.delete({
+          where: { id: trainerId },
+        });
+      }
+    }
+  });
+
+  it('creates a new draft after publishing the previous one', async () => {
+    let trainerId: string | undefined;
+    let programId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.create({
+        data: {
+          email: `version-lifecycle-${randomUUID()}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'TRAINER',
+        },
+        select: { id: true },
+      });
+
+      trainerId = trainer.id;
+
+      // Initial state: v1 published, v2 draft
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId,
+          status: 'PUBLISHED',
+          versions: {
+            create: [
+              {
+                version: 1,
+                title: 'Original Program',
+                status: 'PUBLISHED',
+                publishedAt: new Date(),
+              },
+              {
+                version: 2,
+                title: 'Updated Program',
+                status: 'DRAFT',
+              },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+
+      programId = program.id;
+
+      const version2 = await prisma.trainingProgramVersion.findUniqueOrThrow({
+        where: {
+          programId_version: {
+            programId,
+            version: 2,
+          },
+        },
+        select: { id: true },
+      });
+
+      // Step 1: publish version 2
+      const published = await repository.publishVersion(programId, version2.id);
+
+      expect(published).toMatchObject({
+        id: version2.id,
+        version: 2,
+        status: 'PUBLISHED',
+      });
+
+      expect(published?.publishedAt).toBeInstanceOf(Date);
+
+      // Step 2: create version 3 from latest published
+      const draft = await repository.createDraftFromLatestPublished(programId);
+
+      expect(draft).toMatchObject({
+        programId,
+        version: 3,
+        title: 'Updated Program',
+        status: 'DRAFT',
+        publishedAt: null,
+      });
+
+      expect(draft?.id).not.toBe(version2.id);
+
+      // Step 3: inspect persisted versions
+      const versions = await prisma.trainingProgramVersion.findMany({
+        where: { programId },
+        orderBy: { version: 'asc' },
+        select: {
+          version: true,
+          title: true,
+          status: true,
+          publishedAt: true,
+        },
+      });
+
+      expect(
+        versions.map(({ version, title, status }) => ({
+          version,
+          title,
+          status,
+        })),
+      ).toEqual([
+        {
+          version: 1,
+          title: 'Original Program',
+          status: 'PUBLISHED',
+        },
+        {
+          version: 2,
+          title: 'Updated Program',
+          status: 'PUBLISHED',
+        },
+        {
+          version: 3,
+          title: 'Updated Program',
+          status: 'DRAFT',
+        },
+      ]);
+
+      expect(versions[0]?.publishedAt).toBeInstanceOf(Date);
+      expect(versions[1]?.publishedAt).toBeInstanceOf(Date);
+      expect(versions[2]?.publishedAt).toBeNull();
+
+      // Exactly one active draft
+      const draftCount = await prisma.trainingProgramVersion.count({
+        where: {
+          programId,
+          status: 'DRAFT',
+        },
+      });
+
+      expect(draftCount).toBe(1);
+    } finally {
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+
+        await prisma.trainingProgram.delete({
+          where: { id: programId },
+        });
+      }
+
+      if (trainerId) {
+        await prisma.user.delete({
+          where: { id: trainerId },
+        });
+      }
+    }
+  });
+
+  it('allows only one concurrent publication of the same draft', async () => {
+    let trainerId: string | undefined;
+    let programId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.create({
+        data: {
+          email: `concurrent-publish-${randomUUID()}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'TRAINER',
+        },
+        select: { id: true },
+      });
+
+      trainerId = trainer.id;
+
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId,
+          status: 'DRAFT',
+          versions: {
+            create: {
+              version: 1,
+              title: 'Concurrent Publication Test',
+              status: 'DRAFT',
+            },
+          },
+        },
+        select: {
+          id: true,
+          versions: {
+            select: { id: true },
+          },
+        },
+      });
+
+      programId = program.id;
+      const versionId = program.versions[0]!.id;
+
+      // Act: two simultaneous publication attempts
+      const results = await Promise.all([
+        repository.publishVersion(programId, versionId),
+        repository.publishVersion(programId, versionId),
+      ]);
+
+      // Exactly one operation should succeed
+      const successful = results.filter((result) => result !== null);
+
+      const unsuccessful = results.filter((result) => result === null);
+
+      expect(successful).toHaveLength(1);
+      expect(unsuccessful).toHaveLength(1);
+
+      expect(successful[0]).toMatchObject({
+        id: versionId,
+        programId,
+        version: 1,
+        status: 'PUBLISHED',
+      });
+
+      // Assert: persisted version
+      const persistedVersion =
+        await prisma.trainingProgramVersion.findUniqueOrThrow({
+          where: { id: versionId },
+          select: {
+            status: true,
+            publishedAt: true,
+          },
+        });
+
+      expect(persistedVersion.status).toBe('PUBLISHED');
+      expect(persistedVersion.publishedAt).toBeInstanceOf(Date);
+
+      // Assert: program status
+      const persistedProgram = await prisma.trainingProgram.findUniqueOrThrow({
+        where: { id: programId },
+        select: { status: true },
+      });
+
+      expect(persistedProgram.status).toBe('PUBLISHED');
+
+      // Assert: only one published version
+      const publishedCount = await prisma.trainingProgramVersion.count({
+        where: {
+          programId,
+          status: 'PUBLISHED',
+        },
+      });
+
+      expect(publishedCount).toBe(1);
     } finally {
       if (programId) {
         await prisma.trainingProgramVersion.deleteMany({
