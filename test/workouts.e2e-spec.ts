@@ -936,6 +936,1323 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
     }
   }, 20_000);
 
+  it('should allow only one concurrent assignment cancellation', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const trainerCookie = await login(trainer.email);
+
+      // Isolated athlete to avoid changing shared fixtures.
+      const athlete = await prisma.user.create({
+        data: {
+          email: `cancel-race-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: { id: true },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const original = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+        {
+          where: { id: programAssignmentId },
+          select: { versionId: true },
+        },
+      );
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: original.versionId,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      const endpoint = `/training-programs/assignments/${assignment.id}/cancel`;
+
+      // Two real HTTP requests competing for the same assignment.
+      const [first, second] = await Promise.all([
+        request(app!.getHttpServer())
+          .post(endpoint)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Cancellation A' }),
+
+        request(app!.getHttpServer())
+          .post(endpoint)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Cancellation B' }),
+      ]);
+
+      // Exactly one request succeeds.
+      expect([first.status, second.status].sort((a, b) => a - b)).toEqual([
+        200, 409,
+      ]);
+
+      const successful = [first, second].find(
+        (response) => response.status === 200,
+      );
+
+      expect(successful?.body).toMatchObject({
+        id: assignment.id,
+        status: 'CANCELLED',
+      });
+
+      // Verify persisted state, not only the HTTP responses.
+      const persisted =
+        await prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            endedAt: true,
+            endedById: true,
+            endReason: true,
+          },
+        });
+
+      expect(persisted.status).toBe('CANCELLED');
+      expect(persisted.endedAt).not.toBeNull();
+      expect(persisted.endedById).toBe(trainerId);
+
+      expect(['Cancellation A', 'Cancellation B']).toContain(
+        persisted.endReason,
+      );
+
+      // Cancelling a program must not terminate collaboration.
+      const persistedRelationship =
+        await prisma.trainerAthlete.findUniqueOrThrow({
+          where: { id: relationship.id },
+          select: { status: true },
+        });
+
+      expect(persistedRelationship.status).toBe('ACTIVE');
+    } finally {
+      if (assignmentId) {
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 20_000);
+
+  it('should handle concurrent assignment cancellation and relationship termination', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const trainerCookie = await login(trainer.email);
+
+      // Create an isolated athlete.
+      const athlete = await prisma.user.create({
+        data: {
+          email: `cancel-terminate-race-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: { id: true },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const original = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+        {
+          where: { id: programAssignmentId },
+          select: { versionId: true },
+        },
+      );
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: original.versionId,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      // Run both operations concurrently.
+      const [cancelResponse, terminateResponse] = await Promise.all([
+        request(app!.getHttpServer())
+          .post(`/training-programs/assignments/${assignment.id}/cancel`)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Cancelled by trainer' }),
+
+        request(app!.getHttpServer())
+          .post(`/trainer-athletes/${relationship.id}/terminate`)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Collaboration ended' }),
+      ]);
+
+      // Relationship termination must succeed.
+      expect(terminateResponse.status).toBe(200);
+      expect(terminateResponse.body.status).toBe('TERMINATED');
+
+      // Cancellation may win or lose the race.
+      expect([200, 409]).toContain(cancelResponse.status);
+
+      const [persistedAssignment, persistedRelationship] = await Promise.all([
+        prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            endedAt: true,
+            endedById: true,
+            endReason: true,
+          },
+        }),
+
+        prisma.trainerAthlete.findUniqueOrThrow({
+          where: { id: relationship.id },
+          select: {
+            status: true,
+            endedAt: true,
+          },
+        }),
+      ]);
+
+      expect(persistedRelationship.status).toBe('TERMINATED');
+      expect(persistedRelationship.endedAt).not.toBeNull();
+
+      expect(persistedAssignment.endedAt).not.toBeNull();
+      expect(persistedAssignment.endedById).toBe(trainerId);
+
+      if (cancelResponse.status === 200) {
+        expect(persistedAssignment.status).toBe('CANCELLED');
+        expect(persistedAssignment.endReason).toBe('Cancelled by trainer');
+      } else {
+        expect(persistedAssignment.status).toBe('TERMINATED');
+        expect(persistedAssignment.endReason).toBe('Collaboration ended');
+      }
+
+      // No active assignment may survive the termination.
+      const activeCount = await prisma.trainingProgramAssignment.count({
+        where: {
+          trainerAthleteId: relationship.id,
+          status: 'ACTIVE',
+        },
+      });
+
+      expect(activeCount).toBe(0);
+    } finally {
+      if (assignmentId) {
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should handle concurrent assignment completion and relationship termination', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+
+    try {
+      const passwordHash = await passwordHasher.hash(password);
+
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      // Create an isolated athlete.
+      const athlete = await prisma.user.create({
+        data: {
+          email: `complete-terminate-race-${randomUUID()}@example.com`,
+          passwordHash,
+          role: 'ATHLETE',
+        },
+        select: { id: true, email: true },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const original = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+        {
+          where: { id: programAssignmentId },
+          select: { versionId: true },
+        },
+      );
+
+      // No linked workouts: completion is allowed.
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: original.versionId,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      // Both participants have their own authenticated sessions.
+      const [athleteCookie, trainerCookie] = await Promise.all([
+        login(athlete.email),
+        login(trainer.email),
+      ]);
+
+      // Execute competing HTTP requests.
+      const [completeResponse, terminateResponse] = await Promise.all([
+        request(app!.getHttpServer())
+          .post(`/training-programs/assignments/${assignment.id}/complete`)
+          .set('Cookie', athleteCookie),
+
+        request(app!.getHttpServer())
+          .post(`/trainer-athletes/${relationship.id}/terminate`)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Concurrent termination test' }),
+      ]);
+
+      expect(terminateResponse.status).toBe(200);
+      expect(terminateResponse.body.status).toBe('TERMINATED');
+
+      // Completion may win or lose the race.
+      expect([200, 409]).toContain(completeResponse.status);
+
+      // Verify final state directly in PostgreSQL.
+      const [persistedAssignment, persistedRelationship] = await Promise.all([
+        prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            completedAt: true,
+            endedAt: true,
+            endedById: true,
+            endReason: true,
+          },
+        }),
+
+        prisma.trainerAthlete.findUniqueOrThrow({
+          where: { id: relationship.id },
+          select: {
+            status: true,
+            endedAt: true,
+          },
+        }),
+      ]);
+
+      // Collaboration must always be terminated.
+      expect(persistedRelationship.status).toBe('TERMINATED');
+      expect(persistedRelationship.endedAt).not.toBeNull();
+
+      if (completeResponse.status === 200) {
+        // Completion won the race.
+        expect(completeResponse.body).toMatchObject({
+          id: assignment.id,
+          status: 'COMPLETED',
+        });
+
+        expect(persistedAssignment.status).toBe('COMPLETED');
+        expect(persistedAssignment.completedAt).not.toBeNull();
+
+        // Termination must not overwrite a completed assignment.
+        expect(persistedAssignment.endedAt).toBeNull();
+        expect(persistedAssignment.endedById).toBeNull();
+      } else {
+        // Termination won the race.
+        expect(persistedAssignment.status).toBe('TERMINATED');
+        expect(persistedAssignment.completedAt).toBeNull();
+
+        expect(persistedAssignment.endedAt).not.toBeNull();
+        expect(persistedAssignment.endedById).toBe(trainerId);
+        expect(persistedAssignment.endReason).toBe(
+          'Concurrent termination test',
+        );
+      }
+
+      // No active assignment may remain.
+      const activeCount = await prisma.trainingProgramAssignment.count({
+        where: {
+          trainerAthleteId: relationship.id,
+          status: 'ACTIVE',
+        },
+      });
+
+      expect(activeCount).toBe(0);
+    } finally {
+      if (assignmentId) {
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should serialize workout creation with assignment completion', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+
+    try {
+      const athlete = await prisma.user.create({
+        data: {
+          email: `workout-completion-race-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const original = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+        {
+          where: { id: programAssignmentId },
+          select: { versionId: true },
+        },
+      );
+
+      // This assignment starts without any actual workouts.
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: original.versionId,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      const athleteCookie = await login(athlete.email);
+
+      // Two competing operations on the same assignment.
+      const [createResponse, completeResponse] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts/from-program')
+          .set('Cookie', athleteCookie)
+          .send({
+            assignmentId: assignment.id,
+            programWorkoutId,
+          }),
+
+        request(app!.getHttpServer())
+          .post(`/training-programs/assignments/${assignment.id}/complete`)
+          .set('Cookie', athleteCookie),
+      ]);
+
+      // Only these two combinations are valid.
+      const statuses = [createResponse.status, completeResponse.status];
+
+      expect([
+        [201, 409],
+        [404, 200],
+      ]).toContainEqual(statuses);
+
+      // Read the final database state.
+      const [persistedAssignment, workouts] = await Promise.all([
+        prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            completedAt: true,
+          },
+        }),
+
+        prisma.workout.findMany({
+          where: {
+            programAssignmentId: assignment.id,
+          },
+          select: {
+            id: true,
+            status: true,
+            athleteId: true,
+            programWorkoutId: true,
+          },
+        }),
+      ]);
+
+      if (createResponse.status === 201) {
+        // Workout creation won.
+        expect(createResponse.body).toMatchObject({
+          id: expect.any(String),
+          status: 'PLANNED',
+          athleteId: athlete.id,
+          programAssignmentId: assignment.id,
+          programWorkoutId,
+        });
+
+        expect(completeResponse.status).toBe(409);
+
+        expect(persistedAssignment).toEqual({
+          status: 'ACTIVE',
+          completedAt: null,
+        });
+
+        expect(workouts).toHaveLength(1);
+        expect(workouts[0]).toMatchObject({
+          id: createResponse.body.id,
+          status: 'PLANNED',
+          athleteId: athlete.id,
+          programWorkoutId,
+        });
+      } else {
+        // Assignment completion won.
+        expect(createResponse.status).toBe(404);
+        expect(completeResponse.status).toBe(200);
+
+        expect(completeResponse.body).toMatchObject({
+          id: assignment.id,
+          status: 'COMPLETED',
+        });
+
+        expect(persistedAssignment.status).toBe('COMPLETED');
+        expect(persistedAssignment.completedAt).not.toBeNull();
+
+        // A completed assignment cannot gain a new workout.
+        expect(workouts).toHaveLength(0);
+      }
+
+      // The trainer-athlete relationship itself remains active.
+      const persistedRelationship =
+        await prisma.trainerAthlete.findUniqueOrThrow({
+          where: { id: relationship.id },
+          select: { status: true },
+        });
+
+      expect(persistedRelationship.status).toBe('ACTIVE');
+    } finally {
+      // Delete dependent workouts before their assignment.
+      if (assignmentId) {
+        await prisma.workout.deleteMany({
+          where: { programAssignmentId: assignmentId },
+        });
+
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should serialize workout creation with assignment cancellation', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `workout-cancel-race-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: { id: true, email: true },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const original = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+        {
+          where: { id: programAssignmentId },
+          select: { versionId: true },
+        },
+      );
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: original.versionId,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      const [athleteCookie, trainerCookie] = await Promise.all([
+        login(athlete.email),
+        login(trainer.email),
+      ]);
+
+      // Execute competing operations.
+      const [createResponse, cancelResponse] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts/from-program')
+          .set('Cookie', athleteCookie)
+          .send({
+            assignmentId: assignment.id,
+            programWorkoutId,
+          }),
+
+        request(app!.getHttpServer())
+          .post(`/training-programs/assignments/${assignment.id}/cancel`)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Concurrent cancellation test' }),
+      ]);
+
+      // Cancellation must succeed.
+      expect(cancelResponse.status).toBe(200);
+      expect(cancelResponse.body).toMatchObject({
+        id: assignment.id,
+        status: 'CANCELLED',
+      });
+
+      // Workout creation may win or lose.
+      expect([201, 404]).toContain(createResponse.status);
+
+      // Verify the persisted database state.
+      const [persistedAssignment, workouts] = await Promise.all([
+        prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: assignment.id },
+          select: {
+            status: true,
+            endedAt: true,
+            endedById: true,
+            endReason: true,
+          },
+        }),
+
+        prisma.workout.findMany({
+          where: { programAssignmentId: assignment.id },
+          select: {
+            id: true,
+            status: true,
+            athleteId: true,
+            programWorkoutId: true,
+          },
+        }),
+      ]);
+
+      expect(persistedAssignment.status).toBe('CANCELLED');
+      expect(persistedAssignment.endedAt).not.toBeNull();
+      expect(persistedAssignment.endedById).toBe(trainerId);
+      expect(persistedAssignment.endReason).toBe(
+        'Concurrent cancellation test',
+      );
+
+      if (createResponse.status === 201) {
+        // Creation won, then cancellation succeeded.
+        expect(workouts).toHaveLength(1);
+
+        expect(workouts[0]).toMatchObject({
+          id: createResponse.body.id,
+          status: 'PLANNED',
+          athleteId: athlete.id,
+          programWorkoutId,
+        });
+
+        // A workout from a canceled assignment cannot be started.
+        const startResponse = await request(app!.getHttpServer())
+          .post(`/workouts/${workouts[0].id}/start`)
+          .set('Cookie', athleteCookie);
+
+        expect(startResponse.status).toBe(409);
+
+        const persistedWorkout = await prisma.workout.findUniqueOrThrow({
+          where: { id: workouts[0].id },
+          select: { status: true, startedAt: true },
+        });
+
+        expect(persistedWorkout).toEqual({
+          status: 'PLANNED',
+          startedAt: null,
+        });
+      } else {
+        // Cancellation won before workout creation.
+        expect(createResponse.status).toBe(404);
+        expect(workouts).toHaveLength(0);
+      }
+
+      // No subsequent workout can be created after cancellation.
+      const retryResponse = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', athleteCookie)
+        .send({
+          assignmentId: assignment.id,
+          programWorkoutId,
+        });
+
+      expect(retryResponse.status).toBe(404);
+
+      // Cancelling the assignment does not terminate collaboration.
+      const persistedRelationship =
+        await prisma.trainerAthlete.findUniqueOrThrow({
+          where: { id: relationship.id },
+          select: { status: true },
+        });
+
+      expect(persistedRelationship.status).toBe('ACTIVE');
+    } finally {
+      if (assignmentId) {
+        await prisma.workout.deleteMany({
+          where: { programAssignmentId: assignmentId },
+        });
+
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should serialize workout creation with relationship termination', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `workout-terminate-race-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: { id: true, email: true },
+      });
+
+      athleteId = athlete.id;
+
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const original = await prisma.trainingProgramAssignment.findUniqueOrThrow(
+        {
+          where: { id: programAssignmentId },
+          select: { versionId: true },
+        },
+      );
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: original.versionId,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      const [athleteCookie, trainerCookie] = await Promise.all([
+        login(athlete.email),
+        login(trainer.email),
+      ]);
+
+      // Run both HTTP requests concurrently.
+      const [createResponse, terminateResponse] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts/from-program')
+          .set('Cookie', athleteCookie)
+          .send({
+            assignmentId: assignment.id,
+            programWorkoutId,
+          }),
+
+        request(app!.getHttpServer())
+          .post(`/trainer-athletes/${relationship.id}/terminate`)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Concurrent relationship termination' }),
+      ]);
+
+      // Termination must succeed.
+      expect(terminateResponse.status).toBe(200);
+      expect(terminateResponse.body.status).toBe('TERMINATED');
+
+      // Creation can either succeed before termination or be rejected.
+      expect([201, 404]).toContain(createResponse.status);
+
+      const [persistedRelationship, persistedAssignment, workouts] =
+        await Promise.all([
+          prisma.trainerAthlete.findUniqueOrThrow({
+            where: { id: relationship.id },
+            select: {
+              status: true,
+              endedAt: true,
+            },
+          }),
+
+          prisma.trainingProgramAssignment.findUniqueOrThrow({
+            where: { id: assignment.id },
+            select: {
+              status: true,
+              endedAt: true,
+              endedById: true,
+              endReason: true,
+            },
+          }),
+
+          prisma.workout.findMany({
+            where: {
+              programAssignmentId: assignment.id,
+            },
+            select: {
+              id: true,
+              status: true,
+              athleteId: true,
+              programWorkoutId: true,
+            },
+          }),
+        ]);
+
+      // Collaboration and its active assignment must be terminated.
+      expect(persistedRelationship.status).toBe('TERMINATED');
+      expect(persistedRelationship.endedAt).not.toBeNull();
+
+      expect(persistedAssignment.status).toBe('TERMINATED');
+      expect(persistedAssignment.endedAt).not.toBeNull();
+      expect(persistedAssignment.endedById).toBe(trainerId);
+      expect(persistedAssignment.endReason).toBe(
+        'Concurrent relationship termination',
+      );
+
+      if (createResponse.status === 201) {
+        // Workout creation won before termination completed.
+        expect(workouts).toHaveLength(1);
+
+        expect(workouts[0]).toMatchObject({
+          id: createResponse.body.id,
+          status: 'PLANNED',
+          athleteId: athlete.id,
+          programWorkoutId,
+        });
+
+        // The athlete cannot start the workout after termination.
+        const startResponse = await request(app!.getHttpServer())
+          .post(`/workouts/${workouts[0].id}/start`)
+          .set('Cookie', athleteCookie);
+
+        expect(startResponse.status).toBe(409);
+      } else {
+        // Termination won: no workout should have been created.
+        expect(createResponse.status).toBe(404);
+        expect(workouts).toHaveLength(0);
+      }
+
+      // A retry after termination must always fail.
+      const retryResponse = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', athleteCookie)
+        .send({
+          assignmentId: assignment.id,
+          programWorkoutId,
+        });
+
+      expect(retryResponse.status).toBe(404);
+
+      // No active assignments may survive.
+      const activeCount = await prisma.trainingProgramAssignment.count({
+        where: {
+          trainerAthleteId: relationship.id,
+          status: 'ACTIVE',
+        },
+      });
+
+      expect(activeCount).toBe(0);
+    } finally {
+      if (assignmentId) {
+        await prisma.workout.deleteMany({
+          where: { programAssignmentId: assignmentId },
+        });
+
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
+  it('should preserve trainer exercise copies during concurrent workout creation and termination', async () => {
+    let athleteId: string | undefined;
+    let relationshipId: string | undefined;
+    let assignmentId: string | undefined;
+    let programId: string | undefined;
+    let sourceExerciseId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.findUniqueOrThrow({
+        where: { id: trainerId },
+        select: { email: true },
+      });
+
+      const athlete = await prisma.user.create({
+        data: {
+          email: `exercise-copy-race-${randomUUID()}@example.com`,
+          passwordHash: await passwordHasher.hash(password),
+          role: 'ATHLETE',
+        },
+        select: { id: true, email: true },
+      });
+
+      athleteId = athlete.id;
+
+      // 1. Create a trainer-owned custom exercise.
+      const sourceExercise = await prisma.exercise.create({
+        data: {
+          name: 'Trainer Custom Bench Press',
+          description: 'Exercise created by the trainer',
+          instructions: 'Perform 8 controlled repetitions',
+          source: 'TRAINER_CUSTOM',
+          exerciseType: 'STRENGTH',
+          createdById: trainerId,
+        },
+        select: { id: true },
+      });
+
+      sourceExerciseId = sourceExercise.id;
+
+      // 2. Create an isolated published program.
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId,
+          status: 'PUBLISHED',
+        },
+        select: { id: true },
+      });
+
+      programId = program.id;
+
+      const version = await prisma.trainingProgramVersion.create({
+        data: {
+          programId: program.id,
+          version: 1,
+          title: 'Trainer Custom Exercise Program',
+          status: 'PUBLISHED',
+          publishedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      const programWorkout = await prisma.trainingProgramWorkout.create({
+        data: {
+          versionId: version.id,
+          weekNumber: 1,
+          dayNumber: 1,
+          title: 'Trainer Custom Workout',
+        },
+        select: { id: true },
+      });
+
+      const programExercise = await prisma.trainingProgramExercise.create({
+        data: {
+          workoutId: programWorkout.id,
+          exerciseId: sourceExercise.id,
+          exerciseNameSnapshot: 'Trainer Custom Bench Press',
+          exerciseTypeSnapshot: 'STRENGTH',
+          sortOrder: 0,
+        },
+        select: { id: true },
+      });
+
+      await prisma.trainingProgramSet.create({
+        data: {
+          programExerciseId: programExercise.id,
+          setNumber: 1,
+          setType: 'WORKING',
+          plannedReps: 8,
+        },
+      });
+
+      // 3. Create an active trainer-athlete relationship.
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      relationshipId = relationship.id;
+
+      const assignment = await prisma.trainingProgramAssignment.create({
+        data: {
+          versionId: version.id,
+          trainerAthleteId: relationship.id,
+          athleteId: athlete.id,
+          assignedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      assignmentId = assignment.id;
+
+      const [athleteCookie, trainerCookie] = await Promise.all([
+        login(athlete.email),
+        login(trainer.email),
+      ]);
+
+      // 4. Run competing HTTP requests.
+      const [createResponse, terminateResponse] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts/from-program')
+          .set('Cookie', athleteCookie)
+          .send({
+            assignmentId: assignment.id,
+            programWorkoutId: programWorkout.id,
+          }),
+
+        request(app!.getHttpServer())
+          .post(`/trainer-athletes/${relationship.id}/terminate`)
+          .set('Cookie', trainerCookie)
+          .send({ reason: 'Exercise copy race test' }),
+      ]);
+
+      expect(terminateResponse.status).toBe(200);
+      expect(terminateResponse.body.status).toBe('TERMINATED');
+
+      expect([201, 404]).toContain(createResponse.status);
+
+      // 5. Check persisted assignment and relationship.
+      const [persistedAssignment, persistedRelationship] = await Promise.all([
+        prisma.trainingProgramAssignment.findUniqueOrThrow({
+          where: { id: assignment.id },
+          select: { status: true },
+        }),
+
+        prisma.trainerAthlete.findUniqueOrThrow({
+          where: { id: relationship.id },
+          select: { status: true },
+        }),
+      ]);
+
+      expect(persistedAssignment.status).toBe('TERMINATED');
+      expect(persistedRelationship.status).toBe('TERMINATED');
+
+      // 6. The athlete must receive exactly ONE private copy.
+      const copies = await prisma.exercise.findMany({
+        where: {
+          createdById: athlete.id,
+          copiedFromExerciseId: sourceExercise.id,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          instructions: true,
+          source: true,
+          visibility: true,
+          isArchived: true,
+          createdById: true,
+          copiedFromExerciseId: true,
+        },
+      });
+
+      expect(copies).toHaveLength(1);
+
+      expect(copies[0]).toMatchObject({
+        name: 'Trainer Custom Bench Press',
+        description: 'Exercise created by the trainer',
+        instructions: 'Perform 8 controlled repetitions',
+        source: 'ATHLETE_CUSTOM',
+        visibility: 'PRIVATE',
+        isArchived: false,
+        createdById: athlete.id,
+        copiedFromExerciseId: sourceExercise.id,
+      });
+
+      expect(copies[0].id).not.toBe(sourceExercise.id);
+
+      // 7. Access to the original must be revoked.
+      const originalResponse = await request(app!.getHttpServer())
+        .get(`/exercises/${sourceExercise.id}`)
+        .set('Cookie', athleteCookie);
+
+      expect(originalResponse.status).toBe(404);
+
+      // The athlete can still access their private copy.
+      const copyResponse = await request(app!.getHttpServer())
+        .get(`/exercises/${copies[0].id}`)
+        .set('Cookie', athleteCookie);
+
+      expect(copyResponse.status).toBe(200);
+      expect(copyResponse.body.id).toBe(copies[0].id);
+
+      // 8. Verify the workout creation outcome.
+      const workouts = await prisma.workout.findMany({
+        where: {
+          programAssignmentId: assignment.id,
+        },
+        select: {
+          id: true,
+          status: true,
+          exercises: {
+            select: {
+              exerciseId: true,
+              exerciseNameSnapshot: true,
+              sets: {
+                select: { plannedReps: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (createResponse.status === 201) {
+        expect(workouts).toHaveLength(1);
+
+        expect(workouts[0]).toMatchObject({
+          id: createResponse.body.id,
+          status: 'PLANNED',
+          exercises: [
+            {
+              exerciseId: sourceExercise.id,
+              exerciseNameSnapshot: 'Trainer Custom Bench Press',
+              sets: [{ plannedReps: 8 }],
+            },
+          ],
+        });
+
+        // The workout retains its historical reference,
+        // but cannot be started after termination.
+        const startResponse = await request(app!.getHttpServer())
+          .post(`/workouts/${workouts[0].id}/start`)
+          .set('Cookie', athleteCookie);
+
+        expect(startResponse.status).toBe(409);
+      } else {
+        expect(workouts).toHaveLength(0);
+      }
+
+      // 9. No new workout can be created after termination.
+      const retryResponse = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', athleteCookie)
+        .send({
+          assignmentId: assignment.id,
+          programWorkoutId: programWorkout.id,
+        });
+
+      expect(retryResponse.status).toBe(404);
+    } finally {
+      // Remove dependent workouts first.
+      if (assignmentId) {
+        await prisma.workout.deleteMany({
+          where: { programAssignmentId: assignmentId },
+        });
+
+        await prisma.trainingProgramAssignment.deleteMany({
+          where: { id: assignmentId },
+        });
+      }
+
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({
+          where: { id: relationshipId },
+        });
+      }
+
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+
+        await prisma.trainingProgram.deleteMany({
+          where: { id: programId },
+        });
+      }
+
+      // Copies reference the original, so delete them first.
+      if (sourceExerciseId && athleteId) {
+        await prisma.exercise.deleteMany({
+          where: {
+            copiedFromExerciseId: sourceExerciseId,
+            createdById: athleteId,
+          },
+        });
+      }
+
+      if (sourceExerciseId) {
+        await prisma.exercise.deleteMany({
+          where: { id: sourceExerciseId },
+        });
+      }
+
+      if (athleteId) {
+        await prisma.user.deleteMany({
+          where: { id: athleteId },
+        });
+      }
+    }
+  }, 30_000);
+
   describe('POST /workouts', () => {
     it('should reject unauthenticated requests', async () => {
       const response = await request(app!.getHttpServer())
