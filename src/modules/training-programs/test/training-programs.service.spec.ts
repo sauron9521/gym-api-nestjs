@@ -159,6 +159,9 @@ describe('TrainingProgramsService', () => {
     const versionRepositoryMock = {
       findVersions: repository.findVersions,
       findVersionById: repository.findVersionById,
+      // Share the mock so existing business tests cover the same access
+      // outcomes while the repository verifies the compact DB select.
+      findVersionForEditing: repository.findVersionById,
       findDraftVersion: repository.findDraftVersion,
       createDraftFromLatestPublished: repository.createDraftFromLatestPublished,
       updateVersion: repository.updateVersion,
@@ -1284,6 +1287,18 @@ describe('TrainingProgramsService', () => {
       ).rejects.toThrow(ConflictException);
 
       expect(repository.updateAssignment).not.toHaveBeenCalled();
+    });
+
+    it('requests a compact athlete assignment list when asked', async () => {
+      repository.findManyAssignments.mockResolvedValue({ data: [], meta: {} });
+      await service.findManyAssignments(athlete, {
+        page: 1,
+        limit: 20,
+        view: 'summary',
+      });
+      expect(repository.findManyAssignments).toHaveBeenCalledWith(
+        expect.objectContaining({ view: 'summary', take: 20 }),
+      );
     });
 
     it('should reject invalid assignment pagination', async () => {

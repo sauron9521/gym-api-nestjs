@@ -81,6 +81,7 @@ export type TrainingProgramAssignmentListQuery = {
   page: number;
   limit: number;
   status?: TrainingProgramAssignmentStatus;
+  view?: 'full' | 'summary';
 };
 
 export type CancelTrainingProgramAssignmentInput = {

@@ -64,6 +64,13 @@ describe('TrainingProgramsController', () => {
     expect(service.findManyAssignments).toHaveBeenCalledWith(actor, query);
   });
 
+  it('passes a summary view to the assignment service', async () => {
+    const query = { page: 1, limit: 20, view: 'summary' as const };
+    service.findManyAssignments.mockResolvedValue({ data: [], meta: {} });
+    await controller.findManyAssignments(actor, query);
+    expect(service.findManyAssignments).toHaveBeenCalledWith(actor, query);
+  });
+
   it('should return one assignment with full program details', async () => {
     const details = {
       id: 'assignment-1',

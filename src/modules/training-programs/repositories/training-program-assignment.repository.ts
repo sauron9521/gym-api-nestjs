@@ -5,10 +5,12 @@ import {
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentDetailsSelect,
   trainingProgramAssignmentHistoricalSelect,
+  trainingProgramAssignmentSummarySelect,
 } from '../selects/training-program-assignment.select.js';
 import type {
   TrainingProgramAssignmentPayload,
   TrainingProgramAssignmentDetailsPayload,
+  TrainingProgramAssignmentSummaryPayload,
 } from '../types/training-program-payload.types.js';
 import type { PaginatedResult } from '../types/paginated-result.types.js';
 
@@ -17,6 +19,7 @@ export type FindManyTrainingProgramAssignmentsParams = {
   skip: number;
   take: number;
   orderBy?: Prisma.TrainingProgramAssignmentOrderByWithRelationInput[];
+  view?: 'full' | 'summary';
 };
 
 @Injectable()
@@ -28,8 +31,11 @@ export class TrainingProgramAssignmentRepository {
     skip,
     take,
     orderBy = [{ assignedAt: 'desc' }, { id: 'desc' }],
+    view = 'full',
   }: FindManyTrainingProgramAssignmentsParams): Promise<
-    PaginatedResult<TrainingProgramAssignmentPayload>
+    PaginatedResult<
+      TrainingProgramAssignmentPayload | TrainingProgramAssignmentSummaryPayload
+    >
   > {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.trainingProgramAssignment.findMany({
@@ -37,7 +43,10 @@ export class TrainingProgramAssignmentRepository {
         skip,
         take,
         orderBy,
-        select: trainingProgramAssignmentSelect,
+        select:
+          view === 'summary'
+            ? trainingProgramAssignmentSummarySelect
+            : trainingProgramAssignmentSelect,
       }),
       this.prisma.trainingProgramAssignment.count({ where }),
     ]);
@@ -58,6 +67,7 @@ export class TrainingProgramAssignmentRepository {
     skip,
     take,
     orderBy = [{ assignedAt: 'desc' }, { id: 'desc' }],
+    view = 'full',
   }: FindManyTrainingProgramAssignmentsParams) {
     // 1. Load a paginated list without sensitive fields.
     const [historicalAssignments, total] = await this.prisma.$transaction([
@@ -97,7 +107,10 @@ export class TrainingProgramAssignmentRepository {
                 },
               ],
             },
-            select: trainingProgramAssignmentSelect,
+            select:
+              view === 'summary'
+                ? trainingProgramAssignmentSummarySelect
+                : trainingProgramAssignmentSelect,
           })
         : [];
 

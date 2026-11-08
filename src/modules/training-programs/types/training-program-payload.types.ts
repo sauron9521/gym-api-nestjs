@@ -6,6 +6,7 @@ import type { trainingProgramVersionSelect } from '../selects/training-program-v
 import type {
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentDetailsSelect,
+  trainingProgramAssignmentSummarySelect,
 } from '../selects/training-program-assignment.select.js';
 
 export type TrainingProgramPayload = Prisma.TrainingProgramGetPayload<{
@@ -20,6 +21,11 @@ export type TrainingProgramVersionPayload =
 export type TrainingProgramAssignmentPayload =
   Prisma.TrainingProgramAssignmentGetPayload<{
     select: typeof trainingProgramAssignmentSelect;
+  }>;
+
+export type TrainingProgramAssignmentSummaryPayload =
+  Prisma.TrainingProgramAssignmentGetPayload<{
+    select: typeof trainingProgramAssignmentSummarySelect;
   }>;
 
 export type TrainingProgramAssignmentDetailsPayload =
