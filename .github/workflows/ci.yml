@@ -101,6 +101,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Health and request correlation smoke tests
+        run: npm run test:e2e -- test/health.e2e-spec.ts
+
       - name: Integration and E2E tests
         run: npm run test:e2e
 
