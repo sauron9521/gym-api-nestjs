@@ -194,10 +194,12 @@ jobs:
           test "$(docker image inspect --format '{{.Config.User}}' gym-api:runtime-ci)" = node
           docker run --rm --entrypoint sh gym-api:runtime-ci -c '
             for target in dist/main.js dist/mail/templates/verify-email.html dist/mail/templates/password-reset.html; do
-              if [ -f "$target" ]; then echo "PRESENT: $target"; else echo "MISSING: $target"; fi
+              if [ ! -f "$target" ]; then echo "MISSING runtime asset: $target"; exit 1; fi
             done
-            if [ -x node_modules/.bin/prisma ]; then echo "PRISMA_CLI_PRESENT"; else echo "PRISMA_CLI_ABSENT"; fi
-            if [ -d node_modules/prisma ]; then echo "PRISMA_PACKAGE_PRESENT"; else echo "PRISMA_PACKAGE_ABSENT"; fi
+            if [ -x node_modules/.bin/prisma ] || [ -d node_modules/prisma ]; then
+              echo "Prisma CLI was unexpectedly bundled in runtime image"
+              exit 1
+            fi
           '
 
       - name: Run migrations using separate one-shot image
@@ -233,8 +235,12 @@ jobs:
             exit 1
           fi
 
-          curl --fail --silent --show-error http://127.0.0.1:31847/health/live | grep -q '"status":"ok"'
-          curl --fail --silent --show-error http://127.0.0.1:31847/health/ready | grep -q '"status":"ok"'
+          live_body="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:31847/health/live)"
+          ready_body="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:31847/health/ready)"
+          echo "Liveness response: $live_body"
+          echo "Readiness response: $ready_body"
+          printf '%s' "$live_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
+          printf '%s' "$ready_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
 
           healthy=0
           for attempt in $(seq 1 35); do
