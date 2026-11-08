@@ -128,7 +128,7 @@ describe('TrainingProgramVersionRepository', () => {
           programId: 'program-1',
           status: 'DRAFT',
         },
-        select: { id: true },
+        select: trainingProgramVersionSelect,
       });
 
       expect(result).toEqual(version);
