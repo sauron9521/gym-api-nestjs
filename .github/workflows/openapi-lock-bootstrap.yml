@@ -19,10 +19,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Refresh pinned OpenAPI dependencies
+      - name: Refresh pinned Swagger dependency
         run: |
           npm install --save-exact --ignore-scripts @nestjs/swagger@12.1.1
-          npm install --save-exact --save-dev --ignore-scripts openapi-typescript@7.13.0
       - name: Commit dependency manifest and lockfile
         run: |
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
