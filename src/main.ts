@@ -35,13 +35,13 @@ async function bootstrap() {
   );
 
   // Documentation is opt-in, never exposed to production by default.
-  if (config.get<string>('ENABLE_OPENAPI') === 'true') {
+  if (config.get<boolean>('ENABLE_OPENAPI') === true) {
     enableOpenApi(app);
   }
 
   app.enableShutdownHooks();
-  const PORT = config.get<string>('PORT');
-  await app.listen(PORT || 3000);
-  console.log(`App started on port: ${PORT}`);
+  const port = config.getOrThrow<number>('PORT');
+  await app.listen(port);
+  console.log('App started on port: ' + port);
 }
 await bootstrap();
