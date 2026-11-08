@@ -19,6 +19,7 @@ import type {
 import { createWorkoutFromProgramSchema } from './dto/create-workout-from-program.dto.js';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
+import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags } from '@nestjs/swagger';
 
 import { WorkoutsService } from './workouts.service.js';
 
@@ -44,12 +45,16 @@ import {
   updateWorkoutSetSchema,
 } from './dto/update-workout-set.dto.js';
 
+@ApiTags('Workouts')
+@ApiCookieAuth('sessionCookie')
+@ApiBearerAuth('accessToken')
 @Controller('workouts')
 @Authenticate()
 export class WorkoutsController {
   constructor(private readonly workoutsService: WorkoutsService) {}
 
   @Post()
+  @ApiHeader({ name: 'Idempotency-Key', required: false, description: 'Reuse the same key for retries of the same creation request.' })
   create(
     @CurrentUser() user: WorkoutActor,
     @Body({ schema: createWorkoutSchema })
@@ -125,6 +130,7 @@ export class WorkoutsController {
   }
 
   @Post('from-program')
+  @ApiHeader({ name: 'Idempotency-Key', required: false, description: 'Reuse the same key for retries of the same creation request.' })
   createFromProgram(
     @CurrentUser() actor: WorkoutActor,
     @Body({ schema: createWorkoutFromProgramSchema })

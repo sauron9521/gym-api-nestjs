@@ -11,10 +11,12 @@ import {
   SignInService,
 } from '@nestjs/authentication';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { SignInDto, SignUpDto } from '../dto/auth.dto.js';
 import { CredentialsService } from '../services/index.js';
 
 @Public()
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(

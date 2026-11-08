@@ -2,6 +2,7 @@ import { StandardSchemaValidationPipe, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { enableOpenApi } from './openapi/openapi.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -32,6 +33,11 @@ async function bootstrap() {
     }),
     new StandardSchemaValidationPipe(),
   );
+
+  // Documentation is opt-in, never exposed to production by default.
+  if (config.get<string>('ENABLE_OPENAPI') === 'true') {
+    enableOpenApi(app);
+  }
 
   app.enableShutdownHooks();
   const PORT = config.get<string>('PORT');

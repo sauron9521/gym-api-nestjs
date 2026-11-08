@@ -3,6 +3,7 @@ import {
   Delete, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiCookieAuth, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AvatarService } from './avatar/avatar.service.js';
 import type { AvatarUploadFile } from './avatar/avatar-validation.js';
@@ -17,6 +18,9 @@ import {
 
 type UserActor = { id: string };
 
+@ApiTags('Users')
+@ApiCookieAuth('sessionCookie')
+@ApiBearerAuth('accessToken')
 @Controller('users')
 @Authenticate()
 export class UsersController {
@@ -40,6 +44,14 @@ export class UsersController {
   }
   /** Multipart field: file. Returns the versioned, API-relative avatar URL. */
   @Post('me/avatar')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', {

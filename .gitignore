@@ -68,3 +68,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /src/generated/
 # Local managed avatars (not tracked by git)
 uploads/
+
+# Generated OpenAPI artifacts
+/openapi/openapi.json
+/openapi/api-types.d.ts

@@ -3,6 +3,7 @@ import {
   Param, Patch, Post, Query,
 } from '@nestjs/common';
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 
 import { BodyMeasurementsService } from './body-measurements.service.js';
 import { BodyMeasurementStatisticsService } from './body-measurement-statistics.service.js';
@@ -23,6 +24,9 @@ import {
 type UserActor = { id: string };
 
 @Authenticate()
+@ApiTags('Body Measurements')
+@ApiCookieAuth('sessionCookie')
+@ApiBearerAuth('accessToken')
 @Controller('body-measurements')
 export class BodyMeasurementsController {
   constructor(
