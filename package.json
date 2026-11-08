@@ -32,7 +32,9 @@
     "db:generate": "prisma generate --config prisma7.config.ts",
     "docker:start": "docker compose up -d",
     "prepare": "husky",
-    "config:validate": "tsx scripts/validate-env.ts"
+    "config:validate": "tsx scripts/validate-env.ts",
+    "security:audit:prod": "npm audit --omit=dev --audit-level=high",
+    "security:audit:critical": "npm audit --audit-level=critical"
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.1",

@@ -1,0 +1,81 @@
+# CI security and quality policy (PR #36)
+
+This PR is intentionally limited to GitHub Actions, dependency
+maintenance, and test coverage. It does not modify application behavior
+or Prisma migrations.
+
+## Security checks (blocking)
+
+The independent \`Dependency vulnerability audit\` CI job requires
+no database service or package installation. It audits the committed
+\`package-lock.json\` and fails if either condition is met:
+
+- **Production dependencies** contain a known **high** or **critical**
+  vulnerability: \`npm run security:audit:prod\`.
+- **Any dependency**, including development/test tooling, contains a
+  known **critical** vulnerability:
+  \`npm run security:audit:critical\`.
+
+Moderate and low advisories remain visible in audit output, but do
+not fail this first-stage gate. High vulnerabilities in dev tools
+are also reported, not blocked by the second command. Review these
+regularly and address them in follow-up PRs.
+
+No \`continue-on-error\`, silent auditing, automatic \`npm audit fix\`,
+or blanket vulnerability suppression is used. A broken registry/network
+request is not treated as success. These checks cover published
+advisories in the configured npm registry, **not** all possible
+supply-chain attacks. Keep \`package-lock.json\` committed.
+
+If a known issue has no available fixed version, investigate and
+document its exploitability rather than weakening the entire gate.
+Do not update dependencies with \`--force\` without a separate
+compatibility review.
+
+## Coverage regression thresholds
+
+Vitest 4 V8 coverage enforces project-wide minimums:
+
+| Metric | Main baseline | Minimum |
+| --- | ---: | ---: |
+| Statements | 68.49% | 65% |
+| Branches | 59.55% | 55% |
+| Functions | 65.32% | 60% |
+| Lines | 68.98% | 65% |
+
+The baseline comes from the completed CI run of PR #35 (before
+this PR). \`npm run test:cov\` fails when any global metric falls
+below its minimum. These values are deliberately achievable now;
+they are not an assertion that the project has 90% coverage.
+
+This tracks the existing set of instrumented modules in the project.
+Measuring all untested source files, enforcing per-file minimums,
+mutation testing, and progressively increasing thresholds should be
+considered in future focused PRs.
+
+## Dependabot maintenance
+
+\`.github/dependabot.yml\` checks npm and GitHub Actions every Monday
+at 09:00 (Europe/Kyiv). Minor and patch version updates are grouped,
+while major updates need separate review. There are at most 5 open
+npm version-update PRs and 3 GitHub Actions version-update PRs.
+
+Dependabot **version updates** and **security updates** are distinct
+features in GitHub. Verify that Dependabot alerts and security updates
+are enabled in the repository's security settings, where available.
+Dependabot PRs must pass the same CI gates. Do not auto-merge
+breaking dependency changes.
+
+## GitHub Actions permissions
+
+Workflow token permissions are explicitly limited to
+\`contents: read\`. The security job never receives production
+credentials. The existing CI database and JWT values are test-only.
+
+The CI remains on Node.js 22 for parity with the existing project;
+updating the runtime or pinning action revisions is a separate,
+tested upgrade decision.
+
+Do not treat passing CI as proof of zero vulnerabilities: follow up
+with application security tests, secret scanning, and infrastructure
+review as appropriate.
