@@ -2,9 +2,11 @@ import {
   Controller, Get, Param, Res, StreamableFile,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { Public } from '@nestjs/authentication';
 
 import { AvatarService } from './avatar.service.js';
 
+@Public()
 @Controller('avatars')
 export class AvatarPublicController {
   constructor(private readonly avatarService: AvatarService) {}
