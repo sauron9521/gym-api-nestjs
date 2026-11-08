@@ -10,10 +10,38 @@ on:
       - master
   workflow_dispatch:
 
+# Jobs only require repository read access. No privileged PR token.
+permissions:
+  contents: read
+
 jobs:
+  dependency-security:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm audit reads the committed package-lock.json; no install scripts
+      # or database service are necessary for these independent checks.
+      - name: Block high and critical production vulnerabilities
+        run: npm run security:audit:prod
+
+      - name: Block critical vulnerabilities in all dependencies
+        run: npm run security:audit:critical
+
   quality-and-tests:
     name: Lint, build and tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
