@@ -121,7 +121,8 @@ describe('UsersService', () => {
     });
   });
   it('mirrors displayName into the legacy name field', async () => {
-    repository.upsertMyProfile.mockResolvedValue({
+    repository.replaceAvatar.mockResolvedValue({
+      user: {
       id: 'user-1',
       profile: {
         name: 'Anna S.',
@@ -133,6 +134,7 @@ describe('UsersService', () => {
         birthday: null,
         weight: null,
       },
+      previousKey: null,
     });
 
     const response = await service.updateMe('user-1', {
@@ -143,7 +145,7 @@ describe('UsersService', () => {
       timezone: 'Europe/Kyiv',
     });
 
-    expect(repository.upsertMyProfile).toHaveBeenCalledWith(
+    expect(repository.replaceAvatar).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({
         name: 'Anna S.',
@@ -153,6 +155,7 @@ describe('UsersService', () => {
         avatarUrl: 'https://cdn.example.com/avatar.jpg',
         timezone: 'Europe/Kyiv',
       }),
+      null,
     );
     expect(response.profile).toMatchObject({
       name: 'Anna S.',
