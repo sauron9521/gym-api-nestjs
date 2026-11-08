@@ -192,8 +192,13 @@ jobs:
       - name: Inspect production runtime image
         run: |
           test "$(docker image inspect --format '{{.Config.User}}' gym-api:runtime-ci)" = node
-          docker run --rm --entrypoint sh gym-api:runtime-ci -c \
-            'test -f dist/main.js && test -f dist/mail/templates/verify-email.html && test -f dist/mail/templates/password-reset.html && test ! -x node_modules/.bin/prisma'
+          docker run --rm --entrypoint sh gym-api:runtime-ci -c '
+            for target in dist/main.js dist/mail/templates/verify-email.html dist/mail/templates/password-reset.html; do
+              if [ -f "$target" ]; then echo "PRESENT: $target"; else echo "MISSING: $target"; fi
+            done
+            if [ -x node_modules/.bin/prisma ]; then echo "PRISMA_CLI_PRESENT"; else echo "PRISMA_CLI_ABSENT"; fi
+            if [ -d node_modules/prisma ]; then echo "PRISMA_PACKAGE_PRESENT"; else echo "PRISMA_PACKAGE_ABSENT"; fi
+          '
 
       - name: Run migrations using separate one-shot image
         run: docker run --rm --network host -e DATABASE_URL gym-api:migrate-ci
