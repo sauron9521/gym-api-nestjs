@@ -21,7 +21,8 @@ CMD ["./node_modules/.bin/prisma", "migrate", "deploy", "--config", "prisma7.con
 # Install native binaries while all dependencies exist; prune dev-only packages
 # after compilation, without re-running dependency lifecycle scripts.
 FROM build AS production-deps
-RUN npm prune --omit=dev --ignore-scripts --no-audit --no-fund
+RUN npm prune --omit=dev --ignore-scripts --no-audit --no-fund \
+    && rm -rf node_modules/prisma node_modules/.bin/prisma
 
 FROM base AS runtime
 ENV NODE_ENV=production \
