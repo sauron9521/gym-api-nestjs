@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -53,8 +54,9 @@ export class WorkoutsController {
     @CurrentUser() user: WorkoutActor,
     @Body({ schema: createWorkoutSchema })
     body: CreateWorkoutDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.workoutsService.create(user, body);
+    return this.workoutsService.create(user, body, idempotencyKey);
   }
 
   @Get()
@@ -127,7 +129,8 @@ export class WorkoutsController {
     @CurrentUser() actor: WorkoutActor,
     @Body({ schema: createWorkoutFromProgramSchema })
     body: CreateWorkoutFromProgramInput,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.workoutsService.createFromProgram(actor, body);
+    return this.workoutsService.createFromProgram(actor, body, idempotencyKey);
   }
 }

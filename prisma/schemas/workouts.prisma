@@ -35,6 +35,11 @@ model Workout {
   programAssignmentId String? @map("program_assignment_id")
   programWorkoutId    String? @map("program_workout_id")
 
+  // Optional client-generated creation key; unique within the athlete.
+  // Fingerprint ensures a reused key cannot represent a different request.
+  idempotencyKey         String? @map("idempotency_key") @db.VarChar(128)
+  idempotencyFingerprint String? @map("idempotency_fingerprint") @db.VarChar(64)
+
   programAssignment TrainingProgramAssignment? @relation(fields: [programAssignmentId], references: [id], onDelete: Restrict)
   programWorkout    TrainingProgramWorkout?    @relation(fields: [programWorkoutId], references: [id], onDelete: Restrict)
 
@@ -46,6 +51,7 @@ model Workout {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  @@unique([athleteId, idempotencyKey])
   @@index([programAssignmentId])
   @@index([programWorkoutId])
   @@index([athleteId, scheduledAt])

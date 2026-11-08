@@ -147,6 +147,19 @@ export class WorkoutsRepository {
     });
   }
 
+  // Find only the stored fingerprint and id; never expose them in HTTP DTOs.
+  async findByIdempotencyKey(athleteId: string, key: string) {
+    return this.prisma.workout.findUnique({
+      where: {
+        athleteId_idempotencyKey: { athleteId, idempotencyKey: key },
+      },
+      select: {
+        id: true,
+        idempotencyFingerprint: true,
+      },
+    });
+  }
+
   // CREATE
   async create(data: Prisma.WorkoutCreateInput) {
     return this.prisma.workout.create({
@@ -266,6 +279,7 @@ export class WorkoutsRepository {
     assignmentId: string;
     programWorkoutId: string;
     scheduledAt?: Date | null;
+    idempotency?: { key: string; fingerprint: string };
   }) {
     return this.prisma.$transaction(async (tx) => {
       // Serialize workout creation with assignment completion.
@@ -353,6 +367,12 @@ export class WorkoutsRepository {
           title: programWorkout.title,
           notes: programWorkout.notes,
           scheduledAt: input.scheduledAt ?? null,
+          ...(input.idempotency
+            ? {
+                idempotencyKey: input.idempotency.key,
+                idempotencyFingerprint: input.idempotency.fingerprint,
+              }
+            : {}),
 
           athlete: {
             connect: { id: input.athleteId },
