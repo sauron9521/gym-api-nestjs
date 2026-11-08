@@ -3,7 +3,7 @@ import { validateEnv } from './config/env.validation.js';
 import { createMailOptions } from './config/mail.config.js';
 import type { AppEnv } from './config/env.schema.js';
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthenticationModule } from '@nestjs/authentication';
 import {
@@ -18,6 +18,7 @@ import { WorkoutsModule } from './modules/workouts/workouts.module.js';
 import { BodyMeasurementsModule } from './modules/body-measurements/body-measurements.module.js';
 import { PrismaModule } from './database/index.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
+import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { TrainerAthletesModule } from './modules/trainer-athletes/trainer-athletes.module.js';
 import { TrainingProgramsModule } from './modules/training-programs/training-programs.module.js';
 
@@ -77,6 +78,7 @@ import { TrainingProgramsModule } from './modules/training-programs/training-pro
   ],
   controllers: [],
   providers: [
+    { provide: APP_FILTER, useClass: ApiExceptionFilter },
     {
       provide: APP_GUARD,
       useExisting: ThrottlerGuard,
