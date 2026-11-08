@@ -23,6 +23,7 @@ export class TrainingProgramWorkoutRepository {
         status: 'DRAFT',
       },
       data: {
+        updatedAt: new Date(),
         workouts: {
           create: input,
         },
@@ -44,6 +45,7 @@ export class TrainingProgramWorkoutRepository {
         status: 'DRAFT',
       },
       data: {
+        updatedAt: new Date(),
         workouts: {
           update: {
             where: { id: workoutId },
@@ -63,6 +65,7 @@ export class TrainingProgramWorkoutRepository {
         status: 'DRAFT',
       },
       data: {
+        updatedAt: new Date(),
         workouts: {
           delete: { id: workoutId },
         },

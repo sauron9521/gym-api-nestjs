@@ -33,6 +33,7 @@ export class TrainingProgramSetRepository {
         status: 'DRAFT',
       },
       data: {
+        updatedAt: new Date(),
         workouts: {
           update: {
             where: { id: workoutId },
@@ -73,6 +74,7 @@ export class TrainingProgramSetRepository {
         status: 'DRAFT',
       },
       data: {
+        updatedAt: new Date(),
         workouts: {
           update: {
             where: { id: workoutId },
@@ -112,6 +114,7 @@ export class TrainingProgramSetRepository {
         status: 'DRAFT',
       },
       data: {
+        updatedAt: new Date(),
         workouts: {
           update: {
             where: { id: workoutId },

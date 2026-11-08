@@ -8,6 +8,7 @@ import {
 import { Prisma } from '../../../generated/prisma/client.js';
 
 import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
+import { assertPublishableVersion } from '../policies/training-program-publication.policy.js';
 import { TrainingProgramCrudService } from './training-program-crud.service.js';
 
 import type {
@@ -120,6 +121,18 @@ export class TrainingProgramVersionService {
       throw new BadRequestException('At least one field must be provided');
     }
 
+    // Fast feedback for the client; the repository repeats this under a row
+    // lock to protect against concurrent workout edits.
+    const requestedWeeks = input.durationWeeks;
+    if (
+      typeof requestedWeeks === 'number' &&
+      version.workouts.some((workout) => workout.weekNumber > requestedWeeks)
+    ) {
+      throw new BadRequestException(
+        'A workout week cannot exceed the program duration',
+      );
+    }
+
     const data: Prisma.TrainingProgramVersionUpdateInput = {};
 
     if (input.title !== undefined) {
@@ -174,7 +187,7 @@ export class TrainingProgramVersionService {
       throw new ConflictException('Only draft versions can be published');
     }
 
-    this.assertPublishable(version);
+    assertPublishableVersion(version);
 
     const published = await this.repository.publishVersion(
       programId,
@@ -200,33 +213,5 @@ export class TrainingProgramVersionService {
     );
   }
 
-  private assertPublishable(version: {
-    workouts: Array<{
-      exercises: Array<{
-        sets: unknown[];
-      }>;
-    }>;
-  }): void {
-    if (version.workouts.length === 0) {
-      throw new BadRequestException(
-        'A program must contain at least one workout',
-      );
-    }
 
-    for (const workout of version.workouts) {
-      if (workout.exercises.length === 0) {
-        throw new BadRequestException(
-          'Every program workout must contain at least one exercise',
-        );
-      }
-
-      for (const exercise of workout.exercises) {
-        if (exercise.sets.length === 0) {
-          throw new BadRequestException(
-            'Every program exercise must contain at least one set',
-          );
-        }
-      }
-    }
-  }
 }

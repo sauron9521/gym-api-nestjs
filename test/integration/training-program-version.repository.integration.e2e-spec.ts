@@ -12,6 +12,7 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let repository: TrainingProgramVersionRepository;
+  let fixtureExerciseId: string;
 
   beforeAll(async () => {
     useTestDatabase();
@@ -26,11 +27,45 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
 
     prisma = app.get(PrismaService);
     repository = app.get(TrainingProgramVersionRepository);
+    const fixtureExercise = await prisma.exercise.create({
+      data: {
+        name: `Publication Fixture ${randomUUID()}`,
+        source: 'GLOBAL',
+        exerciseType: 'STRENGTH',
+      },
+      select: { id: true },
+    });
+    fixtureExerciseId = fixtureExercise.id;
   }, 20_000);
 
   afterAll(async () => {
+    if (fixtureExerciseId) {
+      await prisma.exercise.delete({ where: { id: fixtureExerciseId } });
+    }
     await app?.close();
   }, 20_000);
+
+  async function addPublishableWorkout(versionId: string, weekNumber = 1) {
+    return prisma.trainingProgramWorkout.create({
+      data: {
+        versionId,
+        weekNumber,
+        dayNumber: 1,
+        title: 'Test workout',
+        exercises: {
+          create: {
+            exercise: { connect: { id: fixtureExerciseId } },
+            exerciseNameSnapshot: 'Publication Fixture',
+            exerciseTypeSnapshot: 'STRENGTH',
+            sortOrder: 0,
+            sets: {
+              create: { setNumber: 1, setType: 'WORKING', plannedReps: 8 },
+            },
+          },
+        },
+      },
+    });
+  }
 
   it('rolls back version publication when the program is archived', async () => {
     let trainerId: string | undefined;
@@ -71,6 +106,8 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       programId = program.id;
 
       const versionId = program.versions[0]!.id;
+
+      await addPublishableWorkout(versionId);
 
       const result = await repository.publishVersion(programId, versionId);
 
@@ -154,6 +191,8 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       programId = program.id;
       const versionId = program.versions[0]!.id;
 
+      await addPublishableWorkout(versionId);
+
       // Act
       const result = await repository.publishVersion(programId, versionId);
 
@@ -204,6 +243,102 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
           where: { id: trainerId },
         });
       }
+    }
+  });
+
+  it('rejects an invalid draft after acquiring the publication lock', async () => {
+    const trainer = await prisma.user.create({
+      data: {
+        email: `invalid-publish-${randomUUID()}@example.com`,
+        passwordHash: 'test-password-hash',
+        role: 'TRAINER',
+      },
+      select: { id: true },
+    });
+    let programId: string | undefined;
+
+    try {
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId: trainer.id,
+          versions: {
+            create: { version: 1, title: 'Empty Draft', status: 'DRAFT' },
+          },
+        },
+        select: { id: true, versions: { select: { id: true } } },
+      });
+      programId = program.id;
+      const versionId = program.versions[0]!.id;
+
+      await expect(repository.publishVersion(program.id, versionId))
+        .rejects.toThrow('A program must contain at least one workout');
+
+      const saved = await prisma.trainingProgramVersion.findUniqueOrThrow({
+        where: { id: versionId },
+        select: { status: true, publishedAt: true },
+      });
+      expect(saved).toEqual({ status: 'DRAFT', publishedAt: null });
+    } finally {
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+        await prisma.trainingProgram.delete({ where: { id: programId } });
+      }
+      await prisma.user.delete({ where: { id: trainer.id } });
+    }
+  });
+
+  it('does not shrink duration below the last workout week', async () => {
+    const trainer = await prisma.user.create({
+      data: {
+        email: `duration-publish-${randomUUID()}@example.com`,
+        passwordHash: 'test-password-hash',
+        role: 'TRAINER',
+      },
+      select: { id: true },
+    });
+    let programId: string | undefined;
+
+    try {
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId: trainer.id,
+          versions: {
+            create: {
+              version: 1,
+              title: 'Duration Invariant',
+              durationWeeks: 6,
+              status: 'DRAFT',
+            },
+          },
+        },
+        select: { id: true, versions: { select: { id: true } } },
+      });
+      programId = program.id;
+      const versionId = program.versions[0]!.id;
+      await addPublishableWorkout(versionId, 5);
+
+      await expect(
+        repository.updateVersion(
+          { id: versionId, programId, status: 'DRAFT' },
+          { durationWeeks: 4 },
+        ),
+      ).rejects.toThrow('A workout week cannot exceed the program duration');
+
+      const saved = await prisma.trainingProgramVersion.findUniqueOrThrow({
+        where: { id: versionId },
+        select: { durationWeeks: true, status: true },
+      });
+      expect(saved).toEqual({ durationWeeks: 6, status: 'DRAFT' });
+    } finally {
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+        await prisma.trainingProgram.delete({ where: { id: programId } });
+      }
+      await prisma.user.delete({ where: { id: trainer.id } });
     }
   });
 
@@ -674,6 +809,8 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
         select: { id: true },
       });
 
+      await addPublishableWorkout(version2.id);
+
       // Step 1: publish version 2
       const published = await repository.publishVersion(programId, version2.id);
 
@@ -804,6 +941,8 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
 
       programId = program.id;
       const versionId = program.versions[0]!.id;
+
+      await addPublishableWorkout(versionId);
 
       // Act: two simultaneous publication attempts
       const results = await Promise.all([

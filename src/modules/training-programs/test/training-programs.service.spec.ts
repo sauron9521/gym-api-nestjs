@@ -530,6 +530,22 @@ describe('TrainingProgramsService', () => {
   });
 
   describe('updateDraftVersion', () => {
+    it('rejects reducing duration below an existing workout week', async () => {
+      repository.findProgramById.mockResolvedValue(program);
+      repository.findVersionById.mockResolvedValue({
+        ...draftVersion,
+        workouts: [{ ...draftVersion.workouts[0], weekNumber: 5 }],
+      });
+
+      await expect(
+        service.updateDraftVersion('program-1', 'version-1', trainer, {
+          durationWeeks: 4,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(repository.updateVersion).not.toHaveBeenCalled();
+    });
+
     it('should update a draft version', async () => {
       repository.findProgramById.mockResolvedValue(program);
       repository.findVersionById.mockResolvedValue(draftVersion);
@@ -597,6 +613,19 @@ describe('TrainingProgramsService', () => {
   });
 
   describe('publishVersion', () => {
+    it('rejects publishing if a workout exceeds the declared duration', async () => {
+      repository.findProgramById.mockResolvedValue(program);
+      repository.findVersionById.mockResolvedValue({
+        ...draftVersion,
+        durationWeeks: 2,
+        workouts: [{ ...draftVersion.workouts[0], weekNumber: 3 }],
+      });
+      await expect(
+        service.publishVersion('program-1', 'version-1', trainer),
+      ).rejects.toThrow(BadRequestException);
+      expect(repository.publishVersion).not.toHaveBeenCalled();
+    });
+
     it('should publish a valid draft version', async () => {
       repository.findProgramById.mockResolvedValue(program);
       repository.findVersionById.mockResolvedValue(draftVersion);
