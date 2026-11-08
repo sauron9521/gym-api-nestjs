@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 
 import { UsersRepository } from './users.repository.js';
 import type { UpdateMyProfileDto } from './dto/update-my-profile.dto.js';
+import { AvatarService } from './avatar/avatar.service.js';
 
 type UserWithProfile = NonNullable<
   Awaited<ReturnType<UsersRepository['findMe']>>
@@ -10,7 +11,10 @@ type UserWithProfile = NonNullable<
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly avatarService: AvatarService,
+  ) {}
 
   async findMe(userId: string) {
     const user = await this.usersRepository.findMe(userId);
@@ -39,6 +43,17 @@ export class UsersService {
       height: input.height,
       weight: input.weight,
     };
+
+    if (input.avatarUrl !== undefined) {
+      // A legacy HTTPS URL PATCH must release any managed avatar it replaces.
+      const result = await this.usersRepository.replaceAvatar(
+        userId,
+        data,
+        null,
+      );
+      await this.avatarService.removePrevious(result.previousKey);
+      return this.toResponse(result.user);
+    }
 
     const user = await this.usersRepository.upsertMyProfile(userId, data);
     return this.toResponse(user);

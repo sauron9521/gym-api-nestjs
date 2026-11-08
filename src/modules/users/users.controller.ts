@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import {
+  Body, Controller, Get, HttpCode, HttpStatus, Patch, Post,
+  Delete, UploadedFile, UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
+import { AvatarService } from './avatar/avatar.service.js';
+import type { AvatarUploadFile } from './avatar/avatar-validation.js';
+import { MAX_AVATAR_SIZE } from './avatar/avatar-validation.js';
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 
 import { UsersService } from './users.service.js';
@@ -12,7 +20,10 @@ type UserActor = { id: string };
 @Controller('users')
 @Authenticate()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly avatarService: AvatarService,
+  ) {}
 
   @Get('me')
   me(@CurrentUser() user: UserActor) {
@@ -27,4 +38,30 @@ export class UsersController {
   ) {
     return this.usersService.updateMe(user.id, body);
   }
+  /** Multipart field: file. Returns the versioned, API-relative avatar URL. */
+  @Post('me/avatar')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseInterceptors(FileInterceptor('file', {
+    limits: {
+      fileSize: MAX_AVATAR_SIZE,
+      files: 1,
+      fields: 0,
+      parts: 1,
+    },
+  }))
+  uploadAvatar(
+    @CurrentUser() user: UserActor,
+    @UploadedFile() file?: AvatarUploadFile,
+  ) {
+    return this.avatarService.upload(user.id, file);
+  }
+
+  @Delete('me/avatar')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  deleteAvatar(@CurrentUser() user: UserActor) {
+    return this.avatarService.delete(user.id);
+  }
+
 }
