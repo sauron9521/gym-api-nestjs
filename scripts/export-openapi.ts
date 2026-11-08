@@ -6,7 +6,7 @@ import { AppModule } from '../src/app.module.js';
 import { createOpenApiDocument } from '../src/openapi/openapi.js';
 
 const output = resolve(process.cwd(), 'openapi/openapi.json');
-const app = await NestFactory.create(AppModule, { logger: false });
+const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'], abortOnError: false });
 
 try {
   const document = createOpenApiDocument(app);
