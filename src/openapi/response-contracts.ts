@@ -200,6 +200,7 @@ export const trainerAthleteHistoricalResponseSchema = objectSchema({
   trainer: identityWithoutEmailSchema,
   athlete: identityWithoutEmailSchema,
   initiatedBy: identityWithoutEmailSchema,
+  endedBy: nullable(identityWithoutEmailSchema),
   ...relationshipDates,
 });
 
