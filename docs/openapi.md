@@ -32,8 +32,9 @@ npm ci
 npm run docs:openapi
 ```
 
-Output: `openapi/openapi.json`. The export creates a Nest application,
-scans registered routes and closes the app without opening an HTTP port.
+Output: `openapi/openapi.json`. The script builds the app with TypeScript first (so Nest dependency injection
+receives emitted decorator metadata), creates a Nest application, scans
+registered routes and closes the app without opening an HTTP port.
 The artifact is generated and gitignored. GitHub Actions validates the
 export on every push.
 
