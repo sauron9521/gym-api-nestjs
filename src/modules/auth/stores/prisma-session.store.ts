@@ -23,7 +23,7 @@ export class PrismaSessionStore implements SessionStore {
 
   async getSession(id: string): Promise<SessionRecord | undefined> {
     const session = await this.prisma.session.findUnique({
-      where: { id },
+      where: { id, user: { deletedAt: null } },
     });
 
     return session ? this.toSessionRecord(session) : undefined;
@@ -49,6 +49,7 @@ export class PrismaSessionStore implements SessionStore {
     await this.prisma.session.updateMany({
       where: {
         id,
+        user: { deletedAt: null },
         lastActiveAt: { lt: lastActiveAt },
       },
       data: { lastActiveAt },
@@ -65,7 +66,7 @@ export class PrismaSessionStore implements SessionStore {
 
   async listUserSessions(userId: string): Promise<SessionRecord[]> {
     const sessions = await this.prisma.session.findMany({
-      where: { userId },
+      where: { userId, user: { deletedAt: null } },
       orderBy: { createdAt: 'desc' },
     });
 

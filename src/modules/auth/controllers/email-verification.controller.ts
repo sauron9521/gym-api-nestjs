@@ -22,6 +22,7 @@ export class EmailVerificationController {
   ) {}
 
   @Public()
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
   @Post('verify')
   @HttpCode(200)
   async verifyEmail(@Body() body: VerificationTokenDto) {
