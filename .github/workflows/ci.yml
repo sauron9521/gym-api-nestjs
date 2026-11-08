@@ -145,3 +145,100 @@ jobs:
           name: coverage-report
           path: coverage/
           if-no-files-found: ignore
+
+  docker-production-smoke:
+    name: Docker production build and HTTP smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gym_app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d gym_app_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # These are public CI-only test values, never production credentials.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/gym_app_test?schema=public
+      JWT_SECRET: xjYwwAdHREaWbPRsTFQikrf0jnu4enSyEfthz+evnJo
+      JWT_ISSUER: https://api.example.test
+      APP_URL: https://app.example.test
+      CORS_ORIGINS: https://app.example.test
+      SMTP_URL: smtps://smtp.example.test:465
+      MAIL_FROM: Gym API <no-reply@example.test>
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate production Compose syntax
+        run: docker compose -f compose.prod.yml --profile ops config --quiet
+
+      - name: Build migration image
+        run: docker build --target migrate -t gym-api:migrate-ci .
+
+      - name: Build non-root production image
+        run: docker build --target runtime -t gym-api:runtime-ci .
+
+      - name: Inspect production runtime image
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' gym-api:runtime-ci)" = node
+          docker run --rm --entrypoint sh gym-api:runtime-ci -c \
+            'test -f dist/main.js && test -f dist/mail/templates/verify-email.html && test -f dist/mail/templates/password-reset.html && test ! -x node_modules/.bin/prisma'
+
+      - name: Run migrations using separate one-shot image
+        run: docker run --rm --network host -e DATABASE_URL gym-api:migrate-ci
+
+      - name: Production HTTP health and graceful SIGTERM smoke
+        run: |
+          set -eu
+          docker run -d --name gym-api-smoke --init --network host \
+            --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount type=volume,src=gym-api-ci-avatars,dst=/app/uploads/avatars \
+            -e DATABASE_URL -e JWT_SECRET -e JWT_ISSUER -e APP_URL \
+            -e CORS_ORIGINS -e SMTP_URL -e MAIL_FROM \
+            -e NODE_ENV=production -e PORT=31847 \
+            gym-api:runtime-ci
+
+          trap 'docker rm -f gym-api-smoke >/dev/null 2>&1 || true; docker volume rm gym-api-ci-avatars >/dev/null 2>&1 || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 50); do
+            if curl -fsS --max-time 3 http://127.0.0.1:31847/health/ready >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' gym-api-smoke)" != true ]; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker logs --tail 60 gym-api-smoke
+            exit 1
+          fi
+
+          curl --fail --silent --show-error http://127.0.0.1:31847/health/live | grep -q '"status":"ok"'
+          curl --fail --silent --show-error http://127.0.0.1:31847/health/ready | grep -q '"status":"ok"'
+
+          healthy=0
+          for attempt in $(seq 1 35); do
+            if [ "$(docker inspect --format '{{.State.Health.Status}}' gym-api-smoke)" = healthy ]; then
+              healthy=1
+              break
+            fi
+            sleep 2
+          done
+          test "$healthy" -eq 1
+          docker stop --time 25 gym-api-smoke >/dev/null
+          test "$(docker inspect --format '{{.State.ExitCode}}' gym-api-smoke)" = 0
