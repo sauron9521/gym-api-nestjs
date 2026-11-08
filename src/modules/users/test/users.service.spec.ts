@@ -134,6 +134,7 @@ describe('UsersService', () => {
         birthday: null,
         weight: null,
       },
+      },
       previousKey: null,
     });
 
