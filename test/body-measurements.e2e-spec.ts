@@ -218,4 +218,95 @@ describe('Body Measurements (HTTP + PostgreSQL)', () => {
       .set('Cookie', firstCookie);
     expect(after.status).toBe(404);
   });
+  it('returns accurate private statistics and daily chart values', async () => {
+    const stamp = (daysAgo: number, minutes = 0) =>
+      new Date(Date.now() - daysAgo * 86_400_000 - minutes * 60_000);
+    const fixtureNotes = 'statistics fixture';
+    const fixture = [
+      [100, 78.00], [45, 79.00], [10, 80.50],
+      [2, 81.00], [1, 81.25],
+    ] as const;
+
+    try {
+      for (const [days, weight] of fixture) {
+        await prisma.bodyMeasurement.create({
+          data: {
+            userId: firstId,
+            weightKg: weight,
+            measuredAt: stamp(days),
+            notes: fixtureNotes,
+          },
+        });
+      }
+
+      const unauthorized = await request(app.getHttpServer())
+        .get('/body-measurements/statistics');
+      expect(unauthorized.status).toBe(401);
+
+      const foreign = await request(app.getHttpServer())
+        .get('/body-measurements/statistics')
+        .set('Cookie', secondCookie)
+        .query({ metric: 'weightKg', range: '30d' });
+      expect(foreign.status).toBe(200);
+      expect(foreign.body.first).toBeNull();
+      expect(foreign.body.latest).toBeNull();
+      expect(foreign.body.series).toEqual([]);
+
+      const res = await request(app.getHttpServer())
+        .get('/body-measurements/statistics')
+        .set('Cookie', firstCookie)
+        .query({ metric: 'weightKg', range: '30d' });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        metric: 'weightKg',
+        unit: 'kg',
+        range: '30d',
+        first: { value: 78 },
+        latest: { value: 81.25 },
+        overall: { delta: 3.25, percentChange: 4.17 },
+        changes: {
+          '7d': {
+            baseline: { value: 80.5 },
+            delta: 0.75,
+            percentChange: 0.93,
+          },
+          '30d': {
+            baseline: { value: 79 },
+            delta: 2.25,
+            percentChange: 2.85,
+          },
+          '90d': {
+            baseline: { value: 78 },
+            delta: 3.25,
+            percentChange: 4.17,
+          },
+        },
+      });
+      expect(res.body.series).toHaveLength(3);
+      expect(res.body.series.map((item: { value: number }) => item.value))
+        .toEqual([80.5, 81, 81.25]);
+
+      for (const query of [
+        { metric: 'passwordHash' },
+        { range: '365d' },
+        { userId: secondId },
+      ]) {
+        expect((await request(app.getHttpServer())
+          .get('/body-measurements/statistics')
+          .set('Cookie', firstCookie)
+          .query(query)).status).toBe(400);
+      }
+
+      // The chart does not modify manually managed profile weight.
+      const profile = await prisma.profile.findUnique({
+        where: { userId: firstId }, select: { weight: true },
+      });
+      expect(profile).toBeNull();
+    } finally {
+      await prisma.bodyMeasurement.deleteMany({
+        where: { userId: firstId, notes: fixtureNotes },
+      });
+    }
+  });
+
 });

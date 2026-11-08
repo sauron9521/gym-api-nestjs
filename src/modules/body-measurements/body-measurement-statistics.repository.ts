@@ -66,7 +66,7 @@ export class BodyMeasurementStatisticsRepository {
       { id: 'desc' as const },
     ];
     const read = (
-      orderBy: typeof newest,
+      orderBy: Prisma.BodyMeasurementOrderByWithRelationInput[],
       before?: Date,
     ) =>
       this.prisma.bodyMeasurement.findFirst({
