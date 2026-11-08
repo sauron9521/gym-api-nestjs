@@ -1,0 +1,34 @@
+# Temporary branch-only bootstrap; removed after the lockfile is committed.
+name: Bootstrap OpenAPI dependencies
+on:
+  push:
+    branches:
+      - feat/openapi-contract
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Refresh pinned OpenAPI dependencies
+        run: |
+          npm install --save-exact --ignore-scripts @nestjs/swagger@12.1.1
+          npm install --save-exact --save-dev --ignore-scripts openapi-typescript@7.13.0
+      - name: Commit dependency manifest and lockfile
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(openapi): lock swagger and type-generator dependencies"
+            git push origin HEAD:feat/openapi-contract
+          fi
