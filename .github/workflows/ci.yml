@@ -32,6 +32,32 @@ jobs:
 
       # npm audit reads the committed package-lock.json; no install scripts
       # or database service are necessary for these independent checks.
+      # Temporary branch-only diagnostic. Does not mutate the committed lockfile.
+      - name: Calculate npm remediation delta (temporary)
+        if: github.ref == 'refs/heads/chore/ci-security-quality-gates'
+        run: |
+          npm audit fix --package-lock-only --omit=dev --ignore-scripts || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cp = require('node:child_process');
+          const before = JSON.parse(cp.execFileSync('git', ['show', 'HEAD:package-lock.json'], {encoding:'utf8'}));
+          const after = JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          const updates = {};
+          const removed = [];
+          for (const key of new Set([...Object.keys(before.packages), ...Object.keys(after.packages)])) {
+            if (JSON.stringify(before.packages[key]) !== JSON.stringify(after.packages[key])) {
+              if (after.packages[key]) updates[key] = after.packages[key];
+              else removed.push(key);
+            }
+          }
+          const manifestAfter = fs.readFileSync('package.json','utf8');
+          const manifestBefore = cp.execFileSync('git', ['show', 'HEAD:package.json'], {encoding:'utf8'});
+          console.log('LOCK_PATCH_JSON_START');
+          console.log(JSON.stringify({updates, removed, manifestAfter:manifestAfter===manifestBefore?null:JSON.parse(manifestAfter)}));
+          console.log('LOCK_PATCH_JSON_END');
+          NODE
+          git restore package-lock.json package.json
+
       - name: Block high and critical production vulnerabilities
         run: npm run security:audit:prod
 
