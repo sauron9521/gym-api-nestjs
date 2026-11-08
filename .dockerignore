@@ -1,0 +1,27 @@
+# Local credentials and state never enter the Docker build context.
+.git
+.github
+.env
+.env.*
+**/.env
+**/.env.*
+node_modules
+**/node_modules
+dist
+build
+coverage
+openapi
+uploads
+logs
+*.log
+*.tsbuildinfo
+.vscode
+.idea
+.temp
+.tmp
+test
+docs
+docker
+docker-compose.yml
+compose.prod.yml
+README.md
