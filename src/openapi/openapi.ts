@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { z } from 'zod';
 
 /**
  * Nest 12's Swagger scanner reads the existing Standard Schema/Zod
@@ -25,6 +26,24 @@ export function createOpenApiDocument(app: INestApplication) {
 
   return SwaggerModule.createDocument(app, config, {
     operationIdFactory: (controller, method) => `${controller}_${method}`,
+    standardSchemaConverter: (schema, { schemaType }) => {
+      if (!schema || typeof schema !== 'object' || !('_zod' in schema)) {
+        return undefined;
+      }
+
+      const jsonSchema = z.toJSONSchema(schema as z.ZodType, {
+        target: 'openapi-3.0',
+        io: schemaType,
+        // Some existing Zod inputs contain Date values that serialize as
+        // ISO strings over HTTP. Reject other unrepresentable types instead
+        // of silently documenting an unvalidated object.
+        unrepresentable: ({ zodSchema }) =>
+          zodSchema._zod.def.type === 'date'
+            ? { type: 'string', format: 'date-time' }
+            : 'throw',
+      });
+      return { schema: jsonSchema };
+    },
   });
 }
 
