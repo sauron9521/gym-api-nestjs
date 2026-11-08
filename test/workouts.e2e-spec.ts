@@ -3182,6 +3182,86 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       firstSetId = response.body.exercises[0].sets[0].id;
       secondSetId = response.body.exercises[0].sets[1].id;
     });
+
+    it('replays manual creation with the same key and returns only one workout', async () => {
+      const key = randomUUID();
+      const payload = workoutPayload();
+
+      const [first, second] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts')
+          .set('Cookie', ownerCookie)
+          .set('Idempotency-Key', key)
+          .send(payload),
+        request(app!.getHttpServer())
+          .post('/workouts')
+          .set('Cookie', ownerCookie)
+          .set('Idempotency-Key', key)
+          .send(payload),
+      ]);
+
+      expect([first.status, second.status]).toEqual([201, 201]);
+      expect(second.body.id).toBe(first.body.id);
+
+      const persisted = await prisma.workout.findMany({
+        where: { athleteId: ownerId, idempotencyKey: key },
+        select: { id: true, exercises: { select: { id: true } } },
+      });
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0]!.exercises).toHaveLength(1);
+      expect(first.body).not.toHaveProperty('idempotencyKey');
+      expect(first.body).not.toHaveProperty('idempotencyFingerprint');
+    });
+
+    it('rejects reusing a manual creation key for a different body', async () => {
+      const key = randomUUID();
+      const first = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send(workoutPayload());
+
+      const second = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send({ ...workoutPayload(), title: 'Another Workout' });
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(409);
+      expect(await prisma.workout.count({
+        where: { athleteId: ownerId, idempotencyKey: key },
+      })).toBe(1);
+    });
+
+    it('rejects a malformed idempotency header', async () => {
+      const response = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', 'bad')
+        .send(workoutPayload());
+
+      expect(response.status).toBe(400);
+    });
+
+    it('scopes creation keys to the authenticated athlete', async () => {
+      const key = randomUUID();
+      const first = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send(workoutPayload());
+
+      const second = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', otherAthleteCookie)
+        .set('Idempotency-Key', key)
+        .send(workoutPayload());
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(second.body.id).not.toBe(first.body.id);
+    });
   });
 
   describe('GET /workouts', () => {
@@ -3427,6 +3507,46 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
           },
         ],
       });
+    });
+
+    it('replays concurrent program creation with one key', async () => {
+      const key = randomUUID();
+      const [first, second] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts/from-program')
+          .set('Cookie', ownerCookie)
+          .set('Idempotency-Key', key)
+          .send(payload()),
+        request(app!.getHttpServer())
+          .post('/workouts/from-program')
+          .set('Cookie', ownerCookie)
+          .set('Idempotency-Key', key)
+          .send(payload()),
+      ]);
+
+      expect([first.status, second.status]).toEqual([201, 201]);
+      expect(second.body.id).toBe(first.body.id);
+      expect(await prisma.workout.count({
+        where: { athleteId: ownerId, idempotencyKey: key },
+      })).toBe(1);
+    });
+
+    it('rejects reuse of a key across workout creation routes', async () => {
+      const key = randomUUID();
+      const program = await request(app!.getHttpServer())
+        .post('/workouts/from-program')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send(payload());
+
+      const manual = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send(workoutPayload());
+
+      expect(program.status).toBe(201);
+      expect(manual.status).toBe(409);
     });
 
     it('should hide assignments belonging to another athlete', async () => {
