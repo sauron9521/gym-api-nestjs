@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { assertPublishableVersion } from '../policies/training-program-publication.policy.js';
 import { PrismaService } from '../../../database/index.js';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
@@ -79,10 +80,54 @@ export class TrainingProgramVersionRepository {
     where: Prisma.TrainingProgramVersionWhereUniqueInput,
     data: Prisma.TrainingProgramVersionUpdateInput,
   ): Promise<TrainingProgramVersionPayload> {
-    return this.prisma.trainingProgramVersion.update({
-      where,
-      data,
-      select: trainingProgramVersionSelect,
+    // Only a numeric duration change needs the additional invariant check.
+    // All other writes retain their existing conditional update semantics.
+    if (typeof data.durationWeeks !== 'number' || typeof where.id !== 'string') {
+      return this.prisma.trainingProgramVersion.update({
+        where,
+        data,
+        select: trainingProgramVersionSelect,
+      });
+    }
+
+    const versionId = where.id;
+    const requestedWeeks = data.durationWeeks;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize duration changes with publication and all draft edits.
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "training_program_versions"
+        WHERE "id" = ${versionId}
+        FOR UPDATE
+      `;
+
+      if (rows.length === 0) {
+        // Preserve Prisma's normal not-found / conditional-update semantics.
+        return tx.trainingProgramVersion.update({
+          where,
+          data,
+          select: trainingProgramVersionSelect,
+        });
+      }
+
+      const latestWorkout = await tx.trainingProgramWorkout.findFirst({
+        where: { versionId },
+        orderBy: { weekNumber: 'desc' },
+        select: { weekNumber: true },
+      });
+
+      if (latestWorkout && latestWorkout.weekNumber > requestedWeeks) {
+        throw new BadRequestException(
+          'A workout week cannot exceed the program duration',
+        );
+      }
+
+      return tx.trainingProgramVersion.update({
+        where,
+        data,
+        select: trainingProgramVersionSelect,
+      });
     });
   }
 
@@ -188,6 +233,33 @@ export class TrainingProgramVersionRepository {
   async publishVersion(programId: string, versionId: string) {
     return this.prisma
       .$transaction(async (tx) => {
+        // Every draft mutator writes to the version row, so this lock makes
+        // the authoritative validation and publication atomic.
+        const drafts = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id"
+          FROM "training_program_versions"
+          WHERE "id" = ${versionId}
+            AND "program_id" = ${programId}
+            AND "status" = 'DRAFT'
+          FOR UPDATE
+        `;
+
+        if (drafts.length !== 1) {
+          return null;
+        }
+
+        // Re-read the complete version AFTER acquiring the lock.
+        const currentVersion = await tx.trainingProgramVersion.findUnique({
+          where: { id: versionId },
+          select: trainingProgramVersionSelect,
+        });
+
+        if (!currentVersion || currentVersion.status !== 'DRAFT') {
+          return null;
+        }
+
+        assertPublishableVersion(currentVersion);
+
         const published = await tx.trainingProgramVersion.updateMany({
           where: {
             id: versionId,
@@ -231,4 +303,5 @@ export class TrainingProgramVersionRepository {
         throw error;
       });
   }
+
 }
