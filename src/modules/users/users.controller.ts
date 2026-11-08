@@ -3,7 +3,7 @@ import {
   Delete, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes, ApiCookieAuth, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiCookieAuth, ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AvatarService } from './avatar/avatar.service.js';
 import type { AvatarUploadFile } from './avatar/avatar-validation.js';
@@ -30,6 +30,32 @@ export class UsersController {
   ) {}
 
   @Get('me')
+  @ApiOkResponse({
+    description: 'Authenticated account and nullable profile. Never includes credentials.',
+    schema: {
+      type: 'object',
+      required: ['id', 'email', 'emailVerified', 'role', 'createdAt', 'updatedAt', 'profile'],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        email: { type: 'string', format: 'email' },
+        emailVerified: { type: 'boolean' },
+        role: { type: 'string', enum: ['ATHLETE', 'TRAINER', 'ADMIN'] },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+        profile: { type: 'object', nullable: true, properties: {
+          name: { type: 'string', nullable: true },
+          firstName: { type: 'string', nullable: true },
+          lastName: { type: 'string', nullable: true },
+          displayName: { type: 'string', nullable: true },
+          avatarUrl: { type: 'string', nullable: true },
+          timezone: { type: 'string' },
+          birthday: { type: 'string', format: 'date', nullable: true },
+          height: { type: 'integer', nullable: true },
+          weight: { type: 'number', nullable: true },
+        } },
+      },
+    },
+  })
   me(@CurrentUser() user: UserActor) {
     return this.usersService.findMe(user.id);
   }

@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import {
   type CreateTrainingProgramAssignmentDto,
   createTrainingProgramAssignmentSchema,
@@ -94,6 +95,9 @@ import {
   reorderTrainingProgramSetsSchema,
 } from './dto/reorder-training-program-sets.dto.js';
 
+@ApiTags('Training Programs')
+@ApiCookieAuth('sessionCookie')
+@ApiBearerAuth('accessToken')
 @Controller('training-programs')
 @Authenticate()
 export class TrainingProgramsController {

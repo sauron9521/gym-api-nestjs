@@ -3,7 +3,7 @@ import {
   Param, Patch, Post, Query,
 } from '@nestjs/common';
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
-import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import { BodyMeasurementsService } from './body-measurements.service.js';
 import { BodyMeasurementStatisticsService } from './body-measurement-statistics.service.js';
@@ -52,6 +52,24 @@ export class BodyMeasurementsController {
 
   /** Must appear before the dynamic :id route. */
   @Get('statistics')
+  @ApiOkResponse({
+    description: 'First/latest metric values, differences over 7/30/90 days and a UTC daily chart series.',
+    schema: {
+      type: 'object',
+      required: ['metric', 'unit', 'range', 'asOf', 'overall', 'changes', 'series'],
+      properties: {
+        metric: { type: 'string', enum: ['weightKg', 'bodyFatPct', 'chestCm', 'waistCm', 'hipsCm', 'armCm', 'thighCm'] },
+        unit: { type: 'string', enum: ['kg', '%', 'cm'] },
+        range: { type: 'string', enum: ['7d', '30d', '90d'] },
+        asOf: { type: 'string', format: 'date-time' },
+        first: { type: 'object', nullable: true, properties: { id: { type: 'string', format: 'uuid' }, measuredAt: { type: 'string', format: 'date-time' }, value: { type: 'number' } } },
+        latest: { type: 'object', nullable: true, properties: { id: { type: 'string', format: 'uuid' }, measuredAt: { type: 'string', format: 'date-time' }, value: { type: 'number' } } },
+        overall: { type: 'object', properties: { delta: { type: 'number', nullable: true }, percentChange: { type: 'number', nullable: true } } },
+        changes: { type: 'object', description: 'Keys: 7d, 30d, 90d. Each includes nullable baseline, delta and percentChange.', additionalProperties: true },
+        series: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, measuredAt: { type: 'string', format: 'date-time' }, value: { type: 'number' } } } },
+      },
+    },
+  })
   statistics(
     @CurrentUser() actor: UserActor,
     @Query({ schema: bodyMeasurementStatisticsQuerySchema })

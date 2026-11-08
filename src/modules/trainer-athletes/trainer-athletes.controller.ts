@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 
 import { TrainerAthletesService } from './trainer-athletes.service.js';
 
@@ -32,6 +33,9 @@ import {
   terminateTrainerAthleteSchema,
 } from './dto/terminate-trainer-athlete.dto.js';
 
+@ApiTags('Trainer & Athlete Relationships')
+@ApiCookieAuth('sessionCookie')
+@ApiBearerAuth('accessToken')
 @Controller('trainer-athletes')
 @Authenticate()
 export class TrainerAthletesController {
