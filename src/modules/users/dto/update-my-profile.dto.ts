@@ -16,7 +16,7 @@ export const updateMyProfileSchema = z
       .nullable()
       .optional(),
     height: z.number().int().min(50).max(300).nullable().optional(),
-    weight: z.number().int().min(1).max(600).nullable().optional(),
+    weight: z.number().finite().min(1).max(600).multipleOf(0.01).nullable().optional(),
   })
   .refine(
     (data) => Object.values(data).some((value) => value !== undefined),

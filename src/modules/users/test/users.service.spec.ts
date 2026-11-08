@@ -38,13 +38,14 @@ describe('UsersService', () => {
         name: 'Athlete',
         birthday: new Date('1998-03-04T00:00:00.000Z'),
         height: 193,
-        weight: 81,
+        weight: { toString: () => '81.25' },
       },
     });
     await expect(service.findMe('user-1')).resolves.toMatchObject({
       profile: {
         birthday: '1998-03-04',
         height: 193,
+        weight: 81.25,
       },
     });
   });
@@ -61,22 +62,24 @@ describe('UsersService', () => {
         birthday: new Date('1998-03-04T00:00:00.000Z'),
         name: 'Athlete',
         height: null,
-        weight: null,
+        weight: { toString: () => '21.50' },
       },
     });
 
     const result = await service.updateMe('user-1', {
       name: 'Athlete',
       birthday: '1998-03-04',
+      weight: 21.5,
     });
 
     expect(repository.upsertMyProfile).toHaveBeenCalledWith('user-1', {
       name: 'Athlete',
       birthday: new Date('1998-03-04T00:00:00.000Z'),
       height: undefined,
-      weight: undefined,
+      weight: 21.5,
     });
     expect(result.profile?.birthday).toBe('1998-03-04');
+    expect(result.profile?.weight).toBe(21.5);
   });
 
   it('allows clearing nullable profile fields', async () => {

@@ -140,7 +140,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
         name: '  Athlete One  ',
         birthday: '1998-03-04',
         height: 193,
-        weight: 81,
+        weight: 81.25,
       });
 
     expect(response.status).toBe(200);
@@ -150,7 +150,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
         name: 'Athlete One',
         birthday: '1998-03-04',
         height: 193,
-        weight: 81,
+        weight: 81.25,
       },
     });
     expect(response.body.profile).not.toHaveProperty('userId');
@@ -159,20 +159,21 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
       where: { userId: athleteId },
     });
     expect(stored.birthday?.toISOString().slice(0, 10)).toBe('1998-03-04');
+    expect(stored.weight?.toFixed(2)).toBe('81.25');
   });
 
   it('updates only specified fields and leaves other fields unchanged', async () => {
     const response = await request(app.getHttpServer())
       .patch('/users/me')
       .set('Cookie', athleteCookie)
-      .send({ weight: 82 });
+      .send({ weight: 82.75 });
 
     expect(response.status).toBe(200);
     expect(response.body.profile).toMatchObject({
       name: 'Athlete One',
       birthday: '1998-03-04',
       height: 193,
-      weight: 82,
+      weight: 82.75,
     });
   });
 
@@ -184,7 +185,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.profile).toMatchObject({
-      name: null, birthday: null, height: 193, weight: 82,
+      name: null, birthday: null, height: 193, weight: 82.75,
     });
   });
 
@@ -196,7 +197,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
       { passwordHash: 'malicious' },
       { birthday: '2100-01-01' },
       { height: 1000 },
-      { weight: 80.5 },
+      { weight: 80.555 },
       { name: '   ' },
     ]) {
       const response = await request(app.getHttpServer())
@@ -228,7 +229,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
       .get('/users/me')
       .set('Cookie', athleteCookie);
     expect(athlete.body.id).toBe(athleteId);
-    expect(athlete.body.profile).toMatchObject({ name: null, height: 193, weight: 82 });
+    expect(athlete.body.profile).toMatchObject({ name: null, height: 193, weight: 82.75 });
     expect(athlete.body.profile).not.toMatchObject({ name: 'Trainer' });
   });
 

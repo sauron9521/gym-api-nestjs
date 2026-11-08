@@ -23,15 +23,16 @@ Bearer access token.
     "name": "Athlete",
     "birthday": "1998-03-04",
     "height": 193,
-    "weight": 81
+    "weight": 81.25
   }
 }
 ```
 
 New accounts have `"profile": null` until the first PATCH. Profile fields
 may be `null`. Birthday uses **YYYY-MM-DD**, without timezone shifts.
-Height is in whole centimetres, weight in whole kilograms (the existing
-Prisma `Profile` model uses `Int` for both).
+Height is in whole centimetres. Weight uses PostgreSQL `DECIMAL(5,2)`
+and supports decimal kilograms. The JSON API returns a number such as
+`21.5`; clients can display it as `21.50 kg`.
 
 ## PATCH example
 
@@ -39,7 +40,7 @@ Prisma `Profile` model uses `Int` for both).
 PATCH /users/me
 Content-Type: application/json
 
-{"name":"Athlete","birthday":"1998-03-04","height":193,"weight":81}
+{"name":"Athlete","birthday":"1998-03-04","height":193,"weight":81.25}
 ```
 
 Only the supplied fields are modified. Explicit `null` clears a field;
@@ -48,7 +49,8 @@ unknown fields and invalid measurements are rejected with HTTP 400.
 
 Allowed fields: `name` (trimmed, 1–100 characters or null),
 `birthday` (1900-01-01 through today or null),
-`height` (integer 50–300 cm or null), `weight` (integer 1–600 kg or null).
+`height` (integer 50–300 cm or null), `weight` (1–600 kg, up to
+two decimal places, or null).
 
 The server always takes the user ID from the authenticated principal.
 Clients cannot alter `email`, `role`, `passwordHash`, `userId` or other

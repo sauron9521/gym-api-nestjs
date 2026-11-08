@@ -23,8 +23,17 @@ describe('updateMyProfileSchema', () => {
     }
   });
 
-  it('rejects out-of-range and non-integer metrics', () => {
-    for (const body of [{ height: 0 }, { height: 350 }, { weight: 0 }, { weight: 72.5 }]) {
+  it('accepts body weight with two fractional digits', () => {
+    for (const weight of [21.5, 81.25, 105.75, 81]) {
+      expect(updateMyProfileSchema.safeParse({ weight }).success).toBe(true);
+    }
+  });
+
+  it('rejects invalid metrics and excessive decimal precision', () => {
+    for (const body of [
+      { height: 0 }, { height: 350 }, { height: 193.5 },
+      { weight: 0 }, { weight: 80.555 }, { weight: 601 },
+    ]) {
       expect(updateMyProfileSchema.safeParse(body).success).toBe(false);
     }
   });

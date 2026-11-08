@@ -45,6 +45,10 @@ export class UsersService {
             birthday: user.profile.birthday
               ? user.profile.birthday.toISOString().slice(0, 10)
               : null,
+            // Preserve the existing numeric JSON API contract.
+            weight: user.profile.weight === null
+              ? null
+              : Number(user.profile.weight),
           }
         : null,
     };
