@@ -1,0 +1,57 @@
+# Production single-instance API with an externally managed PostgreSQL server.
+# Supply secrets using --env-file .env.production or the deployment environment.
+name: gym-api
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+  JWT_ISSUER: ${JWT_ISSUER:?JWT_ISSUER must be set}
+  APP_URL: ${APP_URL:?APP_URL must be set}
+  CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must be set}
+  SMTP_URL: ${SMTP_URL:?SMTP_URL must be set}
+  MAIL_FROM: ${MAIL_FROM:?MAIL_FROM must be set}
+  PORT: "3000"
+  ENABLE_OPENAPI: "false"
+
+services:
+  api:
+    image: gym-api:local
+    build:
+      context: .
+      target: runtime
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      <<: *api-env
+      AVATAR_STORAGE_DIR: /app/uploads/avatars
+    ports:
+      - "127.0.0.1:${API_PORT:-3000}:3000"
+    volumes:
+      - avatars:/app/uploads/avatars
+
+  # Run this one-shot job explicitly BEFORE starting/updating the API.
+  migrate:
+    profiles: [ops]
+    image: gym-api-migrate:local
+    build:
+      context: .
+      target: migrate
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+
+volumes:
+  avatars:
