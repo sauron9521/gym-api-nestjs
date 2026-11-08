@@ -9,7 +9,8 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { getRequestId } from '../request-context/request-context.middleware.js';
 
 import { Prisma } from '../../generated/prisma/client.js';
 
@@ -48,8 +49,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
-    const requestId = randomUUID();
+    const http = host.switchToHttp();
+    const response = http.getResponse<Response>();
+    const request = http.getRequest<Request>();
+    const requestId = getRequestId(request) ?? randomUUID();
     const timestamp = new Date().toISOString();
 
     const mapped = this.mapException(exception, requestId);
@@ -74,6 +77,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const statusCode = exception.getStatus();
       if (statusCode >= 500) {
         this.logUnexpected('HTTP_' + statusCode, requestId);
+        if (statusCode === HttpStatus.SERVICE_UNAVAILABLE) {
+          return {
+            statusCode,
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'Service unavailable',
+          };
+        }
         return this.internalError();
       }
 

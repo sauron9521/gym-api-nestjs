@@ -7,6 +7,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -70,6 +71,11 @@ class ErrorFixtureController {
     throw new Error('SECRET_INTERNAL_ERROR');
   }
 
+  @Get('service-unavailable')
+  unavailable() {
+    throw new ServiceUnavailableException('sensitive DB credentials, do not expose');
+  }
+
   @Get('server-http')
   serverHttp() {
     throw new HttpException('SECRET_INTERNAL_HTTP', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -124,6 +130,18 @@ describe('API exception filter (HTTP contract)', () => {
     expect(json).not.toContain('SECRET_DB_META');
     expect(json).not.toContain('private@example.test');
     expect(json).not.toContain('P20');
+  });
+
+  it('preserves 503 for readiness failure and hides sensitive details', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/__error-contract/service-unavailable');
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({
+      statusCode: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'Service unavailable',
+    });
+    expect(JSON.stringify(response.body)).not.toContain('sensitive DB');
   });
 
   it.each(['prisma-unknown', 'unexpected', 'server-http'])(
