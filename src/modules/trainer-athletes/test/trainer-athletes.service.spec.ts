@@ -10,6 +10,7 @@ import { Prisma } from '../../../generated/prisma/client.js';
 import { UsersRepository } from '../../users/users.repository.js';
 import { TrainerAthletesRepository } from '../trainer-athletes.repository.js';
 import { TrainerAthletesService } from '../trainer-athletes.service.js';
+import { TrainerAthleteTerminationService } from '../services/trainer-athlete-termination.service.js';
 
 import type { TrainerAthleteActor } from '../types/trainer-athlete.types.js';
 
@@ -26,11 +27,14 @@ describe('TrainerAthletesService', () => {
     update: vi.fn(),
     findActiveTrainerIdsForAthlete: vi.fn(),
     findActiveAthleteIdsForTrainer: vi.fn(),
-    terminateWithExerciseCopies: vi.fn(),
   };
 
   const usersRepository = {
     findUserById: vi.fn(),
+  };
+
+  const terminationService = {
+    terminateWithExerciseCopies: vi.fn(),
   };
 
   const trainer: TrainerAthleteActor = {
@@ -79,6 +83,7 @@ describe('TrainerAthletesService', () => {
     service = new TrainerAthletesService(
       repository as unknown as TrainerAthletesRepository,
       usersRepository as unknown as UsersRepository,
+      terminationService as unknown as TrainerAthleteTerminationService,
     );
   });
 
@@ -515,7 +520,7 @@ describe('TrainerAthletesService', () => {
         status: 'ACTIVE',
       });
 
-      repository.terminateWithExerciseCopies.mockResolvedValue({
+      terminationService.terminateWithExerciseCopies.mockResolvedValue({
         id: 'relationship-1',
         status: 'TERMINATED',
       });
@@ -526,7 +531,7 @@ describe('TrainerAthletesService', () => {
 
       expect(result.status).toBe('TERMINATED');
 
-      expect(repository.terminateWithExerciseCopies).toHaveBeenCalledWith({
+      expect(terminationService.terminateWithExerciseCopies).toHaveBeenCalledWith({
         id: 'relationship-1',
         actorId: trainer.id,
         reason: 'Cooperation ended',
@@ -543,7 +548,7 @@ describe('TrainerAthletesService', () => {
         status: 'ACTIVE',
       });
 
-      repository.terminateWithExerciseCopies.mockResolvedValue({
+      terminationService.terminateWithExerciseCopies.mockResolvedValue({
         id: 'relationship-1',
         status: 'TERMINATED',
       });
@@ -554,7 +559,7 @@ describe('TrainerAthletesService', () => {
 
       expect(result.status).toBe('TERMINATED');
 
-      expect(repository.terminateWithExerciseCopies).toHaveBeenCalledWith({
+      expect(terminationService.terminateWithExerciseCopies).toHaveBeenCalledWith({
         id: 'relationship-1',
         actorId: athlete.id,
         reason: 'Cooperation ended by athlete',
@@ -569,7 +574,7 @@ describe('TrainerAthletesService', () => {
         service.terminate(pendingRelationship.id, trainer, {}),
       ).rejects.toThrow(ConflictException);
 
-      expect(repository.terminateWithExerciseCopies).not.toHaveBeenCalled();
+      expect(terminationService.terminateWithExerciseCopies).not.toHaveBeenCalled();
       expect(repository.update).not.toHaveBeenCalled();
     });
   });
