@@ -252,4 +252,13 @@ jobs:
           done
           test "$healthy" -eq 1
           docker stop --time 25 gym-api-smoke >/dev/null
-          test "$(docker inspect --format '{{.State.ExitCode}}' gym-api-smoke)" = 0
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' gym-api-smoke)"
+          echo "Container exit code after SIGTERM: $exit_code"
+          # Nest may re-raise SIGTERM after running shutdown hooks (143).
+          # 137 means Docker had to force-kill the app and must fail.
+          test "$exit_code" = 0 || test "$exit_code" = 143
+          if ! docker logs gym-api-smoke 2>&1 | grep -q 'Database disconnected'; then
+            echo "Prisma shutdown hook did not report disconnection"
+            docker logs --tail 40 gym-api-smoke
+            exit 1
+          fi
