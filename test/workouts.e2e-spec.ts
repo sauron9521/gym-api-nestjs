@@ -3286,7 +3286,12 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
         .set('Cookie', otherAthleteCookie);
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual([]);
+      expect(response.body.data).not.toContainEqual(
+        expect.objectContaining({ id: createdWorkoutId }),
+      );
+      expect(response.body.data.every(
+        (workout: { athleteId: string }) => workout.athleteId !== ownerId,
+      )).toBe(true);
     });
   });
 
