@@ -2,8 +2,11 @@ import { join } from 'node:path';
 import { validateEnv } from './config/env.validation.js';
 import { createMailOptions } from './config/mail.config.js';
 import type { AppEnv } from './config/env.schema.js';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import type { NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { RequestContextMiddleware } from './common/request-context/request-context.middleware.js';
+import { HealthModule } from './health/health.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthenticationModule } from '@nestjs/authentication';
 import {
@@ -60,6 +63,7 @@ import { TrainingProgramsModule } from './modules/training-programs/training-pro
         ),
     }),
     PrismaModule,
+    HealthModule,
     ThrottlerModule.forRoot({
       throttlers: [
         {
@@ -91,4 +95,12 @@ import { TrainingProgramsModule } from './modules/training-programs/training-pro
     RolesGuard,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Express 5/path-to-regexp named wildcard, including the root route.
+    consumer.apply(RequestContextMiddleware).forRoutes({
+      path: '{*splat}',
+      method: RequestMethod.ALL,
+    });
+  }
+}

@@ -1,11 +1,13 @@
-import { StandardSchemaValidationPipe, ValidationPipe } from '@nestjs/common';
+import { ConsoleLogger, Logger, StandardSchemaValidationPipe, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { enableOpenApi } from './openapi/openapi.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new ConsoleLogger({ json: process.env.NODE_ENV === 'production' }),
+  });
   const config = app.get(ConfigService);
 
   //CORS
@@ -42,6 +44,6 @@ async function bootstrap() {
   app.enableShutdownHooks();
   const port = config.getOrThrow<number>('PORT');
   await app.listen(port);
-  console.log('App started on port: ' + port);
+  Logger.log('App started on port: ' + port, 'Bootstrap');
 }
 await bootstrap();
