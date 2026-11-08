@@ -8,6 +8,58 @@ describe('updateMyProfileSchema', () => {
     })).toEqual({ name: 'Athlete', weight: null });
   });
 
+  it('accepts names, HTTPS avatar and IANA timezone', () => {
+    const result = updateMyProfileSchema.parse({
+      firstName: '  Anna  ',
+      lastName: '  Smith ',
+      displayName: '  Anna S. ',
+      avatarUrl: 'https://cdn.example.com/profile/avatar.png',
+      timezone: 'Europe/Kyiv',
+    });
+    expect(result).toEqual({
+      firstName: 'Anna',
+      lastName: 'Smith',
+      displayName: 'Anna S.',
+      avatarUrl: 'https://cdn.example.com/profile/avatar.png',
+      timezone: 'Europe/Kyiv',
+    });
+    expect(updateMyProfileSchema.safeParse({ timezone: 'UTC' }).success)
+      .toBe(true);
+  });
+
+  it('supports clearing nullable profile data but not timezone', () => {
+    expect(updateMyProfileSchema.safeParse({
+      firstName: null, lastName: null, displayName: null, avatarUrl: null,
+    }).success).toBe(true);
+    expect(updateMyProfileSchema.safeParse({ timezone: null }).success)
+      .toBe(false);
+  });
+
+  it('rejects unsafe avatar URLs and invalid time zones', () => {
+    for (const avatarUrl of [
+      'http://example.com/photo.jpg',
+      'file:///etc/passwd',
+      'https://user:password@example.com/photo.jpg',
+      'not-a-url',
+    ]) {
+      expect(updateMyProfileSchema.safeParse({ avatarUrl }).success)
+        .toBe(false);
+    }
+    for (const timezone of ['GMT+02:00', 'Europe/NotARealCity', '', 'Invalid']) {
+      expect(updateMyProfileSchema.safeParse({ timezone }).success)
+        .toBe(false);
+    }
+  });
+
+  it('rejects mismatching legacy name and displayName', () => {
+    expect(updateMyProfileSchema.safeParse({
+      name: 'Anna', displayName: 'Different',
+    }).success).toBe(false);
+    expect(updateMyProfileSchema.safeParse({
+      name: 'Anna', displayName: 'Anna',
+    }).success).toBe(true);
+  });
+
   it('rejects empty payloads and unexpected account fields', () => {
     expect(updateMyProfileSchema.safeParse({}).success).toBe(false);
     for (const key of ['email', 'role', 'passwordHash', 'userId']) {

@@ -21,8 +21,17 @@ export class UsersService {
   }
 
   async updateMe(userId: string, input: UpdateMyProfileDto) {
+    const displayName =
+      input.displayName !== undefined ? input.displayName : input.name;
+
+    // Keep the old name field in sync for clients still using it.
     const data: Prisma.ProfileCreateWithoutUserInput = {
-      name: input.name,
+      name: displayName,
+      displayName,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      avatarUrl: input.avatarUrl,
+      timezone: input.timezone,
       birthday:
         typeof input.birthday === 'string'
           ? new Date(`${input.birthday}T00:00:00.000Z`)

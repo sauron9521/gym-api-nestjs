@@ -1,9 +1,15 @@
 model Profile {
   id       String    @id @default(uuid(4))
-  name     String?
-  birthday DateTime? @db.Date
-  height   Int?
-  weight   Decimal? @db.Decimal(5, 2)
+  // Legacy alias retained for existing clients; updates mirror displayName.
+  name        String?
+  firstName   String?   @map("first_name")
+  lastName    String?   @map("last_name")
+  displayName String?   @map("display_name")
+  avatarUrl   String?   @map("avatar_url") @db.VarChar(2048)
+  timezone    String    @default("UTC") @db.VarChar(64)
+  birthday    DateTime? @db.Date
+  height      Int?
+  weight      Decimal?  @db.Decimal(5, 2)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt() @map("updated_at") @db.Timestamptz(3)
