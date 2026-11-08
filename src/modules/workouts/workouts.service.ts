@@ -17,6 +17,12 @@ import type {
   WorkoutListQuery,
 } from './types/workout.types.js';
 import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
+import { workoutIdempotency } from './workout-idempotency.js';
+import type { WorkoutIdempotency } from './workout-idempotency.js';
+
+type WorkoutResponse = NonNullable<
+  Awaited<ReturnType<WorkoutsRepository['findById']>>
+>;
 
 @Injectable()
 export class WorkoutsService {
@@ -27,9 +33,19 @@ export class WorkoutsService {
   ) {}
 
   // CREATE
-  async create(actor: WorkoutActor, input: CreateWorkoutInput) {
+  async create(
+    actor: WorkoutActor,
+    input: CreateWorkoutInput,
+    idempotencyKey?: string,
+  ) {
     this.assertAthlete(actor);
+    const idempotency = workoutIdempotency(
+      idempotencyKey,
+      'manual',
+      input,
+    );
 
+    return this.createIdempotently(actor.id, idempotency, async () => {
     if (input.exercises.length === 0) {
       throw new BadRequestException(
         'A workout must contain at least one exercise',
@@ -114,21 +130,38 @@ export class WorkoutsService {
       },
     } satisfies Prisma.WorkoutCreateInput;
 
-    return this.workoutsRepository.create(data);
+    return this.workoutsRepository.create({
+      ...data,
+      ...(idempotency
+        ? {
+            idempotencyKey: idempotency.key,
+            idempotencyFingerprint: idempotency.fingerprint,
+          }
+        : {}),
+    });
+    });
   }
 
   // CREATE WORKOUT FROM PROGRAM
   async createFromProgram(
     actor: WorkoutActor,
     input: CreateWorkoutFromProgramInput,
+    idempotencyKey?: string,
   ) {
     this.assertAthlete(actor);
+    const idempotency = workoutIdempotency(
+      idempotencyKey,
+      'from-program',
+      input,
+    );
 
+    return this.createIdempotently(actor.id, idempotency, async () => {
     const workout = await this.workoutsRepository.createFromProgram({
       athleteId: actor.id,
       assignmentId: input.assignmentId,
       programWorkoutId: input.programWorkoutId,
       scheduledAt: input.scheduledAt,
+      ...(idempotency ? { idempotency } : {}),
     });
 
     if (!workout) {
@@ -138,6 +171,7 @@ export class WorkoutsService {
     }
 
     return workout;
+    });
   }
 
   // FIND MANY
@@ -452,6 +486,54 @@ export class WorkoutsService {
   }
 
   // HELPERS
+  private async findIdempotentReplay(
+    athleteId: string,
+    idempotency: WorkoutIdempotency,
+  ): Promise<WorkoutResponse | null> {
+    const original = await this.workoutsRepository.findByIdempotencyKey(
+      athleteId,
+      idempotency.key,
+    );
+
+    if (!original) return null;
+
+    if (original.idempotencyFingerprint !== idempotency.fingerprint) {
+      throw new ConflictException(
+        'Idempotency-Key was already used for a different workout request.',
+      );
+    }
+
+    // Return the current representation of the original workout. Clients
+    // can resume it even if its status changed since initial creation.
+    return this.workoutsRepository.findById(original.id, { athleteId });
+  }
+
+  private async createIdempotently(
+    athleteId: string,
+    idempotency: WorkoutIdempotency | undefined,
+    create: () => Promise<WorkoutResponse>,
+  ): Promise<WorkoutResponse> {
+    if (!idempotency) return create();
+
+    const replay = await this.findIdempotentReplay(athleteId, idempotency);
+    if (replay) return replay;
+
+    try {
+      return await create();
+    } catch (error) {
+      // A second concurrent request can win the UNIQUE race. After the
+      // failed insert/transaction rolled back, fetch the committed winner.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const winner = await this.findIdempotentReplay(athleteId, idempotency);
+        if (winner) return winner;
+      }
+      throw error;
+    }
+  }
+
   private assertAthlete(actor: WorkoutActor): void {
     if (actor.role !== 'ATHLETE') {
       throw new ForbiddenException(
