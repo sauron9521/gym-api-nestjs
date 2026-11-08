@@ -329,7 +329,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
       .attach('file', png, { filename: 'profile.png', contentType: 'image/png' });
 
     expect(first.status).toBe(200);
-    expect(first.body.avatarUrl).toMatch(/^\\/avatars\\/[0-9a-f-]+\\.png$/);
+    expect(first.body.avatarUrl).toMatch(new RegExp('^/avatars/[0-9a-f-]+[.]png$'));
     const firstUrl: string = first.body.avatarUrl;
 
     const stored = await prisma.profile.findUniqueOrThrow({
@@ -347,7 +347,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
 
     const publicResponse = await request(app.getHttpServer()).get(firstUrl);
     expect(publicResponse.status).toBe(200);
-    expect(publicResponse.headers['content-type']).toMatch(/image\\/png/);
+    expect(publicResponse.headers['content-type']).toContain('image/png');
     expect(publicResponse.headers['x-content-type-options']).toBe('nosniff');
     expect(publicResponse.headers['cache-control']).toBe('no-store');
 
