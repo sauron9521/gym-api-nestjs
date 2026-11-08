@@ -19,7 +19,12 @@ import type {
 import { createWorkoutFromProgramSchema } from './dto/create-workout-from-program.dto.js';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
-import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import {
+  workoutListResponseSchema,
+  workoutResponseSchema,
+  workoutSetResponseSchema,
+} from '../../openapi/response-contracts.js';
 
 import { WorkoutsService } from './workouts.service.js';
 
@@ -54,6 +59,7 @@ export class WorkoutsController {
   constructor(private readonly workoutsService: WorkoutsService) {}
 
   @Post()
+  @ApiCreatedResponse({ schema: workoutResponseSchema })
   @ApiHeader({ name: 'Idempotency-Key', required: false, description: 'Reuse the same key for retries of the same creation request.' })
   create(
     @CurrentUser() user: WorkoutActor,
@@ -65,6 +71,7 @@ export class WorkoutsController {
   }
 
   @Get()
+  @ApiOkResponse({ schema: workoutListResponseSchema })
   findMany(
     @CurrentUser() user: WorkoutActor,
     @Query({ schema: queryWorkoutsSchema })
@@ -74,6 +81,7 @@ export class WorkoutsController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ schema: workoutResponseSchema })
   findOne(
     @Param('id', { schema: workoutIdSchema }) id: string,
     @CurrentUser() user: WorkoutActor,
@@ -82,6 +90,7 @@ export class WorkoutsController {
   }
 
   @Patch(':id')
+  @ApiOkResponse({ schema: workoutResponseSchema })
   update(
     @Param('id', { schema: workoutIdSchema }) id: string,
     @CurrentUser() user: WorkoutActor,
@@ -92,6 +101,7 @@ export class WorkoutsController {
   }
 
   @Post(':id/start')
+  @ApiOkResponse({ schema: workoutResponseSchema })
   @HttpCode(HttpStatus.OK)
   start(
     @Param('id', { schema: workoutIdSchema }) id: string,
@@ -101,6 +111,7 @@ export class WorkoutsController {
   }
 
   @Patch(':id/sets/:setId')
+  @ApiOkResponse({ schema: workoutSetResponseSchema })
   updateSet(
     @Param('id', { schema: workoutIdSchema }) workoutId: string,
     @Param('setId', { schema: workoutSetIdSchema }) setId: string,
@@ -112,6 +123,7 @@ export class WorkoutsController {
   }
 
   @Post(':id/complete')
+  @ApiOkResponse({ schema: workoutResponseSchema })
   @HttpCode(HttpStatus.OK)
   complete(
     @Param('id', { schema: workoutIdSchema }) id: string,
@@ -121,6 +133,7 @@ export class WorkoutsController {
   }
 
   @Post(':id/cancel')
+  @ApiOkResponse({ schema: workoutResponseSchema })
   @HttpCode(HttpStatus.OK)
   cancel(
     @Param('id', { schema: workoutIdSchema }) id: string,
@@ -130,6 +143,7 @@ export class WorkoutsController {
   }
 
   @Post('from-program')
+  @ApiCreatedResponse({ schema: workoutResponseSchema })
   @ApiHeader({ name: 'Idempotency-Key', required: false, description: 'Reuse the same key for retries of the same creation request.' })
   createFromProgram(
     @CurrentUser() actor: WorkoutActor,

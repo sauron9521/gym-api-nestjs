@@ -69,3 +69,5 @@ Never ship backend secrets, session tokens or passwords as generated data.
 - Preserve access-control behavior: OpenAPI merely describes it.
 - If a route changes, regenerate and review the contract during PR CI.
 - No Prisma schema changes or migrations are required.
+
+See [typed response contracts](./openapi-responses.md) for nested training data and redacted variants.

@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
-import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import {
+  trainerAthleteResponseSchema,
+  trainerAthletePublicResponseSchema,
+  trainerAthleteListResponseSchema,
+} from '../../openapi/response-contracts.js';
 
 import { TrainerAthletesService } from './trainer-athletes.service.js';
 
@@ -44,6 +49,7 @@ export class TrainerAthletesController {
   ) {}
 
   @Post()
+  @ApiCreatedResponse({ schema: trainerAthleteResponseSchema })
   create(
     @CurrentUser() user: TrainerAthleteActor,
     @Body({ schema: createTrainerAthleteSchema })
@@ -53,6 +59,7 @@ export class TrainerAthletesController {
   }
 
   @Get()
+  @ApiOkResponse({ schema: trainerAthleteListResponseSchema })
   findMany(
     @CurrentUser() user: TrainerAthleteActor,
     @Query({ schema: queryTrainerAthletesSchema })
@@ -62,6 +69,7 @@ export class TrainerAthletesController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ schema: trainerAthletePublicResponseSchema })
   findOne(
     @Param('id', { schema: trainerAthleteIdSchema }) id: string,
     @CurrentUser() user: TrainerAthleteActor,
@@ -70,6 +78,7 @@ export class TrainerAthletesController {
   }
 
   @Post(':id/accept')
+  @ApiOkResponse({ schema: trainerAthleteResponseSchema })
   @HttpCode(HttpStatus.OK)
   accept(
     @Param('id', { schema: trainerAthleteIdSchema }) id: string,
@@ -79,6 +88,7 @@ export class TrainerAthletesController {
   }
 
   @Post(':id/decline')
+  @ApiOkResponse({ schema: trainerAthleteResponseSchema })
   @HttpCode(HttpStatus.OK)
   decline(
     @Param('id', { schema: trainerAthleteIdSchema }) id: string,
@@ -88,6 +98,7 @@ export class TrainerAthletesController {
   }
 
   @Post(':id/cancel')
+  @ApiOkResponse({ schema: trainerAthletePublicResponseSchema })
   @HttpCode(HttpStatus.OK)
   cancel(
     @Param('id', { schema: trainerAthleteIdSchema }) id: string,
@@ -99,6 +110,7 @@ export class TrainerAthletesController {
   }
 
   @Post(':id/terminate')
+  @ApiOkResponse({ schema: trainerAthletePublicResponseSchema })
   @HttpCode(HttpStatus.OK)
   terminate(
     @Param('id', { schema: trainerAthleteIdSchema }) id: string,

@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
-import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import {
+  archivedExerciseResponseSchema,
+  exerciseListResponseSchema,
+  exerciseResponseSchema,
+} from '../../openapi/response-contracts.js';
 
 import { ExercisesService } from './exercises.service.js';
 
@@ -51,6 +56,7 @@ export class ExercisesController {
   ) {}
 
   @Get()
+  @ApiOkResponse({ schema: exerciseListResponseSchema })
   @Authenticate({ optional: true })
   async findMany(
     @CurrentUser() user: ExerciseActor | null,
@@ -65,6 +71,7 @@ export class ExercisesController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ schema: exerciseResponseSchema })
   @Authenticate({ optional: true })
   async findOne(
     @Param('id', { schema: exerciseIdSchema }) id: string,
@@ -78,6 +85,7 @@ export class ExercisesController {
   }
 
   @Post()
+  @ApiCreatedResponse({ schema: exerciseResponseSchema })
   @ApiCookieAuth('sessionCookie')
   @ApiBearerAuth('accessToken')
   create(
@@ -89,6 +97,7 @@ export class ExercisesController {
   }
 
   @Patch(':id')
+  @ApiOkResponse({ schema: exerciseResponseSchema })
   @ApiCookieAuth('sessionCookie')
   @ApiBearerAuth('accessToken')
   update(
@@ -101,6 +110,7 @@ export class ExercisesController {
   }
 
   @Delete(':id')
+  @ApiOkResponse({ schema: archivedExerciseResponseSchema })
   @ApiCookieAuth('sessionCookie')
   @ApiBearerAuth('accessToken')
   archive(
