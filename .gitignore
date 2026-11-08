@@ -66,3 +66,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Generated Prisma client
 /src/generated/prisma/
 /src/generated/
+# Local managed avatars (not tracked by git)
+uploads/

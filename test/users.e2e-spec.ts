@@ -317,6 +317,119 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
     }
   });
 
+  it('uploads, serves, replaces and deletes a managed avatar', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lGQAAAAASUVORK5CYII=',
+      'base64',
+    );
+
+    const first = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .attach('file', png, { filename: 'profile.png', contentType: 'image/png' });
+
+    expect(first.status).toBe(200);
+    expect(first.body.avatarUrl).toMatch(new RegExp('^/avatars/[0-9a-f-]+[.]png$'));
+    const firstUrl: string = first.body.avatarUrl;
+
+    const stored = await prisma.profile.findUniqueOrThrow({
+      where: { userId: athleteId },
+      select: { avatarUrl: true, avatarKey: true },
+    });
+    expect(stored.avatarUrl).toBe(firstUrl);
+    expect(stored.avatarKey).toBe(firstUrl.split('/').at(-1));
+
+    const profile = await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', athleteCookie);
+    expect(profile.body.profile.avatarUrl).toBe(firstUrl);
+    expect(profile.body.profile).not.toHaveProperty('avatarKey');
+
+    const publicResponse = await request(app.getHttpServer()).get(firstUrl);
+    expect(publicResponse.status).toBe(200);
+    expect(publicResponse.headers['content-type']).toContain('image/png');
+    expect(publicResponse.headers['x-content-type-options']).toBe('nosniff');
+    expect(publicResponse.headers['cache-control']).toBe('no-store');
+
+    const second = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .attach('file', png, { filename: 'other.png', contentType: 'image/png' });
+
+    expect(second.status).toBe(200);
+    expect(second.body.avatarUrl).not.toBe(firstUrl);
+    expect((await request(app.getHttpServer()).get(firstUrl)).status).toBe(404);
+    expect((await request(app.getHttpServer()).get(second.body.avatarUrl)).status).toBe(200);
+
+    const removed = await request(app.getHttpServer())
+      .delete('/users/me/avatar')
+      .set('Cookie', athleteCookie);
+
+    expect(removed.status).toBe(200);
+    expect(removed.body).toEqual({ avatarUrl: null });
+    expect((await request(app.getHttpServer()).get(second.body.avatarUrl)).status).toBe(404);
+
+    const after = await prisma.profile.findUniqueOrThrow({
+      where: { userId: athleteId },
+      select: { avatarKey: true, avatarUrl: true },
+    });
+    expect(after).toEqual({ avatarKey: null, avatarUrl: null });
+  });
+
+  it('rejects malformed image bytes, large files, and unauthorized uploads', async () => {
+    const fakeImage = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>');
+    const unauthorized = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .attach('file', fakeImage, { filename: 'image.png', contentType: 'image/png' });
+    expect(unauthorized.status).toBe(401);
+
+    const wrongMagic = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .attach('file', fakeImage, { filename: 'image.png', contentType: 'image/png' });
+    expect(wrongMagic.status).toBe(400);
+
+    const oversized = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .attach('file', Buffer.alloc(2 * 1024 * 1024 + 10), {
+        filename: 'image.png',
+        contentType: 'image/png',
+      });
+    expect([400, 413]).toContain(oversized.status);
+
+    const missing = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .send();
+    expect(missing.status).toBe(400);
+
+    const result = await prisma.profile.findUniqueOrThrow({
+      where: { userId: athleteId },
+      select: { avatarUrl: true, avatarKey: true },
+    });
+    expect(result).toEqual({ avatarUrl: null, avatarKey: null });
+  });
+
+  it('keeps externally hosted avatar URLs compatible with PATCH', async () => {
+    const response = await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Cookie', athleteCookie)
+      .send({ avatarUrl: 'https://cdn.example.com/avatar/legacy.png' });
+    expect(response.status).toBe(200);
+    expect(response.body.profile.avatarUrl).toBe(
+      'https://cdn.example.com/avatar/legacy.png',
+    );
+    const state = await prisma.profile.findUniqueOrThrow({
+      where: { userId: athleteId },
+      select: { avatarUrl: true, avatarKey: true },
+    });
+    expect(state).toEqual({
+      avatarUrl: 'https://cdn.example.com/avatar/legacy.png',
+      avatarKey: null,
+    });
+  });
+
   it('rejects a soft-deleted account even with an existing session', async () => {
     await prisma.user.update({
       where: { id: otherId },

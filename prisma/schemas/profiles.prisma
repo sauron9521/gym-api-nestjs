@@ -6,6 +6,8 @@ model Profile {
   lastName    String?   @map("last_name")
   displayName String?   @map("display_name")
   avatarUrl   String?   @map("avatar_url") @db.VarChar(2048)
+  // Managed uploads only; null for legacy/external HTTPS avatar URLs.
+  avatarKey   String?   @unique @map("avatar_key") @db.VarChar(48)
   timezone    String    @default("UTC") @db.VarChar(64)
   birthday    DateTime? @db.Date
   height      Int?

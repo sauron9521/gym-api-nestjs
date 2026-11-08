@@ -100,6 +100,70 @@ export class UsersRepository {
     }
   }
 
+  /**
+   * Row-lock the user before changing an avatar reference.
+   * Concurrent uploads, deletes and legacy avatarUrl PATCHes serialize
+   * through this lock; the caller deletes the old managed blob after commit.
+   */
+  async replaceAvatar(
+    userId: string,
+    data: Prisma.ProfileCreateWithoutUserInput,
+    avatarKey: string | null,
+    skipMissingProfile = false,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "users"
+        WHERE "id" = ${userId} AND "deleted_at" IS NULL
+        FOR UPDATE
+      `;
+
+      if (rows.length !== 1) {
+        throw new NotFoundException('User not found');
+      }
+
+      const current = await tx.user.findUnique({
+        where: { id: userId },
+        select: { profile: { select: { avatarKey: true } } },
+      });
+      const previousKey = current?.profile?.avatarKey ?? null;
+
+      // DELETE on a user without a profile must not create a blank row.
+      if (skipMissingProfile && !current?.profile) {
+        const user = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: userWithProfileSelect,
+        });
+        return { user, previousKey };
+      }
+
+      const user = await tx.user.update({
+        where: { id: userId, deletedAt: null },
+        data: {
+          profile: {
+            upsert: {
+              create: { ...data, avatarKey },
+              update: { ...data, avatarKey },
+            },
+          },
+        },
+        select: userWithProfileSelect,
+      });
+
+      return { user, previousKey };
+    });
+  }
+
+  /** Public image lookup: exposes no account data, blocks orphaned keys. */
+  async isCurrentAvatar(key: string): Promise<boolean> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { avatarKey: key },
+      select: { user: { select: { deletedAt: true } } },
+    });
+
+    return Boolean(profile && profile.user.deletedAt === null);
+  }
+
   async findUserByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email: normalizeEmail(email) },

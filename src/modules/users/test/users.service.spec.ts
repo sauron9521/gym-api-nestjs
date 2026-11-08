@@ -7,12 +7,17 @@ describe('UsersService', () => {
   const repository = {
     findMe: vi.fn(),
     upsertMyProfile: vi.fn(),
+    replaceAvatar: vi.fn(),
   };
+  const avatarService = { removePrevious: vi.fn() };
   let service: UsersService;
 
   beforeEach(() => {
     vi.resetAllMocks();
-    service = new UsersService(repository as unknown as UsersRepository);
+    service = new UsersService(
+      repository as unknown as UsersRepository,
+      avatarService as never,
+    );
   });
 
   it('returns a user without a profile as profile: null', async () => {
@@ -116,7 +121,8 @@ describe('UsersService', () => {
     });
   });
   it('mirrors displayName into the legacy name field', async () => {
-    repository.upsertMyProfile.mockResolvedValue({
+    repository.replaceAvatar.mockResolvedValue({
+      user: {
       id: 'user-1',
       profile: {
         name: 'Anna S.',
@@ -128,6 +134,8 @@ describe('UsersService', () => {
         birthday: null,
         weight: null,
       },
+      },
+      previousKey: null,
     });
 
     const response = await service.updateMe('user-1', {
@@ -138,7 +146,7 @@ describe('UsersService', () => {
       timezone: 'Europe/Kyiv',
     });
 
-    expect(repository.upsertMyProfile).toHaveBeenCalledWith(
+    expect(repository.replaceAvatar).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({
         name: 'Anna S.',
@@ -148,6 +156,7 @@ describe('UsersService', () => {
         avatarUrl: 'https://cdn.example.com/avatar.jpg',
         timezone: 'Europe/Kyiv',
       }),
+      null,
     );
     expect(response.profile).toMatchObject({
       name: 'Anna S.',
@@ -175,6 +184,27 @@ describe('UsersService', () => {
         displayName: undefined,
         timezone: 'Europe/Kyiv',
       }),
+    );
+  });
+
+  it('releases a managed avatar when switching to an external URL', async () => {
+    repository.replaceAvatar.mockResolvedValue({
+      user: {
+        id: 'user-1',
+        profile: { avatarUrl: 'https://example.com/new.png', weight: null, birthday: null },
+      },
+      previousKey: '12345678-1234-4123-8123-123456789abc.png',
+    });
+    await service.updateMe('user-1', {
+      avatarUrl: 'https://example.com/new.png',
+    });
+    expect(repository.replaceAvatar).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ avatarUrl: 'https://example.com/new.png' }),
+      null,
+    );
+    expect(avatarService.removePrevious).toHaveBeenCalledWith(
+      '12345678-1234-4123-8123-123456789abc.png',
     );
   });
 
