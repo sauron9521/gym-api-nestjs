@@ -62,6 +62,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Export OpenAPI specification
+        run: npm run docs:openapi
+
+      - name: Generate TypeScript API types
+        run: |
+          npm run docs:types
+          test -s openapi/api-types.d.ts
+          grep -q '/users/me' openapi/api-types.d.ts
+
       - name: Apply database migrations
         run: npx prisma migrate deploy --config prisma7.config.ts
 

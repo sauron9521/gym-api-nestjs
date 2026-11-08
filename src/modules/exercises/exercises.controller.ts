@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 
 import { ExercisesService } from './exercises.service.js';
 
@@ -41,6 +42,7 @@ const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
   activeAthleteIds: [],
 };
 
+@ApiTags('Exercises')
 @Controller('exercises')
 export class ExercisesController {
   constructor(
@@ -76,6 +78,8 @@ export class ExercisesController {
   }
 
   @Post()
+  @ApiCookieAuth('sessionCookie')
+  @ApiBearerAuth('accessToken')
   create(
     @CurrentUser() user: ExerciseActor,
     @Body({ schema: createExerciseSchema })
@@ -85,6 +89,8 @@ export class ExercisesController {
   }
 
   @Patch(':id')
+  @ApiCookieAuth('sessionCookie')
+  @ApiBearerAuth('accessToken')
   update(
     @Param('id', { schema: exerciseIdSchema }) id: string,
     @CurrentUser() user: ExerciseActor,
@@ -95,6 +101,8 @@ export class ExercisesController {
   }
 
   @Delete(':id')
+  @ApiCookieAuth('sessionCookie')
+  @ApiBearerAuth('accessToken')
   archive(
     @Param('id', { schema: exerciseIdSchema }) id: string,
     @CurrentUser() user: ExerciseActor,
