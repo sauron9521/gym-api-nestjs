@@ -72,3 +72,51 @@ existing clients.
 Potential later features: goal weight, summary/trend projections, private
 progress photos, trainer sharing consent, CSV export and optional syncing
 of the latest recorded weight back into the profile.
+
+## Statistics for Web / Mobile charts
+
+`GET /body-measurements/statistics?metric=weightKg&range=90d` is an
+**authenticated, owner-only** endpoint. The `metric` parameter accepts:
+`weightKg`, `bodyFatPct`, `chestCm`, `waistCm`, `hipsCm`,
+`armCm`, and `thighCm`. Default: `weightKg`.
+
+`range` accepts `7d`, `30d` and `90d` (default: `90d`).
+The response includes the selected metric's unit, first-ever and latest-ever
+non-null record, overall delta/percent change, 7/30/90-day comparisons,
+and a chart series of **one point per UTC calendar day**, taking the latest
+measurement of that day. Chart points are sorted oldest to newest, with
+at most 8/31/91 daily points depending on the requested range.
+
+A comparison for N days uses the latest record **at or before** the cutoff
+(`asOf - N * 24 hours`) as baseline and the latest record inside the N-day
+window as endpoint. If either is absent, `delta` and `percentChange` are
+`null`, not `0`; this avoids inventing progress without historical data.
+A percent change with zero baseline is `null`. Negative deltas denote
+reductions in the selected metric; they are not automatically judged as good
+or bad. Values and deltas are numeric with two-decimal precision.
+
+Example (abbreviated):
+
+```json
+{
+  "metric": "weightKg",
+  "unit": "kg",
+  "range": "90d",
+  "asOf": "2026-11-08T19:30:00.000Z",
+  "first": {"id": "uuid", "measuredAt": "2026-09-01T09:00:00.000Z", "value": 78.5},
+  "latest": {"id": "uuid", "measuredAt": "2026-11-08T09:00:00.000Z", "value": 81.25},
+  "overall": {"delta": 2.75, "percentChange": 3.5},
+  "changes": {
+    "7d": {"baseline": null, "delta": null, "percentChange": null},
+    "30d": {"baseline": null, "delta": null, "percentChange": null},
+    "90d": {"baseline": null, "delta": null, "percentChange": null}
+  },
+  "series": [{"id": "uuid", "measuredAt": "2026-11-08T09:00:00.000Z", "value": 81.25}]
+}
+```
+
+Statistics do not change profile weight or measurements, do not share
+results with trainers, and need no new Prisma migration. Results are
+computed directly from database records so edits/deletes are reflected
+on subsequent requests. Date windows are based on UTC 24-hour durations;
+the chart's daily buckets also use UTC, not the profile display timezone.

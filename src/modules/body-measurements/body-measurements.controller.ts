@@ -5,6 +5,11 @@ import {
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 
 import { BodyMeasurementsService } from './body-measurements.service.js';
+import { BodyMeasurementStatisticsService } from './body-measurement-statistics.service.js';
+import {
+  bodyMeasurementStatisticsQuerySchema,
+  type BodyMeasurementStatisticsQueryDto,
+} from './dto/body-measurement-statistics.schemas.js';
 import {
   bodyMeasurementIdSchema,
   createBodyMeasurementSchema,
@@ -20,7 +25,10 @@ type UserActor = { id: string };
 @Authenticate()
 @Controller('body-measurements')
 export class BodyMeasurementsController {
-  constructor(private readonly service: BodyMeasurementsService) {}
+  constructor(
+    private readonly service: BodyMeasurementsService,
+    private readonly statisticsService: BodyMeasurementStatisticsService,
+  ) {}
 
   @Post()
   create(
@@ -36,6 +44,16 @@ export class BodyMeasurementsController {
     @Query({ schema: queryBodyMeasurementsSchema }) query: QueryBodyMeasurementsDto,
   ) {
     return this.service.findMany(actor.id, query);
+  }
+
+  /** Must appear before the dynamic :id route. */
+  @Get('statistics')
+  statistics(
+    @CurrentUser() actor: UserActor,
+    @Query({ schema: bodyMeasurementStatisticsQuerySchema })
+    query: BodyMeasurementStatisticsQueryDto,
+  ) {
+    return this.statisticsService.getStatistics(actor.id, query);
   }
 
   @Get(':id')
