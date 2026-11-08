@@ -1,5 +1,6 @@
 import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
+import { trainingProgramDraftAccessSelect } from '../selects/training-program-access.select.js';
 
 describe('TrainingProgramVersionRepository', () => {
   const models = {
@@ -67,6 +68,32 @@ describe('TrainingProgramVersionRepository', () => {
       });
 
       expect(result).toEqual(version);
+    });
+
+    it('reads a compact draft tree for editor access checks', async () => {
+      const snapshot = {
+        id: 'version-1',
+        status: 'DRAFT',
+        durationWeeks: 4,
+        workouts: [],
+      };
+
+      models.trainingProgramVersion.findFirst.mockResolvedValue(snapshot);
+
+      const result = await repository.findVersionForEditing('version-1', {
+        programId: 'program-1',
+      });
+
+      expect(models.trainingProgramVersion.findFirst).toHaveBeenCalledWith({
+        where: {
+          AND: [{ id: 'version-1' }, { programId: 'program-1' }],
+        },
+        select: trainingProgramDraftAccessSelect,
+      });
+
+      expect(trainingProgramDraftAccessSelect.workouts.select.exercises.select.sets.select)
+        .toEqual({ id: true, setNumber: true });
+      expect(result).toEqual(snapshot);
     });
 
     it('should find a version by its program and version number', async () => {

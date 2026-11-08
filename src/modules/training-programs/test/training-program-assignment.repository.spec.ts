@@ -3,6 +3,7 @@ import { TrainingProgramAssignmentRepository } from '../repositories/training-pr
 import {
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentDetailsSelect,
+  trainingProgramAssignmentSummarySelect,
 } from '../selects/training-program-assignment.select.js';
 
 describe('TrainingProgramAssignmentRepository', () => {
@@ -61,6 +62,24 @@ describe('TrainingProgramAssignmentRepository', () => {
           totalPages: 1,
         },
       });
+    });
+
+    it('uses the compact view without fetching workout instances', async () => {
+      models.$transaction.mockResolvedValue([[{ id: 'assignment-1' }], 1]);
+
+      await repository.findManyAssignments({
+        where: { athleteId: 'athlete-1' },
+        skip: 0,
+        take: 20,
+        view: 'summary',
+      });
+
+      expect(models.trainingProgramAssignment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: trainingProgramAssignmentSummarySelect,
+        }),
+      );
+      expect(trainingProgramAssignmentSummarySelect.workouts).toBe(false);
     });
 
     it('should find an assignment by ID and additional conditions', async () => {

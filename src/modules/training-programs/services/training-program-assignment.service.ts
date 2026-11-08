@@ -132,6 +132,7 @@ export class TrainingProgramAssignmentService {
       },
       skip: (query.page - 1) * query.limit,
       take: query.limit,
+      ...(query.view === 'summary' ? { view: 'summary' as const } : {}),
     } satisfies Parameters<
       TrainingProgramAssignmentRepository['findManyAssignments']
     >[0];

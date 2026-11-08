@@ -92,6 +92,15 @@ export const trainingProgramAssignmentSelect = {
   updatedAt: true,
 } satisfies Prisma.TrainingProgramAssignmentSelect;
 
+/**
+ * Opt-in list projection for Web/Mobile: identical list metadata without an
+ * unbounded array of completed and planned workout instances.
+ */
+export const trainingProgramAssignmentSummarySelect = {
+  ...trainingProgramAssignmentSelect,
+  workouts: false,
+} satisfies Prisma.TrainingProgramAssignmentSelect;
+
 export const trainingProgramAssignmentDetailsSelect = {
   ...trainingProgramAssignmentSelect,
 

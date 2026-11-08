@@ -44,7 +44,7 @@ export class TrainingProgramAccessService {
       throw new ConflictException('Archived programs cannot be modified.');
     }
 
-    const version = await this.versionRepository.findVersionById(versionId, {
+    const version = await this.versionRepository.findVersionForEditing(versionId, {
       programId,
     });
 
