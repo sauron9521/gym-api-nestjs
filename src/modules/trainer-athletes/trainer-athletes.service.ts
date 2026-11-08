@@ -10,6 +10,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 
 import { UsersRepository } from '../users/users.repository.js';
 import { TrainerAthletesRepository } from './trainer-athletes.repository.js';
+import { TrainerAthleteTerminationService } from './services/trainer-athlete-termination.service.js';
 
 import type { ExerciseAccessContext } from '../exercises/types/exercise.types.js';
 
@@ -25,6 +26,7 @@ export class TrainerAthletesService {
   constructor(
     private readonly trainerAthletesRepository: TrainerAthletesRepository,
     private readonly usersRepository: UsersRepository,
+    private readonly terminationService: TrainerAthleteTerminationService,
   ) {}
 
   // CREATE REQUEST
@@ -255,7 +257,7 @@ export class TrainerAthletesService {
     this.assertStatus(relationship.status, 'ACTIVE');
 
     const terminated =
-      await this.trainerAthletesRepository.terminateWithExerciseCopies({
+      await this.terminationService.terminateWithExerciseCopies({
         id,
         actorId: actor.id,
         reason: input.reason,
