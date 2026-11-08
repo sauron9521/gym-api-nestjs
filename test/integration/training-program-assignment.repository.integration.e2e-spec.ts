@@ -7,14 +7,15 @@ import type { Prisma } from '../../src/generated/prisma/client.js';
 
 import { PrismaModule, PrismaService } from '../../src/database/index.js';
 import { TrainingProgramAssignmentRepository } from '../../src/modules/training-programs/repositories/training-program-assignment.repository.js';
-import { TrainerAthletesRepository } from '../../src/modules/trainer-athletes/trainer-athletes.repository.js';
+import { TrainerAthleteTerminationService } from '../../src/modules/trainer-athletes/services/trainer-athlete-termination.service.js';
+import { TrainerAthleteExerciseCopyService } from '../../src/modules/trainer-athletes/services/trainer-athlete-exercise-copy.service.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let repository: TrainingProgramAssignmentRepository;
-  let trainerAthletesRepository: TrainerAthletesRepository;
+  let terminationService: TrainerAthleteTerminationService;
 
   beforeAll(async () => {
     useTestDatabase();
@@ -23,7 +24,8 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule],
       providers: [
         TrainingProgramAssignmentRepository,
-        TrainerAthletesRepository,
+        TrainerAthleteTerminationService,
+        TrainerAthleteExerciseCopyService,
       ],
     }).compile();
 
@@ -32,7 +34,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
     prisma = app.get(PrismaService);
     repository = app.get(TrainingProgramAssignmentRepository);
-    trainerAthletesRepository = app.get(TrainerAthletesRepository);
+    terminationService = app.get(TrainerAthleteTerminationService);
   }, 20_000);
 
   afterAll(async () => {
@@ -357,7 +359,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
     let programId: string | undefined;
 
     let terminationPromise:
-      | ReturnType<TrainerAthletesRepository['terminateWithExerciseCopies']>
+      | ReturnType<TrainerAthleteTerminationService['terminateWithExerciseCopies']>
       | undefined;
 
     try {
@@ -442,7 +444,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
           // Transaction B attempts termination.
           terminationPromise =
-            trainerAthletesRepository.terminateWithExerciseCopies({
+            terminationService.terminateWithExerciseCopies({
               id: relationship.id,
               actorId: trainer.id,
               reason: 'Concurrent termination test',
@@ -642,7 +644,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
           athleteId: athlete.id,
         }),
 
-        trainerAthletesRepository.terminateWithExerciseCopies({
+        terminationService.terminateWithExerciseCopies({
           id: relationship.id,
           actorId: trainer.id,
           reason: 'Concurrent termination',
@@ -1031,10 +1033,13 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
           }),
       } as unknown as PrismaService;
 
-      const failingRepository = new TrainerAthletesRepository(injectedPrisma);
+      const failingService = new TrainerAthleteTerminationService(
+        injectedPrisma,
+        new TrainerAthleteExerciseCopyService(),
+      );
 
       await expect(
-        failingRepository.terminateWithExerciseCopies({
+        failingService.terminateWithExerciseCopies({
           id: relationship.id,
           actorId: trainer.id,
           reason: 'Rollback test',
@@ -1208,7 +1213,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       // First termination
       const firstResult =
-        await trainerAthletesRepository.terminateWithExerciseCopies({
+        await terminationService.terminateWithExerciseCopies({
           id: relationship.id,
           actorId: trainer.id,
           reason: 'First termination',
@@ -1243,7 +1248,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       // Second termination
       const secondResult =
-        await trainerAthletesRepository.terminateWithExerciseCopies({
+        await terminationService.terminateWithExerciseCopies({
           id: relationship.id,
           actorId: trainer.id,
           reason: 'Second termination',
@@ -1369,7 +1374,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       });
 
       const firstTermination =
-        await trainerAthletesRepository.terminateWithExerciseCopies({
+        await terminationService.terminateWithExerciseCopies({
           id: firstRelationship.id,
           actorId: trainer.id,
           reason: 'First collaboration ended',
@@ -1426,7 +1431,7 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       });
 
       const secondTermination =
-        await trainerAthletesRepository.terminateWithExerciseCopies({
+        await terminationService.terminateWithExerciseCopies({
           id: secondRelationship.id,
           actorId: athlete.id,
           reason: 'Second collaboration ended',
