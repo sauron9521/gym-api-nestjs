@@ -3,6 +3,7 @@ import { PrismaService } from '../../../database/index.js';
 import {
   userSelect,
   userSelectWithCredentials,
+  userWithProfileSelect,
   UsersRepository,
 } from '../users.repository.js';
 import { UserResponse } from '../dto/response-user.js';
@@ -325,4 +326,64 @@ describe('UsersRepository', () => {
       });
     });
   });
+  describe('profile', () => {
+    it('reads only the current active user and safe profile fields', async () => {
+      const user = {
+        id: 'user-1',
+        email: 'test@example.com',
+        profile: null,
+      };
+      prisma.user.findUnique.mockResolvedValue(user);
+
+      const result = await repository.findMe('user-1');
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-1', deletedAt: null },
+        select: userWithProfileSelect,
+      });
+      expect(result).toEqual(user);
+      expect(userWithProfileSelect).not.toHaveProperty('passwordHash');
+      expect(userWithProfileSelect.profile.select).not.toHaveProperty('userId');
+    });
+
+    it('upserts only profile fields on the authenticated user', async () => {
+      const data = { name: 'Athlete', height: 193 };
+      const user = { id: 'user-1', profile: data };
+      prisma.user.update.mockResolvedValue(user);
+
+      const result = await repository.upsertMyProfile('user-1', data);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1', deletedAt: null },
+        data: {
+          profile: {
+            upsert: { create: data, update: data },
+          },
+        },
+        select: userWithProfileSelect,
+      });
+      expect(result).toEqual(user);
+    });
+
+    it('maps missing or deleted user updates to 404', async () => {
+      prisma.user.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Missing user', {
+          code: 'P2025',
+          clientVersion: '7.10.1',
+        }),
+      );
+      await expect(
+        repository.upsertMyProfile('missing', { name: 'Test' }),
+      ).rejects.toThrow('User not found');
+    });
+
+    it('does not swallow unexpected database errors', async () => {
+      const error = new Error('Database unavailable');
+      prisma.user.update.mockRejectedValue(error);
+      await expect(
+        repository.upsertMyProfile('user-1', { name: 'Athlete' }),
+      ).rejects.toBe(error);
+    });
+  });
+
 });

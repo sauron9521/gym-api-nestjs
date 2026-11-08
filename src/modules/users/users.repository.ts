@@ -15,6 +15,18 @@ export const userSelect = {
   updatedAt: true,
 } satisfies Prisma.UserSelect;
 
+export const userWithProfileSelect = {
+  ...userSelect,
+  profile: {
+    select: {
+      name: true,
+      birthday: true,
+      height: true,
+      weight: true,
+    },
+  },
+} satisfies Prisma.UserSelect;
+
 export const userSelectWithCredentials = {
   id: true,
   email: true,
@@ -46,6 +58,39 @@ export class UsersRepository {
         throw new ConflictException('User with the same email already exists');
       }
 
+      throw error;
+    }
+  }
+
+  async findMe(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id, deletedAt: null },
+      select: userWithProfileSelect,
+    });
+  }
+
+  async upsertMyProfile(
+    userId: string,
+    data: Prisma.ProfileCreateWithoutUserInput,
+  ) {
+    try {
+      // One atomic upsert, safe when two requests create a missing profile.
+      return await this.prisma.user.update({
+        where: { id: userId, deletedAt: null },
+        data: {
+          profile: {
+            upsert: { create: data, update: data },
+          },
+        },
+        select: userWithProfileSelect,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('User not found');
+      }
       throw error;
     }
   }
