@@ -55,15 +55,14 @@ export class BodyMeasurementsService {
   private toChanges(
     input: CreateBodyMeasurementDto | UpdateBodyMeasurementDto,
   ): MeasurementChanges {
-    const data = {
-      ...input,
-      ...(input.measuredAt
-        ? { measuredAt: new Date(input.measuredAt) }
-        : {}),
+    const { measuredAt, ...fields } = input;
+    const data: MeasurementChanges = {
+      ...fields,
+      ...(measuredAt ? { measuredAt: new Date(measuredAt) } : {}),
     };
 
-    if (input.measuredAt) {
-      const date = new Date(input.measuredAt);
+    if (measuredAt) {
+      const date = new Date(measuredAt);
       const today = Date.now();
       if (
         date.getTime() < Date.UTC(1900, 0, 1) ||
