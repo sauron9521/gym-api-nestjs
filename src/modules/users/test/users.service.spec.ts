@@ -74,6 +74,11 @@ describe('UsersService', () => {
 
     expect(repository.upsertMyProfile).toHaveBeenCalledWith('user-1', {
       name: 'Athlete',
+      displayName: 'Athlete',
+      firstName: undefined,
+      lastName: undefined,
+      avatarUrl: undefined,
+      timezone: undefined,
       birthday: new Date('1998-03-04T00:00:00.000Z'),
       height: undefined,
       weight: 21.5,
@@ -100,9 +105,77 @@ describe('UsersService', () => {
     expect(result.profile?.name).toBeNull();
     expect(repository.upsertMyProfile).toHaveBeenCalledWith('user-1', {
       name: null,
+      displayName: null,
+      firstName: undefined,
+      lastName: undefined,
+      avatarUrl: undefined,
+      timezone: undefined,
       birthday: null,
       height: undefined,
       weight: undefined,
     });
   });
+  it('mirrors displayName into the legacy name field', async () => {
+    repository.upsertMyProfile.mockResolvedValue({
+      id: 'user-1',
+      profile: {
+        name: 'Anna S.',
+        displayName: 'Anna S.',
+        firstName: 'Anna',
+        lastName: 'Smith',
+        avatarUrl: 'https://cdn.example.com/avatar.jpg',
+        timezone: 'Europe/Kyiv',
+        birthday: null,
+        weight: null,
+      },
+    });
+
+    const response = await service.updateMe('user-1', {
+      firstName: 'Anna',
+      lastName: 'Smith',
+      displayName: 'Anna S.',
+      avatarUrl: 'https://cdn.example.com/avatar.jpg',
+      timezone: 'Europe/Kyiv',
+    });
+
+    expect(repository.upsertMyProfile).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        name: 'Anna S.',
+        displayName: 'Anna S.',
+        firstName: 'Anna',
+        lastName: 'Smith',
+        avatarUrl: 'https://cdn.example.com/avatar.jpg',
+        timezone: 'Europe/Kyiv',
+      }),
+    );
+    expect(response.profile).toMatchObject({
+      name: 'Anna S.',
+      displayName: 'Anna S.',
+    });
+  });
+
+  it('does not overwrite name when patching timezone only', async () => {
+    repository.upsertMyProfile.mockResolvedValue({
+      id: 'user-1',
+      profile: {
+        name: 'Legacy',
+        displayName: 'Legacy',
+        timezone: 'Europe/Kyiv',
+        birthday: null,
+        weight: null,
+      },
+    });
+
+    await service.updateMe('user-1', { timezone: 'Europe/Kyiv' });
+    expect(repository.upsertMyProfile).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        name: undefined,
+        displayName: undefined,
+        timezone: 'Europe/Kyiv',
+      }),
+    );
+  });
+
 });

@@ -20,6 +20,11 @@ export const userWithProfileSelect = {
   profile: {
     select: {
       name: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      avatarUrl: true,
+      timezone: true,
       birthday: true,
       height: true,
       weight: true,

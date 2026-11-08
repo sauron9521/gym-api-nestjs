@@ -342,6 +342,17 @@ describe('UsersRepository', () => {
         select: userWithProfileSelect,
       });
       expect(result).toEqual(user);
+      expect(userWithProfileSelect.profile.select).toEqual({
+        name: true,
+        firstName: true,
+        lastName: true,
+        displayName: true,
+        avatarUrl: true,
+        timezone: true,
+        birthday: true,
+        height: true,
+        weight: true,
+      });
       expect(userWithProfileSelect).not.toHaveProperty('passwordHash');
       expect(userWithProfileSelect.profile.select).not.toHaveProperty('userId');
     });

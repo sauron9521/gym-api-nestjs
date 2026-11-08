@@ -233,6 +233,90 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
     expect(athlete.body.profile).not.toMatchObject({ name: 'Trainer' });
   });
 
+  it('updates all new profile fields without changing existing metrics', async () => {
+    const url = 'https://cdn.example.com/avatars/athlete-1.webp';
+    const response = await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Cookie', athleteCookie)
+      .send({
+        firstName: '  Anna ',
+        lastName: ' Smith ',
+        displayName: ' Anna S. ',
+        avatarUrl: url,
+        timezone: 'Europe/Kyiv',
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.profile).toMatchObject({
+      name: 'Anna S.',
+      firstName: 'Anna',
+      lastName: 'Smith',
+      displayName: 'Anna S.',
+      avatarUrl: url,
+      timezone: 'Europe/Kyiv',
+      height: 193,
+      weight: 82.75,
+    });
+
+    const stored = await prisma.profile.findUniqueOrThrow({
+      where: { userId: athleteId },
+    });
+    expect(stored.name).toBe('Anna S.');
+    expect(stored.displayName).toBe('Anna S.');
+    expect(stored.firstName).toBe('Anna');
+    expect(stored.lastName).toBe('Smith');
+  });
+
+  it('preserves the legacy name PATCH contract and syncs displayName', async () => {
+    const legacy = await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Cookie', athleteCookie)
+      .send({ name: 'Legacy Nick' });
+
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.profile).toMatchObject({
+      name: 'Legacy Nick',
+      displayName: 'Legacy Nick',
+      firstName: 'Anna',
+      lastName: 'Smith',
+      timezone: 'Europe/Kyiv',
+    });
+
+    const cleared = await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Cookie', athleteCookie)
+      .send({ displayName: null, avatarUrl: null });
+
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.profile).toMatchObject({
+      name: null,
+      displayName: null,
+      avatarUrl: null,
+      firstName: 'Anna',
+      lastName: 'Smith',
+      timezone: 'Europe/Kyiv',
+    });
+  });
+
+  it('rejects invalid avatar links, time zones and mismatched names', async () => {
+    for (const body of [
+      { avatarUrl: 'http://insecure.example.com/photo.png' },
+      { avatarUrl: 'javascript:alert(1)' },
+      { avatarUrl: 'https://name:secret@example.com/photo.png' },
+      { timezone: 'Europe/InvalidCity' },
+      { timezone: null },
+      { name: 'Old', displayName: 'New' },
+      { firstName: '   ' },
+      { lastName: '   ' },
+    ]) {
+      const result = await request(app.getHttpServer())
+        .patch('/users/me')
+        .set('Cookie', athleteCookie)
+        .send(body);
+      expect(result.status).toBe(400);
+    }
+  });
+
   it('rejects a soft-deleted account even with an existing session', async () => {
     await prisma.user.update({
       where: { id: otherId },
