@@ -74,7 +74,7 @@ export class TrainingProgramVersionRepository {
         programId,
         status: 'DRAFT',
       },
-      select: { id: true },
+      select: trainingProgramVersionSelect,
     });
   }
 
