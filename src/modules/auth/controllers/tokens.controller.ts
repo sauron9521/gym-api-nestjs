@@ -33,12 +33,14 @@ export class TokensController {
     });
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(200)
   refresh(@Body() body: RefreshTokenDto) {
     return this.tokenService.refresh(body.refreshToken);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('revoke')
   @HttpCode(204)
   async revoke(@Body() body: RefreshTokenDto): Promise<void> {

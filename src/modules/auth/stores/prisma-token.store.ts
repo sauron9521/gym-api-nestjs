@@ -23,7 +23,9 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   protected readonly maxPending: number = 10_000;
 
   async getRefreshToken(id: string): Promise<RefreshTokenRecord | undefined> {
-    const row = await this.prisma.refreshToken.findUnique({ where: { id } });
+    const row = await this.prisma.refreshToken.findUnique({
+      where: { id, user: { deletedAt: null } },
+    });
     if (!row) return undefined;
 
     // `revoked` is persistence metadata, not part of RefreshTokenRecord.
@@ -72,7 +74,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   async markRefreshTokenUsed(id: string, at: Date): Promise<boolean> {
     // One conditional writing a read followed by update is unsafe under races.
     const result = await this.prisma.refreshToken.updateMany({
-      where: { id, usedAt: null },
+      where: { id, usedAt: null, user: { deletedAt: null } },
       data: { usedAt: at },
     });
 

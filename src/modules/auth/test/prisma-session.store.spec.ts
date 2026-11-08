@@ -55,6 +55,9 @@ describe('PrismaSessionStore', () => {
     prisma.session.findUnique.mockResolvedValue(null);
 
     await expect(store.getSession(session.id)).resolves.toBeUndefined();
+    expect(prisma.session.findUnique).toHaveBeenCalledWith({
+      where: { id: session.id, user: { deletedAt: null } },
+    });
   });
 
   it('returns a session without null optional fields', async () => {
@@ -105,6 +108,7 @@ describe('PrismaSessionStore', () => {
     expect(prisma.session.updateMany).toHaveBeenCalledWith({
       where: {
         id: session.id,
+        user: { deletedAt: null },
         lastActiveAt: { lt: lastActiveAt },
       },
       data: { lastActiveAt },
@@ -129,7 +133,7 @@ describe('PrismaSessionStore', () => {
     const result = await store.listUserSessions(session.userId);
 
     expect(prisma.session.findMany).toHaveBeenCalledWith({
-      where: { userId: session.userId },
+      where: { userId: session.userId, user: { deletedAt: null } },
       orderBy: { createdAt: 'desc' },
     });
     expect(result).toHaveLength(1);
