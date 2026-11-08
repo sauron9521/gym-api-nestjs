@@ -105,24 +105,12 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       // Act
       const result = await repository.createAssignmentForActiveRelationship({
-        trainerAthleteId: relationship.id,
-        trainerId: trainer.id,
-        athleteId: athlete.id,
-        data: {
-          version: {
-            connect: { id: versionId },
-          },
-          trainerAthlete: {
-            connect: { id: relationship.id },
-          },
-          athlete: {
-            connect: { id: athlete.id },
-          },
-          assignedBy: {
-            connect: { id: trainer.id },
-          },
-        },
-      });
+      const result = await repository.createAssignmentForActiveRelationship(  programId,
+      const result = await repository.createAssignmentForActiveRelationship(  versionId: versionId,
+      const result = await repository.createAssignmentForActiveRelationship(  trainerAthleteId: relationship.id,
+      const result = await repository.createAssignmentForActiveRelationship(  trainerId: trainer.id,
+      const result = await repository.createAssignmentForActiveRelationship(  athleteId: athlete.id,
+      const result = await repository.createAssignmentForActiveRelationship(});
 
       expect(result).not.toBeNull();
 
@@ -267,18 +255,12 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
           // Transaction B attempts assignment creation.
           creationPromise = repository.createAssignmentForActiveRelationship({
-            trainerAthleteId: relationship.id,
-            trainerId: trainer.id,
-            athleteId: athlete.id,
-            data: {
-              version: { connect: { id: versionId } },
-              trainerAthlete: {
-                connect: { id: relationship.id },
-              },
-              athlete: { connect: { id: athlete.id } },
-              assignedBy: { connect: { id: trainer.id } },
-            },
-          });
+          creationPromise = repository.createAssignmentForActiveRelationship(  programId,
+          creationPromise = repository.createAssignmentForActiveRelationship(  versionId: versionId,
+          creationPromise = repository.createAssignmentForActiveRelationship(  trainerAthleteId: relationship.id,
+          creationPromise = repository.createAssignmentForActiveRelationship(  trainerId: trainer.id,
+          creationPromise = repository.createAssignmentForActiveRelationship(  athleteId: athlete.id,
+          creationPromise = repository.createAssignmentForActiveRelationship(});
 
           // Verify B is actually blocked by A.
           for (let attempt = 0; attempt < 60; attempt++) {
@@ -653,18 +635,12 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       // Run both real repository methods concurrently.
       const [creation, termination] = await Promise.allSettled([
         repository.createAssignmentForActiveRelationship({
-          trainerAthleteId: relationship.id,
-          trainerId: trainer.id,
-          athleteId: athlete.id,
-          data: {
-            version: { connect: { id: versionId } },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: { connect: { id: athlete.id } },
-            assignedBy: { connect: { id: trainer.id } },
-          },
-        }),
+        repository.createAssignmentForActiveRelationship(  programId,
+        repository.createAssignmentForActiveRelationship(  versionId: versionId,
+        repository.createAssignmentForActiveRelationship(  trainerAthleteId: relationship.id,
+        repository.createAssignmentForActiveRelationship(  trainerId: trainer.id,
+        repository.createAssignmentForActiveRelationship(  athleteId: athlete.id,
+        repository.createAssignmentForActiveRelationship(}),
 
         trainerAthletesRepository.terminateWithExerciseCopies({
           id: relationship.id,
@@ -831,23 +807,11 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       // Attempt to connect a version that does not exist.
       await expect(
         repository.createAssignmentForActiveRelationship({
-          ...baseData,
-          data: {
-            version: {
-              connect: { id: randomUUID() },
-            },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: {
-              connect: { id: athlete.id },
-            },
-            assignedBy: {
-              connect: { id: trainer.id },
-            },
-          },
-        }),
-      ).rejects.toThrow();
+        repository.createAssignmentForActiveRelationship(  ...baseData,
+        repository.createAssignmentForActiveRelationship(  programId,
+        repository.createAssignmentForActiveRelationship(  versionId: randomUUID(),
+        repository.createAssignmentForActiveRelationship(}),
+      ).resolves.toBeNull();
 
       // No assignment should have been persisted.
       const countAfterFailure = await prisma.trainingProgramAssignment.count({
@@ -872,20 +836,8 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       const successful = await repository.createAssignmentForActiveRelationship(
         {
           ...baseData,
-          data: {
-            version: {
-              connect: { id: validVersionId },
-            },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: {
-              connect: { id: athlete.id },
-            },
-            assignedBy: {
-              connect: { id: trainer.id },
-            },
-          },
+          programId,
+          versionId: validVersionId,
         },
       );
 
@@ -1628,24 +1580,12 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       const createAssignment = () =>
         repository.createAssignmentForActiveRelationship({
-          trainerAthleteId: relationship.id,
-          trainerId: trainer.id,
-          athleteId: athlete.id,
-          data: {
-            version: {
-              connect: { id: versionId },
-            },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: {
-              connect: { id: athlete.id },
-            },
-            assignedBy: {
-              connect: { id: trainer.id },
-            },
-          },
-        });
+        repository.createAssignmentForActiveRelationship(  programId,
+        repository.createAssignmentForActiveRelationship(  versionId: versionId,
+        repository.createAssignmentForActiveRelationship(  trainerAthleteId: relationship.id,
+        repository.createAssignmentForActiveRelationship(  trainerId: trainer.id,
+        repository.createAssignmentForActiveRelationship(  athleteId: athlete.id,
+        repository.createAssignmentForActiveRelationship(});
 
       // First assignment must succeed.
       const first = await createAssignment();
@@ -1769,18 +1709,12 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       const createAssignment = () =>
         repository.createAssignmentForActiveRelationship({
-          trainerAthleteId: relationship.id,
-          trainerId: trainer.id,
-          athleteId: athlete.id,
-          data: {
-            version: { connect: { id: versionId } },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: { connect: { id: athlete.id } },
-            assignedBy: { connect: { id: trainer.id } },
-          },
-        });
+        repository.createAssignmentForActiveRelationship(  programId,
+        repository.createAssignmentForActiveRelationship(  versionId: versionId,
+        repository.createAssignmentForActiveRelationship(  trainerAthleteId: relationship.id,
+        repository.createAssignmentForActiveRelationship(  trainerId: trainer.id,
+        repository.createAssignmentForActiveRelationship(  athleteId: athlete.id,
+        repository.createAssignmentForActiveRelationship(});
 
       let current = await createAssignment();
 

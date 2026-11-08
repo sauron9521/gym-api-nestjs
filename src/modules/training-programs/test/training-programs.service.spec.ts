@@ -827,23 +827,11 @@ describe('TrainingProgramsService', () => {
       expect(
         repository.createAssignmentForActiveRelationship,
       ).toHaveBeenCalledWith({
+        programId: 'program-1',
+        versionId: 'version-1',
         trainerAthleteId: relationship.id,
         trainerId: trainer.id,
         athleteId: relationship.athleteId,
-        data: {
-          version: {
-            connect: { id: 'version-1' },
-          },
-          trainerAthlete: {
-            connect: { id: relationship.id },
-          },
-          athlete: {
-            connect: { id: relationship.athleteId },
-          },
-          assignedBy: {
-            connect: { id: trainer.id },
-          },
-        },
       });
 
       expect(result).toEqual(assignment);
@@ -864,23 +852,11 @@ describe('TrainingProgramsService', () => {
       expect(
         repository.createAssignmentForActiveRelationship,
       ).toHaveBeenCalledWith({
+        programId: 'program-1',
+        versionId: 'version-1',
         trainerAthleteId: relationship.id,
         trainerId: trainer.id,
         athleteId: relationship.athleteId,
-        data: {
-          version: {
-            connect: { id: 'version-1' },
-          },
-          trainerAthlete: {
-            connect: { id: relationship.id },
-          },
-          athlete: {
-            connect: { id: relationship.athleteId },
-          },
-          assignedBy: {
-            connect: { id: trainer.id },
-          },
-        },
       });
     });
 
