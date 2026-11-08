@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { ExercisesModule } from './modules/exercises/exercises.module.js';
 import { WorkoutsModule } from './modules/workouts/workouts.module.js';
+import { BodyMeasurementsModule } from './modules/body-measurements/body-measurements.module.js';
 import { PrismaModule } from './database/index.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { TrainerAthletesModule } from './modules/trainer-athletes/trainer-athletes.module.js';
@@ -71,6 +72,7 @@ import { TrainingProgramsModule } from './modules/training-programs/training-pro
     UsersModule,
     ExercisesModule,
     WorkoutsModule,
+    BodyMeasurementsModule,
     TrainerAthletesModule,
     TrainingProgramsModule,
   ],

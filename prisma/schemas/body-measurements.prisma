@@ -1,0 +1,22 @@
+model BodyMeasurement {
+  id        String @id @default(uuid(4))
+  userId    String @map("user_id")
+
+  weightKg   Decimal? @map("weight_kg") @db.Decimal(5, 2)
+  bodyFatPct Decimal? @map("body_fat_pct") @db.Decimal(5, 2)
+  chestCm    Decimal? @map("chest_cm") @db.Decimal(5, 2)
+  waistCm    Decimal? @map("waist_cm") @db.Decimal(5, 2)
+  hipsCm     Decimal? @map("hips_cm") @db.Decimal(5, 2)
+  armCm      Decimal? @map("arm_cm") @db.Decimal(5, 2)
+  thighCm    Decimal? @map("thigh_cm") @db.Decimal(5, 2)
+
+  notes      String?   @db.VarChar(500)
+  measuredAt DateTime  @default(now()) @map("measured_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt() @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, measuredAt(sort: Desc), id(sort: Desc)])
+  @@map("body_measurements")
+}
