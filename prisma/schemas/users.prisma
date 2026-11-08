@@ -16,6 +16,7 @@ model User {
 
   // Relation
   profile              Profile?
+  bodyMeasurements     BodyMeasurement[]
   sessions             Session[]
   refreshTokens        RefreshToken[]
   refreshTokenFamilies RefreshTokenFamily[]
