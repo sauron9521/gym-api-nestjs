@@ -31,6 +31,9 @@ jobs:
           --health-retries 10
 
     env:
+      NODE_ENV: test
+      CORS_ORIGINS: http://localhost:3000
+      MAIL_FROM: Gym Test <no-reply@example.test>
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gym_app_test?schema=public
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gym_app_test?schema=public
       APP_URL: http://localhost:3000
@@ -49,6 +52,24 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate application test environment
+        run: npm run config:validate
+
+      - name: Validate production configuration gate
+        env:
+          NODE_ENV: production
+          APP_URL: https://app.example.test
+          JWT_ISSUER: https://api.example.test
+          CORS_ORIGINS: https://app.example.test
+          SMTP_URL: smtps://mailer.example.test:465
+          MAIL_FROM: Gym API <no-reply@example.test>
+        run: |
+          npm run config:validate
+          if SMTP_URL='' npm run config:validate; then
+            echo 'ERROR: insecure production configuration was accepted'
+            exit 1
+          fi
 
       - name: Validate Prisma Schema
         run: npm run db:validate

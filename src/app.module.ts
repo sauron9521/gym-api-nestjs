@@ -1,13 +1,13 @@
 import { join } from 'node:path';
+import { validateEnv } from './config/env.validation.js';
+import { createMailOptions } from './config/mail.config.js';
+import type { AppEnv } from './config/env.schema.js';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthenticationModule } from '@nestjs/authentication';
 import {
-  FileTemplateEngine,
-  LogMailTransport,
   MailModule,
-  SmtpTransport,
 } from '@nestjs/mail';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -44,20 +44,19 @@ import { TrainingProgramsModule } from './modules/training-programs/training-pro
     AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnv,
     }),
     MailModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        transport: config.get<string>('SMTP_URL')
-          ? new SmtpTransport({
-              url: config.get<string>('SMTP_URL'),
-            })
-          : new LogMailTransport(),
-        templates: new FileTemplateEngine({
-          dir: join(import.meta.dirname, 'mail/templates'),
-        }),
-        from: 'Fitness_gym APP <trol95213@gmail.com>',
-      }),
+      useFactory: (config: ConfigService) =>
+        createMailOptions(
+          {
+            NODE_ENV: config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV'),
+            SMTP_URL: config.get<AppEnv['SMTP_URL']>('SMTP_URL'),
+            MAIL_FROM: config.get<AppEnv['MAIL_FROM']>('MAIL_FROM'),
+          },
+          join(import.meta.dirname, 'mail/templates'),
+        ),
     }),
     PrismaModule,
     ThrottlerModule.forRoot({
