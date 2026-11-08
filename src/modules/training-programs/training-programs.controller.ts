@@ -12,7 +12,16 @@ import {
 } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
-import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import {
+  trainingProgramResponseSchema,
+  trainingProgramListResponseSchema,
+  trainingProgramVersionResponseSchema,
+  trainingProgramVersionListItemSchema,
+  trainingAssignmentResponseSchema,
+  trainingAssignmentListResponseSchema,
+  trainingAssignmentPublicDetailsResponseSchema,
+} from '../../openapi/response-contracts.js';
 import {
   type CreateTrainingProgramAssignmentDto,
   createTrainingProgramAssignmentSchema,
@@ -108,6 +117,7 @@ export class TrainingProgramsController {
   // PROGRAMS
 
   @Post()
+  @ApiCreatedResponse({ schema: trainingProgramResponseSchema })
   create(
     @CurrentUser() actor: TrainingProgramActor,
     @Body({ schema: createTrainingProgramSchema })
@@ -117,6 +127,7 @@ export class TrainingProgramsController {
   }
 
   @Get()
+  @ApiOkResponse({ schema: trainingProgramListResponseSchema })
   findMany(
     @CurrentUser() actor: TrainingProgramActor,
     @Query({ schema: queryTrainingProgramsSchema })
@@ -128,6 +139,7 @@ export class TrainingProgramsController {
   // ASSIGNMENTS
 
   @Get('assignments')
+  @ApiOkResponse({ schema: trainingAssignmentListResponseSchema })
   findManyAssignments(
     @CurrentUser() actor: TrainingProgramActor,
     @Query({ schema: queryTrainingProgramAssignmentsSchema })
@@ -137,6 +149,7 @@ export class TrainingProgramsController {
   }
 
   @Get('assignments/:assignmentId')
+  @ApiOkResponse({ schema: trainingAssignmentPublicDetailsResponseSchema })
   findOneAssignment(
     @Param('assignmentId', {
       schema: trainingProgramAssignmentIdSchema,
@@ -151,6 +164,7 @@ export class TrainingProgramsController {
   }
 
   @Post('assignments/:assignmentId/complete')
+  @ApiOkResponse({ schema: trainingAssignmentResponseSchema })
   @HttpCode(HttpStatus.OK)
   completeAssignment(
     @Param('assignmentId', {
@@ -163,6 +177,7 @@ export class TrainingProgramsController {
   }
 
   @Post('assignments/:assignmentId/cancel')
+  @ApiOkResponse({ schema: trainingAssignmentResponseSchema })
   @HttpCode(HttpStatus.OK)
   cancelAssignment(
     @Param('assignmentId', {
@@ -181,6 +196,7 @@ export class TrainingProgramsController {
   }
 
   @Get(':programId')
+  @ApiOkResponse({ schema: trainingProgramResponseSchema })
   findOne(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -190,6 +206,7 @@ export class TrainingProgramsController {
   }
 
   @Delete(':programId')
+  @ApiOkResponse({ schema: trainingProgramResponseSchema })
   archive(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -201,6 +218,7 @@ export class TrainingProgramsController {
   // VERSIONS
 
   @Get(':programId/versions')
+  @ApiOkResponse({ schema: { type: 'array', items: trainingProgramVersionListItemSchema } })
   findVersions(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -210,6 +228,7 @@ export class TrainingProgramsController {
   }
 
   @Post(':programId/versions/drafts')
+  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
   createNextDraft(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -219,6 +238,7 @@ export class TrainingProgramsController {
   }
 
   @Get(':programId/versions/:versionId')
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   findVersion(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -234,6 +254,7 @@ export class TrainingProgramsController {
   }
 
   @Patch(':programId/versions/:versionId')
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   updateDraftVersion(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -252,6 +273,7 @@ export class TrainingProgramsController {
   }
 
   @Post(':programId/versions/:versionId/publish')
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   @HttpCode(HttpStatus.OK)
   publishVersion(
     @Param('programId', { schema: trainingProgramIdSchema })
@@ -268,6 +290,7 @@ export class TrainingProgramsController {
   }
 
   @Post(':programId/versions/:versionId/assignments')
+  @ApiCreatedResponse({ schema: trainingAssignmentResponseSchema })
   assignVersionToAthlete(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -288,6 +311,7 @@ export class TrainingProgramsController {
   // WORKOUTS INSIDE PROGRAM VERSION
 
   @Post(':programId/versions/:versionId/workouts')
+  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
   createWorkout(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -306,6 +330,7 @@ export class TrainingProgramsController {
   }
 
   @Patch(':programId/versions/:versionId/workouts/:workoutId')
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   updateWorkout(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -327,6 +352,7 @@ export class TrainingProgramsController {
   }
 
   @Delete(':programId/versions/:versionId/workouts/:workoutId')
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   deleteWorkout(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -347,6 +373,7 @@ export class TrainingProgramsController {
   // EXERCISES INSIDE WORKOUT
 
   @Post(':programId/versions/:versionId/workouts/:workoutId/exercises')
+  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
   addExercise(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -368,6 +395,7 @@ export class TrainingProgramsController {
   }
 
   @Patch(':programId/versions/:versionId/workouts/:workoutId/exercises/reorder')
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   reorderExercises(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -391,6 +419,7 @@ export class TrainingProgramsController {
   @Patch(
     ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId',
   )
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   updateExercise(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -417,6 +446,7 @@ export class TrainingProgramsController {
   @Delete(
     ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId',
   )
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   removeExercise(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -442,6 +472,7 @@ export class TrainingProgramsController {
   @Post(
     ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets',
   )
+  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
   addSet(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -468,6 +499,7 @@ export class TrainingProgramsController {
   @Patch(
     ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets/reorder',
   )
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   reorderSets(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -494,6 +526,7 @@ export class TrainingProgramsController {
   @Patch(
     ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets/:setId',
   )
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   updateSet(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
@@ -523,6 +556,7 @@ export class TrainingProgramsController {
   @Delete(
     ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets/:setId',
   )
+  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
   removeSet(
     @Param('programId', { schema: trainingProgramIdSchema })
     programId: string,
