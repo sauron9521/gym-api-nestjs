@@ -191,31 +191,70 @@ export class TrainingProgramAssignmentRepository {
   }
 
   async createAssignmentForActiveRelationship(input: {
+    programId: string;
+    versionId: string;
     trainerAthleteId: string;
     trainerId: string;
     athleteId: string;
-    data: Prisma.TrainingProgramAssignmentCreateInput;
   }): Promise<TrainingProgramAssignmentPayload | null> {
     return this.prisma.$transaction(async (tx) => {
-      // Lock the active relationship row.
+      // Lock order is intentional: relationship -> version -> program.
+      // Relationship termination serializes with the first lock;
+      // publication takes the version lock before changing the program;
+      // archival updates the program row.
       const relationships = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
-      FROM "trainer_athletes"
-      WHERE
-        "id" = ${input.trainerAthleteId}
-        AND "trainer_id" = ${input.trainerId}
-        AND "athlete_id" = ${input.athleteId}
-        AND "status" = 'ACTIVE'
-      FOR UPDATE
-    `;
+        SELECT "id"
+        FROM "trainer_athletes"
+        WHERE "id" = ${input.trainerAthleteId}
+          AND "trainer_id" = ${input.trainerId}
+          AND "athlete_id" = ${input.athleteId}
+          AND "status" = 'ACTIVE'
+        FOR UPDATE
+      `;
 
       if (relationships.length !== 1) {
         return null;
       }
 
-      // Create assignment while holding the relationship lock.
+      // Recheck the version while holding a row lock. The PUBLISHED
+      // version must belong to the exact program being assigned.
+      const versions = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "training_program_versions"
+        WHERE "id" = ${input.versionId}
+          AND "program_id" = ${input.programId}
+          AND "status" = 'PUBLISHED'
+        FOR SHARE
+      `;
+
+      if (versions.length !== 1) {
+        return null;
+      }
+
+      // An archive transaction cannot commit between this check
+      // and insertion of the assignment.
+      const programs = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "training_programs"
+        WHERE "id" = ${input.programId}
+          AND "trainer_id" = ${input.trainerId}
+          AND "status" <> 'ARCHIVED'
+        FOR SHARE
+      `;
+
+      if (programs.length !== 1) {
+        return null;
+      }
+
+      // Build the references from checked identifiers; callers cannot
+      // validate one version and insert an assignment for another.
       return tx.trainingProgramAssignment.create({
-        data: input.data,
+        data: {
+          version: { connect: { id: input.versionId } },
+          trainerAthlete: { connect: { id: input.trainerAthleteId } },
+          athlete: { connect: { id: input.athleteId } },
+          assignedBy: { connect: { id: input.trainerId } },
+        },
         select: trainingProgramAssignmentSelect,
       });
     });

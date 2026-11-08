@@ -105,23 +105,11 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       // Act
       const result = await repository.createAssignmentForActiveRelationship({
+        programId,
+        versionId: versionId,
         trainerAthleteId: relationship.id,
         trainerId: trainer.id,
         athleteId: athlete.id,
-        data: {
-          version: {
-            connect: { id: versionId },
-          },
-          trainerAthlete: {
-            connect: { id: relationship.id },
-          },
-          athlete: {
-            connect: { id: athlete.id },
-          },
-          assignedBy: {
-            connect: { id: trainer.id },
-          },
-        },
       });
 
       expect(result).not.toBeNull();
@@ -267,17 +255,11 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
           // Transaction B attempts assignment creation.
           creationPromise = repository.createAssignmentForActiveRelationship({
+            programId,
+            versionId: versionId,
             trainerAthleteId: relationship.id,
             trainerId: trainer.id,
             athleteId: athlete.id,
-            data: {
-              version: { connect: { id: versionId } },
-              trainerAthlete: {
-                connect: { id: relationship.id },
-              },
-              athlete: { connect: { id: athlete.id } },
-              assignedBy: { connect: { id: trainer.id } },
-            },
           });
 
           // Verify B is actually blocked by A.
@@ -653,17 +635,11 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       // Run both real repository methods concurrently.
       const [creation, termination] = await Promise.allSettled([
         repository.createAssignmentForActiveRelationship({
+          programId,
+          versionId: versionId,
           trainerAthleteId: relationship.id,
           trainerId: trainer.id,
           athleteId: athlete.id,
-          data: {
-            version: { connect: { id: versionId } },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: { connect: { id: athlete.id } },
-            assignedBy: { connect: { id: trainer.id } },
-          },
         }),
 
         trainerAthletesRepository.terminateWithExerciseCopies({
@@ -832,22 +808,10 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       await expect(
         repository.createAssignmentForActiveRelationship({
           ...baseData,
-          data: {
-            version: {
-              connect: { id: randomUUID() },
-            },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: {
-              connect: { id: athlete.id },
-            },
-            assignedBy: {
-              connect: { id: trainer.id },
-            },
-          },
+          programId,
+          versionId: randomUUID(),
         }),
-      ).rejects.toThrow();
+      ).resolves.toBeNull();
 
       // No assignment should have been persisted.
       const countAfterFailure = await prisma.trainingProgramAssignment.count({
@@ -872,20 +836,8 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
       const successful = await repository.createAssignmentForActiveRelationship(
         {
           ...baseData,
-          data: {
-            version: {
-              connect: { id: validVersionId },
-            },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: {
-              connect: { id: athlete.id },
-            },
-            assignedBy: {
-              connect: { id: trainer.id },
-            },
-          },
+          programId,
+          versionId: validVersionId,
         },
       );
 
@@ -1628,23 +1580,11 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       const createAssignment = () =>
         repository.createAssignmentForActiveRelationship({
+          programId,
+          versionId: versionId,
           trainerAthleteId: relationship.id,
           trainerId: trainer.id,
           athleteId: athlete.id,
-          data: {
-            version: {
-              connect: { id: versionId },
-            },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: {
-              connect: { id: athlete.id },
-            },
-            assignedBy: {
-              connect: { id: trainer.id },
-            },
-          },
         });
 
       // First assignment must succeed.
@@ -1769,17 +1709,11 @@ describe('TrainingProgramAssignmentRepository integration (e2e)', () => {
 
       const createAssignment = () =>
         repository.createAssignmentForActiveRelationship({
+          programId,
+          versionId: versionId,
           trainerAthleteId: relationship.id,
           trainerId: trainer.id,
           athleteId: athlete.id,
-          data: {
-            version: { connect: { id: versionId } },
-            trainerAthlete: {
-              connect: { id: relationship.id },
-            },
-            athlete: { connect: { id: athlete.id } },
-            assignedBy: { connect: { id: trainer.id } },
-          },
         });
 
       let current = await createAssignment();

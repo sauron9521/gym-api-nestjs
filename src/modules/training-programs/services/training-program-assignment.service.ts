@@ -73,20 +73,6 @@ export class TrainingProgramAssignmentService {
       );
     }
 
-    const data = {
-      version: {
-        connect: { id: versionId },
-      },
-      trainerAthlete: {
-        connect: { id: relationship.id },
-      },
-      athlete: {
-        connect: { id: relationship.athleteId },
-      },
-      assignedBy: {
-        connect: { id: actor.id },
-      },
-    } satisfies Prisma.TrainingProgramAssignmentCreateInput;
 
     let assignment: Awaited<
       ReturnType<
@@ -96,10 +82,11 @@ export class TrainingProgramAssignmentService {
 
     try {
       assignment = await this.repository.createAssignmentForActiveRelationship({
+        programId,
+        versionId,
         trainerAthleteId: relationship.id,
         trainerId: actor.id,
         athleteId: relationship.athleteId,
-        data,
       });
     } catch (error) {
       if (this.isPrismaError(error, 'P2002')) {
@@ -123,7 +110,7 @@ export class TrainingProgramAssignmentService {
 
     if (!assignment) {
       throw new ConflictException(
-        'The trainer-athlete relationship is no longer active.',
+        'Program, version or trainer-athlete relationship is no longer eligible for assignment. Reload and try again.',
       );
     }
 
