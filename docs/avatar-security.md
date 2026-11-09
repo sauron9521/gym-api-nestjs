@@ -39,8 +39,10 @@ crash or failed `unlink` can still leave an unreferenced file.
 
 `AvatarOrphanCleanupService` runs daily at 04:00 `Europe/Kyiv`:
 
-1. Scan at most 100 regular files with valid UUID avatar key names that
-   have not been modified during the last 24 hours.
+1. Scan regular files with valid UUID avatar key names that have not
+   been modified during the last 24 hours. Uniformly sample up to **100**
+   candidates per run, so old referenced files cannot starve the cleanup
+   of later entries.
 2. Re-check each file's key against the current profile reference in
    PostgreSQL. **Never delete a currently referenced file.**
 3. Remove only orphaned files. Continue after per-file failures, so the
