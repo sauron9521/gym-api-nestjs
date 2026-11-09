@@ -1,4 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory', '128mb', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   postgres:
     image: postgres:17-alpine
     container_name: gym-app-postgres
@@ -22,3 +36,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
