@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '#src/infra/database/index';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
+import { trainingProgramSetOrderSelect } from '../selects/training-program-query.select.js';
 import type { WorkoutSetType } from '#prisma/client';
 import type { UpdateTrainingProgramSetInput } from '../types/training-program.types.js';
 
@@ -157,7 +158,7 @@ export class TrainingProgramSetRepository {
 
       const sets = await tx.trainingProgramSet.findMany({
         where: { programExerciseId },
-        select: { id: true, setNumber: true },
+        select: trainingProgramSetOrderSelect,
       });
 
       if (

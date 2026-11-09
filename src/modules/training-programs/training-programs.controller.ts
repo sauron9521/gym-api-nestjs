@@ -27,7 +27,7 @@ import {
   createTrainingProgramAssignmentSchema,
 } from './dto/create-training-program-assignment.dto.js';
 
-import { TrainingProgramsService } from './training-programs.service.js';
+import { TrainingProgramsService } from './services/training-programs.service.js';
 import type { TrainingProgramActor } from './types/training-program.types.js';
 
 import {

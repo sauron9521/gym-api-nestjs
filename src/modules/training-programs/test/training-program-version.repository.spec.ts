@@ -1,6 +1,7 @@
 import { TrainingProgramVersionRepository } from '../repositories/training-program-version.repository.js';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
 import { trainingProgramDraftAccessSelect } from '../selects/training-program-access.select.js';
+import { trainingProgramVersionListSelect } from '../selects/training-program-query.select.js';
 
 describe('TrainingProgramVersionRepository', () => {
   const models = {
@@ -41,11 +42,7 @@ describe('TrainingProgramVersionRepository', () => {
       expect(models.trainingProgramVersion.findMany).toHaveBeenCalledWith({
         where: { programId: 'program-1' },
         orderBy: { version: 'desc' },
-        select: expect.objectContaining({
-          id: true,
-          version: true,
-          status: true,
-        }),
+        select: trainingProgramVersionListSelect,
       });
 
       expect(result).toEqual(versions);

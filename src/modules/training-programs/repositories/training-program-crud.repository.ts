@@ -7,13 +7,7 @@ import { trainingProgramSelect } from '../selects/training-program.select.js';
 import type { TrainingProgramPayload } from '../types/training-program-payload.types.js';
 
 import type { PaginatedResult } from '../types/paginated-result.types.js';
-
-export type FindManyTrainingProgramsParams = {
-  where: Prisma.TrainingProgramWhereInput;
-  skip: number;
-  take: number;
-  orderBy?: Prisma.TrainingProgramOrderByWithRelationInput[];
-};
+import type { FindManyTrainingProgramsParams } from '../types/training-program-repository.types.js';
 
 @Injectable()
 export class TrainingProgramCrudRepository {

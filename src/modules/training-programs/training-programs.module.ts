@@ -4,7 +4,7 @@ import { ExercisesModule } from '#src/modules/exercises/exercises.module';
 import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-athletes.module';
 
 import { TrainingProgramsController } from './training-programs.controller.js';
-import { TrainingProgramsService } from './training-programs.service.js';
+import { TrainingProgramsService } from './services/training-programs.service.js';
 
 import { TrainingProgramCrudRepository } from './repositories/training-program-crud.repository.js';
 import { TrainingProgramVersionRepository } from './repositories/training-program-version.repository.js';

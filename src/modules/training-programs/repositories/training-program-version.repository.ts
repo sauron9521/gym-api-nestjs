@@ -3,6 +3,7 @@ import { assertPublishableVersion } from '../policies/training-program-publicati
 import { PrismaService } from '#src/infra/database/index';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
 import { trainingProgramDraftAccessSelect } from '../selects/training-program-access.select.js';
+import { trainingProgramVersionListSelect } from '../selects/training-program-query.select.js';
 import type { Prisma } from '#prisma/client';
 import type { TrainingProgramVersionPayload } from '../types/training-program-payload.types.js';
 
@@ -14,18 +15,7 @@ export class TrainingProgramVersionRepository {
     return this.prisma.trainingProgramVersion.findMany({
       where: { programId },
       orderBy: { version: 'desc' },
-      select: {
-        id: true,
-        programId: true,
-        version: true,
-        title: true,
-        description: true,
-        durationWeeks: true,
-        status: true,
-        publishedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: trainingProgramVersionListSelect,
     });
   }
 

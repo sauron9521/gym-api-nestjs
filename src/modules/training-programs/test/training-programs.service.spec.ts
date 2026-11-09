@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '#prisma/client';
-import { TrainingProgramsService } from '../training-programs.service.js';
+import { TrainingProgramsService } from '../services/training-programs.service.js';
 import type { TrainingProgramActor } from '../types/training-program.types.js';
 import { ExercisesService } from '#src/modules/exercises/services/exercises.service';
 import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
