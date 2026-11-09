@@ -95,7 +95,7 @@ describe('Soft-deleted identity cannot authenticate (PostgreSQL)', () => {
     expect(await tokens.getRefreshToken(refresh.id)).toBeDefined();
 
     await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Authorization', 'Bearer ' + accessToken)
       .expect(200);
 
@@ -119,11 +119,11 @@ describe('Soft-deleted identity cannot authenticate (PostgreSQL)', () => {
     expect(stored.lastActiveAt).toEqual(session.lastActiveAt);
 
     await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Cookie', cookie!)
       .expect(401);
     await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Authorization', 'Bearer ' + accessToken)
       .expect(401);
     await request(app.getHttpServer())

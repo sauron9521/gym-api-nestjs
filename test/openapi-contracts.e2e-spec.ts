@@ -222,6 +222,10 @@ describe('OpenAPI / HTTP contract regression (PostgreSQL)', () => {
     assertValidResponse(response.body, responseSchema(document, '/exercises', 'get', 200), document);
   });
 
+  it('does not publish the removed legacy root route in OpenAPI', () => {
+    expect(document.paths).not.toHaveProperty('/');
+  });
+
   it('publishes training response definitions for all four modules', () => {
     const required = [
       ['/exercises/{id}', 'get', 200],
