@@ -2,6 +2,8 @@ import {
   archivedExerciseResponseSchema,
   exerciseListResponseSchema,
   exerciseResponseSchema,
+  exerciseTrainerAccessListResponseSchema,
+  exerciseTrainerAccessResponseSchema,
   trainerAthleteHistoricalResponseSchema,
   trainerAthleteListResponseSchema,
   trainerAthleteResponseSchema,
@@ -70,6 +72,15 @@ describe('OpenAPI response projections vs Prisma selects', () => {
       .toEqual(['id', 'isArchived', 'updatedAt']);
     expect(exerciseListResponseSchema.properties?.data?.items)
       .toEqual(exerciseResponseSchema);
+  });
+
+  it('keeps trainer access responses minimal and safe', () => {
+    expect(Object.keys(exerciseTrainerAccessResponseSchema.properties ?? {}).sort())
+      .toEqual(['exerciseId', 'grantedAt', 'id', 'revokedAt', 'trainerId']);
+    expect(exerciseTrainerAccessResponseSchema.properties).not.toHaveProperty('trainer');
+    expect(exerciseTrainerAccessResponseSchema.properties).not.toHaveProperty('email');
+    expect(exerciseTrainerAccessListResponseSchema)
+      .toEqual({ type: 'array', items: exerciseTrainerAccessResponseSchema });
   });
 
   it('covers complete workout and set projections', () => {

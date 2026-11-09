@@ -105,6 +105,19 @@ export const archivedExerciseResponseSchema = objectSchema({
 
 export const exerciseListResponseSchema = paginatedSchema(exerciseResponseSchema);
 
+export const exerciseTrainerAccessResponseSchema = objectSchema({
+  id: uuidSchema,
+  exerciseId: uuidSchema,
+  trainerId: uuidSchema,
+  grantedAt: dateTimeSchema,
+  revokedAt: nullable(dateTimeSchema),
+});
+
+export const exerciseTrainerAccessListResponseSchema = arraySchema(
+  exerciseTrainerAccessResponseSchema,
+);
+
+
 export const workoutSetResponseSchema = objectSchema({
   id: uuidSchema,
   workoutExerciseId: uuidSchema,
