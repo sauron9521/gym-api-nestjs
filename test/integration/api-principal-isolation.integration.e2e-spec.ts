@@ -190,7 +190,7 @@ describe('API principal isolation (HTTP + PostgreSQL)', () => {
       expect(JSON.stringify(response.body)).not.toContain(attackerEmail);
       expect(response.body).not.toHaveProperty('passwordHash');
       expect(response.body).not.toHaveProperty('deletedAt');
-      expect(response.body.profile).not.toHaveProperty('avatarKey');
+      expect(JSON.stringify(response.body)).not.toContain('avatarKey');
     }
   });
 
@@ -238,7 +238,7 @@ describe('API principal isolation (HTTP + PostgreSQL)', () => {
       where: { id: measurementId },
     });
     expect(stored.userId).toBe(ownerId);
-    expect(stored.weightKg.toString()).toBe('82.25');
+    expect(stored.weightKg?.toString()).toBe('82.25');
   });
 
   it('cannot select or write a different account through userId or role mass-assignment', async () => {
