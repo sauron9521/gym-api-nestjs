@@ -46,7 +46,7 @@ export class AvatarDiskStorage {
    * protects brand-new files still awaiting a profile transaction.
    */
   async listOldKeys(before: Date, limit = 100): Promise<string[]> {
-    let directory;
+    let directory: Awaited<ReturnType<typeof opendir>>;
     try {
       directory = await opendir(this.directory);
     } catch (error) {
