@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../database/index.js';
-import { Prisma } from '../../generated/prisma/client.js';
+import { PrismaService } from '../../infra/database/index.js';
+import { Prisma } from '../../infra/database/generated/prisma/client.js';
 import { metricKeys } from './dto/body-measurement.schemas.js';
 
 export const bodyMeasurementSelect = {
