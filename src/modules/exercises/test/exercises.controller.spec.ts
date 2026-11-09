@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { ExercisesController } from '../exercises.controller.js';
-import { ExercisesService } from '../exercises.service.js';
+import { ExercisesService } from '../services/exercises.service.js';
 
 import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
 

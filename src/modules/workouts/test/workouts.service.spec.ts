@@ -7,7 +7,7 @@ import {
 
 import { Prisma } from '#prisma/client';
 
-import { ExercisesService } from '#src/modules/exercises/exercises.service';
+import { ExercisesService } from '#src/modules/exercises/services/exercises.service';
 import { WorkoutsRepository } from '../workouts.repository.js';
 import { WorkoutsService } from '../workouts.service.js';
 
