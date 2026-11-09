@@ -331,6 +331,8 @@ export class WorkoutsService {
       input.actualWeightKg,
       input.actualDurationSeconds,
       input.actualDistanceMeters,
+      input.rpe,
+      input.rir,
     ];
 
     if (
@@ -352,6 +354,8 @@ export class WorkoutsService {
       data.actualWeightKg = null;
       data.actualDurationSeconds = null;
       data.actualDistanceMeters = null;
+      data.rpe = null;
+      data.rir = null;
     } else {
       if (input.actualReps !== undefined) {
         data.actualReps = input.actualReps;
