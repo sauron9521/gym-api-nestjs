@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { lstat, mkdir, opendir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
@@ -41,9 +41,10 @@ export class AvatarDiskStorage {
   }
 
   /**
-   * Bounded scan of old, regular files only. The caller must check each
-   * candidate against the DB before deleting it. A one-day grace period
-   * protects brand-new files still awaiting a profile transaction.
+   * Select a bounded, uniformly sampled batch from all aged regular files.
+   * Sampling prevents permanently missing orphans when the directory begins
+   * with more than 100 still-referenced files. The caller checks the DB
+   * before deleting anything. The one-day grace period protects uploads.
    */
   async listOldKeys(before: Date, limit = 100): Promise<string[]> {
     let directory: Awaited<ReturnType<typeof opendir>>;
@@ -54,7 +55,13 @@ export class AvatarDiskStorage {
       throw error;
     }
 
+    if (limit < 1) {
+      await directory.close();
+      return [];
+    }
+
     const keys: string[] = [];
+    let eligible = 0;
     for await (const entry of directory) {
       if (!entry.isFile()) continue;
       try {
@@ -66,13 +73,20 @@ export class AvatarDiskStorage {
       try {
         const info = await lstat(join(this.directory, entry.name));
         if (info.isFile() && info.mtimeMs < before.getTime()) {
-          keys.push(entry.name);
+          eligible++;
+          if (keys.length < limit) {
+            keys.push(entry.name);
+          } else {
+            // Reservoir sampling: every old file can enter a later batch,
+            // even if earlier names remain valid DB references forever.
+            const index = randomInt(eligible);
+            if (index < limit) keys[index] = entry.name;
+          }
         }
       } catch (error) {
         if (!isNotFound(error)) throw error;
       }
 
-      if (keys.length >= limit) break;
     }
 
     return keys;
