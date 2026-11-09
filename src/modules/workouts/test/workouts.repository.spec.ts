@@ -333,6 +333,19 @@ describe('WorkoutsRepository', () => {
 
 
   describe('startWorkout security', () => {
+    const globalExercise = {
+      id: 'exercise-1',
+      source: 'GLOBAL',
+      createdById: null,
+      isArchived: false,
+    };
+    const trainerExercise = {
+      id: 'exercise-2',
+      source: 'TRAINER_CUSTOM',
+      createdById: 'trainer-1',
+      isArchived: false,
+    };
+
     beforeEach(() => {
       prisma.$transaction.mockImplementation(
         async (callback: (tx: typeof prisma) => Promise<unknown>) =>
@@ -346,28 +359,10 @@ describe('WorkoutsRepository', () => {
         id: 'workout-1',
         status: 'IN_PROGRESS',
       });
+      prisma.$queryRaw.mockResolvedValue([globalExercise]);
     });
 
-    it('starts personal/global planned workouts without requiring a trainer relationship', async () => {
-      prisma.exercise.findMany.mockResolvedValue([]);
-      const result = await repository.startWorkout({
-        id: 'workout-1',
-        athleteId: 'athlete-1',
-        startedAt: new Date('2030-01-01T10:00:00Z'),
-      });
-      expect(result).toMatchObject({ status: 'IN_PROGRESS' });
-      expect(prisma.$queryRaw).not.toHaveBeenCalled();
-      expect(prisma.workout.update).toHaveBeenCalledOnce();
-    });
-
-    it('checks trainer exercise owners under ACTIVE relationship lock before starting', async () => {
-      prisma.exercise.findMany.mockResolvedValue([
-        { createdById: 'trainer-1' },
-        { createdById: 'trainer-1' },
-      ]);
-      prisma.$queryRaw.mockResolvedValue([
-        { id: 'relationship-1', trainerId: 'trainer-1' },
-      ]);
+    it('locks even global exercise references before allowing a start', async () => {
       const result = await repository.startWorkout({
         id: 'workout-1',
         athleteId: 'athlete-1',
@@ -379,11 +374,67 @@ describe('WorkoutsRepository', () => {
       expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.workout.update.mock.invocationCallOrder[0]!,
       );
+      expect(prisma.exercise.findMany).not.toHaveBeenCalled();
+    });
+
+    it('checks trainer exercise owners under ACTIVE relationship lock before starting', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([trainerExercise, trainerExercise])
+        .mockResolvedValueOnce([
+          { id: 'relationship-1', trainerId: 'trainer-1' },
+        ]);
+      const result = await repository.startWorkout({
+        id: 'workout-1',
+        athleteId: 'athlete-1',
+        startedAt: new Date('2030-01-01T10:00:00Z'),
+      });
+      expect(result).toMatchObject({ status: 'IN_PROGRESS' });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(prisma.workout.update).toHaveBeenCalledOnce();
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.$queryRaw.mock.invocationCallOrder[1]!,
+      );
+    });
+
+    it.each(['GLOBAL', 'ATHLETE_CUSTOM', 'TRAINER_CUSTOM'] as const)(
+      'rejects an archived %s exercise before changing the workout or assignment',
+      async (source) => {
+        prisma.$queryRaw.mockResolvedValueOnce([
+          { ...globalExercise, source, isArchived: true },
+        ]);
+        await expect(repository.startWorkout({
+          id: 'workout-1',
+          athleteId: 'athlete-1',
+          startedAt: new Date('2030-01-01T10:00:00Z'),
+        })).resolves.toBeNull();
+        expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+        expect(prisma.trainingProgramAssignment.update).not.toHaveBeenCalled();
+        expect(prisma.workout.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects archived exercises in a program without mutating the assignment timestamp', async () => {
+      prisma.workout.findFirst.mockResolvedValue({
+        id: 'workout-1',
+        programAssignmentId: 'assignment-1',
+      });
+      prisma.$queryRaw.mockResolvedValueOnce([
+        { ...globalExercise, isArchived: true },
+      ]);
+      await expect(repository.startWorkout({
+        id: 'workout-1',
+        athleteId: 'athlete-1',
+        startedAt: new Date('2030-01-01T10:00:00Z'),
+      })).resolves.toBeNull();
+      expect(prisma.trainingProgramAssignment.findFirst).not.toHaveBeenCalled();
+      expect(prisma.trainingProgramAssignment.update).not.toHaveBeenCalled();
+      expect(prisma.workout.update).not.toHaveBeenCalled();
     });
 
     it('rejects a planned workout with a revoked trainer relationship without mutation', async () => {
-      prisma.exercise.findMany.mockResolvedValue([{ createdById: 'trainer-1' }]);
-      prisma.$queryRaw.mockResolvedValue([]);
+      prisma.$queryRaw
+        .mockResolvedValueOnce([trainerExercise])
+        .mockResolvedValueOnce([]);
       await expect(repository.startWorkout({
         id: 'workout-1',
         athleteId: 'athlete-1',
@@ -397,14 +448,15 @@ describe('WorkoutsRepository', () => {
         id: 'workout-1',
         programAssignmentId: 'assignment-1',
       });
-      prisma.exercise.findMany.mockResolvedValue([]);
       prisma.trainingProgramAssignment.findFirst.mockResolvedValue({
         trainerAthleteId: 'old-relationship',
         trainerAthlete: { trainerId: 'trainer-1' },
       });
-      prisma.$queryRaw.mockResolvedValue([
-        { id: 'new-relationship', trainerId: 'trainer-1' },
-      ]);
+      prisma.$queryRaw
+        .mockResolvedValueOnce([globalExercise])
+        .mockResolvedValueOnce([
+          { id: 'new-relationship', trainerId: 'trainer-1' },
+        ]);
       await expect(repository.startWorkout({
         id: 'workout-1',
         athleteId: 'athlete-1',
@@ -414,18 +466,20 @@ describe('WorkoutsRepository', () => {
       expect(prisma.workout.update).not.toHaveBeenCalled();
     });
 
-    it('locks assignment after relationship and sets first startedAt once', async () => {
+    it('locks assignment after exercise and relationship, setting first startedAt once', async () => {
       prisma.workout.findFirst.mockResolvedValue({
         id: 'workout-1',
         programAssignmentId: 'assignment-1',
       });
-      prisma.exercise.findMany.mockResolvedValue([]);
       prisma.trainingProgramAssignment.findFirst.mockResolvedValue({
         trainerAthleteId: 'relationship-1',
         trainerAthlete: { trainerId: 'trainer-1' },
       });
       prisma.$queryRaw
-        .mockResolvedValueOnce([{ id: 'relationship-1', trainerId: 'trainer-1' }])
+        .mockResolvedValueOnce([globalExercise])
+        .mockResolvedValueOnce([
+          { id: 'relationship-1', trainerId: 'trainer-1' },
+        ])
         .mockResolvedValueOnce([
           { id: 'assignment-1', status: 'ACTIVE', startedAt: null },
         ]);
@@ -436,22 +490,25 @@ describe('WorkoutsRepository', () => {
         startedAt: new Date('2030-01-01T10:00:00Z'),
       });
       expect(result).toMatchObject({ status: 'IN_PROGRESS' });
-      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
       expect(prisma.trainingProgramAssignment.update).toHaveBeenCalledOnce();
       expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.$queryRaw.mock.invocationCallOrder[1]!,
       );
+      expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+        prisma.$queryRaw.mock.invocationCallOrder[2]!,
+      );
       expect(prisma.workout.update).toHaveBeenCalledOnce();
     });
 
-    it('does not revalidate or modify an already in-progress workout', async () => {
+    it('does not lock exercises or modify an already in-progress workout', async () => {
       prisma.workout.findFirst.mockResolvedValue(null);
       await expect(repository.startWorkout({
         id: 'workout-1',
         athleteId: 'athlete-1',
         startedAt: new Date('2030-01-01T10:00:00Z'),
       })).resolves.toBeNull();
-      expect(prisma.exercise.findMany).not.toHaveBeenCalled();
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
       expect(prisma.workout.update).not.toHaveBeenCalled();
     });
   });
