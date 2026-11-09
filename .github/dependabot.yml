@@ -9,6 +9,12 @@ updates:
       timezone: "Europe/Kyiv"
     open-pull-requests-limit: 5
     groups:
+      vitest-major:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+        update-types:
+          - "major"
       npm-nonmajor:
         update-types:
           - "minor"
