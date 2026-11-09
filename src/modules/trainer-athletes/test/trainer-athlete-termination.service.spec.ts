@@ -1,4 +1,4 @@
-import { PrismaService } from '../../../database/index.js';
+import { PrismaService } from '../../../infra/database/index.js';
 
 import { trainerAthleteHistoricalSelect, trainerAthleteSelect } from '../trainer-athletes.repository.js';
 import { TrainerAthleteTerminationService } from '../services/trainer-athlete-termination.service.js';
