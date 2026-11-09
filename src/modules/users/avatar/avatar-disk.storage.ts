@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, opendir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
@@ -38,6 +38,44 @@ export class AvatarDiskStorage {
       if (isNotFound(error)) throw new NotFoundException('Avatar not found');
       throw error;
     }
+  }
+
+  /**
+   * Bounded scan of old, regular files only. The caller must check each
+   * candidate against the DB before deleting it. A one-day grace period
+   * protects brand-new files still awaiting a profile transaction.
+   */
+  async listOldKeys(before: Date, limit = 100): Promise<string[]> {
+    let directory;
+    try {
+      directory = await opendir(this.directory);
+    } catch (error) {
+      if (isNotFound(error)) return [];
+      throw error;
+    }
+
+    const keys: string[] = [];
+    for await (const entry of directory) {
+      if (!entry.isFile()) continue;
+      try {
+        assertAvatarKey(entry.name);
+      } catch {
+        continue;
+      }
+
+      try {
+        const info = await lstat(join(this.directory, entry.name));
+        if (info.isFile() && info.mtimeMs < before.getTime()) {
+          keys.push(entry.name);
+        }
+      } catch (error) {
+        if (!isNotFound(error)) throw error;
+      }
+
+      if (keys.length >= limit) break;
+    }
+
+    return keys;
   }
 
   async remove(key: string): Promise<void> {
