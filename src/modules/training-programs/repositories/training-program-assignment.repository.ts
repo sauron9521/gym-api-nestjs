@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '#src/infra/database/index';
-import type { Prisma } from '#prisma/client';
+import { Prisma } from '#prisma/client';
 import {
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentDetailsSelect,
@@ -204,10 +204,65 @@ export class TrainingProgramAssignmentRepository {
     athleteId: string;
   }): Promise<TrainingProgramAssignmentPayload | null> {
     return this.prisma.$transaction(async (tx) => {
-      // Lock order is intentional: relationship -> version -> program.
-      // Relationship termination serializes with the first lock;
-      // publication takes the version lock before changing the program;
-      // archival updates the program row.
+      // Fetch the immutable PUBLISHED source tree first. A published version
+      // cannot be edited by application endpoints, and the version lock below
+      // still enforces the final eligibility check.
+      const source = await tx.trainingProgramVersion.findFirst({
+        where: {
+          id: input.versionId,
+          programId: input.programId,
+          status: 'PUBLISHED',
+        },
+        select: {
+          workouts: {
+            select: {
+              exercises: { select: { exerciseId: true } },
+            },
+          },
+        },
+      });
+      if (!source) return null;
+
+      const exerciseIds = [
+        ...new Set(source.workouts.flatMap((workout) =>
+          workout.exercises.map((exercise) => exercise.exerciseId),
+        )),
+      ];
+
+      // Match the workout create/start lock order: source exercise rows
+      // BEFORE trainer-athlete relationship. An archive UPDATE conflicts
+      // with FOR SHARE, so a new assignment cannot commit with a source
+      // that was already archived at authorization time.
+      if (exerciseIds.length > 0) {
+        const available = await tx.$queryRaw<Array<{
+          id: string;
+          source: string;
+          createdById: string | null;
+          isArchived: boolean;
+        }>>`
+          SELECT
+            "id", "source",
+            "created_by_id" AS "createdById",
+            "is_archived" AS "isArchived"
+          FROM "exercises"
+          WHERE "id" IN (${Prisma.join(exerciseIds)})
+          ORDER BY "id"
+          FOR SHARE
+        `;
+        if (
+          available.length !== exerciseIds.length ||
+          available.some((exercise) =>
+            exercise.isArchived ||
+            (exercise.source !== 'GLOBAL' &&
+              (exercise.source !== 'TRAINER_CUSTOM' ||
+                exercise.createdById !== input.trainerId))
+          )
+        ) return null;
+      }
+
+      // Lock order: exercise -> relationship -> version -> program.
+      // Termination serializes on the relationship; publishing guards
+      // the version, and archiving a program updates the program row.
       const relationships = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT "id"
         FROM "trainer_athletes"
