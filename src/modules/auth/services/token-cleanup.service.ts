@@ -21,11 +21,10 @@ export class TokenCleanupService {
       ]);
 
       this.logger.log('Expired tokens cleanup completed');
-    } catch (error) {
-      this.logger.error(
-        'Failed to cleanup expired tokens',
-        error instanceof Error ? error.stack : String(error),
-      );
+    } catch {
+      // Never log Prisma error messages, SQL, token values or stack traces.
+      // The stable event name is sufficient for safe monitoring/alerting.
+      this.logger.error('AUTH_TOKEN_CLEANUP_FAILED');
     }
   }
 }
