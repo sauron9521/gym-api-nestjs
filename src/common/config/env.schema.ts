@@ -46,7 +46,7 @@ function isRedisUrl(value: string): boolean {
       Boolean(url.hostname) &&
       !url.hash &&
       !url.search &&
-      (url.pathname === '/' || (url.pathname.startsWith('/') && /^[0-9]{1,2}$/.test(url.pathname.slice(1))))
+      (url.pathname === '' || url.pathname === '/' || (url.pathname.startsWith('/') && /^[0-9]{1,2}$/.test(url.pathname.slice(1))))
     );
   } catch {
     return false;
