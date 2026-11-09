@@ -105,6 +105,7 @@ describe('Authentication sessions (HTTP + PostgreSQL)', () => {
       .set('Cookie', sessionCookie);
 
     expect(beforeDelete.status).toBe(200);
+    expect(beforeDelete.headers['cache-control']).toBe('no-store');
 
     // 4. Soft-delete the user without physically deleting the record.
     await prisma.user.update({
