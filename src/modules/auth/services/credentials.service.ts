@@ -1,7 +1,8 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from '#src/modules/users/repositories/users.repository';
-import { SignUpDto } from '../dto/auth.dto.js';
+import type { SignUpDto } from '../dto/auth.dto.js';
+import { toAuthenticatedUser } from '../mappers/auth-credential-user.mapper.js';
 import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 @Injectable()
@@ -31,8 +32,7 @@ export class CredentialsService {
       );
     }
 
-    const { passwordHash: _passHash, ...user } = data;
-    return { ...user };
+    return toAuthenticatedUser(data);
   }
 
   private async checkPassword(
