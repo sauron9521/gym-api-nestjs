@@ -394,7 +394,7 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
         filename: 'photo.jpg', contentType: 'image/jpeg',
       });
     expect(upload.status).toBe(200);
-    expect(upload.body.avatarUrl).toMatch(/^\\/avatars\\/[0-9a-f-]+\\.jpg$/);
+    expect(upload.body.avatarUrl).toMatch(new RegExp('^/avatars/[0-9a-f-]+[.]jpg$'));
 
     const result = await request(app.getHttpServer()).get(upload.body.avatarUrl);
     expect(result.status).toBe(200);
