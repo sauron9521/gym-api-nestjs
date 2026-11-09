@@ -9,17 +9,15 @@ describe('AuthNoStoreMiddleware', () => {
   function run(path: string) {
     const headers = new Map<string, string>();
     const request = { path } as Request;
-    const response = {
-      setHeader: vi.fn((name: string, value: string) => {
-        headers.set(name.toLowerCase(), value);
-        return response;
-      }),
-    } as unknown as Response;
+    const setHeader = vi.fn((name: string, value: string) => {
+      headers.set(name.toLowerCase(), value);
+    });
+    const response = { setHeader } as unknown as Response;
     const next = vi.fn() as NextFunction;
 
     middleware.use(request, response, next);
     expect(next).toHaveBeenCalledOnce();
-    return { headers, response };
+    return { headers, setHeader };
   }
 
   it.each([
@@ -30,9 +28,9 @@ describe('AuthNoStoreMiddleware', () => {
     '/auth/sessions',
     '/AUTH/token/refresh',
   ])('sets no-store for the auth route boundary %s', (path) => {
-    const { headers, response } = run(path);
+    const { headers, setHeader } = run(path);
     expect(headers.get('cache-control')).toBe('no-store');
-    expect(response.setHeader).toHaveBeenCalledExactlyOnceWith(
+    expect(setHeader).toHaveBeenCalledExactlyOnceWith(
       'Cache-Control',
       'no-store',
     );
