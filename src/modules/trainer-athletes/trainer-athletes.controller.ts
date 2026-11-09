@@ -15,7 +15,7 @@ import {
   trainerAthleteResponseSchema,
   trainerAthletePublicResponseSchema,
   trainerAthleteListResponseSchema,
-} from '../../infra/openapi/response-contracts.js';
+} from '#src/infra/openapi/response-contracts';
 
 import { TrainerAthletesService } from './trainer-athletes.service.js';
 

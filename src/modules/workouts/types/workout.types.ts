@@ -1,9 +1,9 @@
 import type {
   WorkoutSetType,
   WorkoutStatus,
-} from '../../../infra/database/generated/prisma/client.js';
+} from '#prisma/client';
 
-import type { ExerciseActor } from '../../exercises/types/exercise.types.js';
+import type { ExerciseActor } from '#src/modules/exercises/types/exercise.types';
 
 export type WorkoutActor = ExerciseActor;
 

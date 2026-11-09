@@ -6,13 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Prisma } from '../../infra/database/generated/prisma/client.js';
+import { Prisma } from '#prisma/client';
 
-import { UsersRepository } from '../users/users.repository.js';
+import { UsersRepository } from '#src/modules/users/users.repository';
 import { TrainerAthletesRepository } from './trainer-athletes.repository.js';
 import { TrainerAthleteTerminationService } from './services/trainer-athlete-termination.service.js';
 
-import type { ExerciseAccessContext } from '../exercises/types/exercise.types.js';
+import type { ExerciseAccessContext } from '#src/modules/exercises/types/exercise.types';
 
 import type {
   CreateTrainerAthleteInput,

@@ -1,4 +1,4 @@
-import type { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import type { Prisma } from '#prisma/client';
 
 import type { trainingProgramSelect } from '../selects/training-program.select.js';
 import type { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '../database/index.js';
+import { PrismaModule } from '#src/infra/database/index';
 import { HealthController } from './health.controller.js';
 
 @Module({

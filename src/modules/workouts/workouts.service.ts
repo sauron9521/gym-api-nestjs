@@ -5,8 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '../../infra/database/generated/prisma/client.js';
-import { ExercisesService } from '../exercises/exercises.service.js';
+import { Prisma } from '#prisma/client';
+import { ExercisesService } from '#src/modules/exercises/exercises.service';
 import { WorkoutsRepository } from './workouts.repository.js';
 import type {
   CreateWorkoutFromProgramInput,
@@ -16,7 +16,7 @@ import type {
   WorkoutActor,
   WorkoutListQuery,
 } from './types/workout.types.js';
-import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
 import { workoutIdempotency } from './workout-idempotency.js';
 import type { WorkoutIdempotency } from './workout-idempotency.js';
 

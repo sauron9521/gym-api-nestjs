@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ExercisesController } from '../exercises.controller.js';
 import { ExercisesService } from '../exercises.service.js';
 
-import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
 
 import type {
   ExerciseAccessContext,

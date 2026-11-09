@@ -1,5 +1,5 @@
-import { PrismaService } from '../../../infra/database/index.js';
-import { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import { PrismaService } from '#src/infra/database/index';
+import { Prisma } from '#prisma/client';
 
 import { workoutSelect, WorkoutsRepository } from '../workouts.repository.js';
 

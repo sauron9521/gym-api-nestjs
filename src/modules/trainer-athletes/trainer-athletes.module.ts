@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { UsersModule } from '../users/users.module.js';
+import { UsersModule } from '#src/modules/users/users.module';
 
 import { TrainerAthletesRepository } from './trainer-athletes.repository.js';
 import { TrainerAthletesService } from './trainer-athletes.service.js';

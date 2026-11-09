@@ -1,9 +1,21 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   // Resolves the path aliases declared in tsconfig.json, including the ones
   // added by `nest g library`. Requires Vite 8, which ships this option.
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    // Native package imports point to dist at runtime. Vitest must resolve
+    // the aliases to source to preserve Nest provider/class identity.
+    tsconfigPaths: true,
+    alias: {
+      '#src': fileURLToPath(new URL('./src', import.meta.url)),
+      '#prisma': fileURLToPath(
+        new URL('./src/infra/database/generated/prisma', import.meta.url),
+      ),
+    },
+  },
   test: {
     globals: true,
     env: {

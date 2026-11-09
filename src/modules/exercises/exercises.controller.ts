@@ -15,7 +15,7 @@ import {
   archivedExerciseResponseSchema,
   exerciseListResponseSchema,
   exerciseResponseSchema,
-} from '../../infra/openapi/response-contracts.js';
+} from '#src/infra/openapi/response-contracts';
 
 import { ExercisesService } from './exercises.service.js';
 
@@ -40,7 +40,7 @@ import {
 } from './dto/query-exercises.dto.js';
 
 import { exerciseIdSchema } from './dto/exercise.schemas.js';
-import { TrainerAthletesService } from '../trainer-athletes/trainer-athletes.service.js';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
 
 const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
   activeTrainerIds: [],

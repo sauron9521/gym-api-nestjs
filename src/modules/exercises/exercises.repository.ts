@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '../../infra/database/generated/prisma/client.js';
-import { PrismaService } from '../../infra/database/index.js';
+import { Prisma } from '#prisma/client';
+import { PrismaService } from '#src/infra/database/index';
 
 export const exerciseSelect = {
   id: true,

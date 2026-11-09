@@ -5,7 +5,7 @@ import {
 } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
 import { type Mailable, Mailer } from '@nestjs/mail';
-import { UsersRepository } from '../../users/users.repository.js';
+import { UsersRepository } from '#src/modules/users/users.repository';
 
 @Injectable()
 export class PasswordResetMail implements Mailable<PasswordResetLink> {

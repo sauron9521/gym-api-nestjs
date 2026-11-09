@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../app.module.js';
+import { AppModule } from '#src/app.module';
 import { createOpenApiDocument } from './openapi.js';
 
 const output = resolve(process.cwd(), 'openapi/openapi.json');

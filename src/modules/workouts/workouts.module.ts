@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { ExercisesModule } from '../exercises/exercises.module.js';
-import { TrainerAthletesModule } from '../trainer-athletes/trainer-athletes.module.js';
+import { ExercisesModule } from '#src/modules/exercises/exercises.module';
+import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-athletes.module';
 
 import { WorkoutsRepository } from './workouts.repository.js';
 import { WorkoutsService } from './workouts.service.js';

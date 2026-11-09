@@ -5,9 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import { Prisma } from '#prisma/client';
 
-import { ExercisesService } from '../../exercises/exercises.service.js';
+import { ExercisesService } from '#src/modules/exercises/exercises.service';
 import { WorkoutsRepository } from '../workouts.repository.js';
 import { WorkoutsService } from '../workouts.service.js';
 
@@ -16,7 +16,7 @@ import type {
   CreateWorkoutInput,
   WorkoutActor,
 } from '../types/workout.types.js';
-import { TrainerAthletesService } from '../../trainer-athletes/trainer-athletes.service.js';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
 
 describe('WorkoutsService', () => {
   let service: WorkoutsService;

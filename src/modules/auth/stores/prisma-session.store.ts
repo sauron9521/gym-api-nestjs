@@ -8,8 +8,8 @@ import {
 import {
   Prisma,
   type Session as PrismaSession,
-} from '../../../infra/database/generated/prisma/client.js';
-import { PrismaService } from '../../../infra/database/index.js';
+} from '#prisma/client';
+import { PrismaService } from '#src/infra/database/index';
 
 @Injectable()
 export class PrismaSessionStore implements SessionStore {

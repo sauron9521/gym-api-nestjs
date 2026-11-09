@@ -24,7 +24,7 @@ import {
   workoutListResponseSchema,
   workoutResponseSchema,
   workoutSetResponseSchema,
-} from '../../infra/openapi/response-contracts.js';
+} from '#src/infra/openapi/response-contracts';
 
 import { WorkoutsService } from './workouts.service.js';
 

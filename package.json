@@ -34,7 +34,8 @@
     "prepare": "husky",
     "config:validate": "tsx scripts/validate-env.ts",
     "security:audit:prod": "npm audit --omit=dev --audit-level=high",
-    "security:audit:critical": "npm audit --audit-level=critical"
+    "security:audit:critical": "npm audit --audit-level=critical",
+    "imports:smoke": "node --input-type=module -e \"import { validateEnv } from '#src/config/env.validation'; import { Prisma } from '#prisma/client'; if (typeof validateEnv !== 'function' || !Prisma) process.exit(1); console.log('Native ESM aliases resolved')\""
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.4",
@@ -93,5 +94,15 @@
     "@prisma/engines@7.10.1": true,
     "prisma@7.10.1": true,
     "bcrypt@6.0.0": true
+  },
+  "imports": {
+    "#src/*": {
+      "types": "./src/*.ts",
+      "default": "./dist/*.js"
+    },
+    "#prisma/*": {
+      "types": "./src/infra/database/generated/prisma/*.ts",
+      "default": "./dist/infra/database/generated/prisma/*.js"
+    }
   }
 }

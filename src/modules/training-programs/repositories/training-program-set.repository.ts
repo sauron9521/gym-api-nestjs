@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../infra/database/index.js';
+import { PrismaService } from '#src/infra/database/index';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
-import type { WorkoutSetType } from '../../../infra/database/generated/prisma/client.js';
+import type { WorkoutSetType } from '#prisma/client';
 import type { UpdateTrainingProgramSetInput } from '../types/training-program.types.js';
 
 @Injectable()
