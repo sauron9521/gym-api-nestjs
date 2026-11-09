@@ -13,9 +13,21 @@ to the GitHub Actions step summary, and succeeds **only** when all three are
 as any additional organization-mandated checks. This is a repository-settings
 action; the workflow cannot enable protection automatically.
 
-Unnecessary in-progress runs for the same feature branch are cancelled. A
-push to `main` is never cancelled automatically, because its completed
-result is the release verification baseline.
+Unnecessary in-progress runs for the same feature branch and **same event
+type** are cancelled. `push` and `pull_request` runs have different concurrency
+groups, so a PR run never cancels its own branch-push run. A push to `main`
+is never cancelled automatically, because its completed result is the release
+verification baseline.
+
+### Follow-up: red PR status despite green PR jobs
+
+The initial implementation used the same concurrency group for `push` and
+`pull_request` events. For commit `9f4cd12`, PR workflow run `42677114880`
+passed all four jobs, but the PR launch cancelled branch-push run
+`42677024318`, causing that run's aggregate gate to fail and leaving red
+check runs on the same commit. The follow-up CI fix scopes concurrency by
+event type plus PR number or branch ref. New commits receive fresh checks;
+previously cancelled runs remain as historical records.
 
 ## Investigation: main push after PR #70
 
