@@ -590,6 +590,72 @@ describe('WorkoutsService', () => {
       expect(repository.updateSet).not.toHaveBeenCalled();
     });
 
+    it('should erase stale performance metrics when a completed set is skipped', async () => {
+      repository.findById.mockResolvedValue({
+        ...plannedWorkout,
+        status: 'IN_PROGRESS',
+        exercises: [
+          {
+            ...plannedWorkout.exercises[0],
+            sets: [{
+              id: 'set-1',
+              status: 'COMPLETED',
+              actualReps: 8,
+              actualWeightKg: 60,
+              rpe: 8,
+              rir: 2,
+            }],
+          },
+        ],
+      });
+      repository.updateSet.mockResolvedValue({
+        id: 'set-1',
+        status: 'SKIPPED',
+        actualReps: null,
+        actualWeightKg: null,
+        rpe: null,
+        rir: null,
+      });
+
+      const result = await service.updateSet('workout-1', 'set-1', athlete, {
+        status: 'SKIPPED',
+        notes: 'Skipped due to fatigue',
+      });
+
+      expect(result.status).toBe('SKIPPED');
+      expect(repository.updateSet).toHaveBeenCalledWith(
+        'set-1',
+        expect.objectContaining({
+          status: 'SKIPPED',
+          actualReps: null,
+          actualWeightKg: null,
+          actualDurationSeconds: null,
+          actualDistanceMeters: null,
+          rpe: null,
+          rir: null,
+          notes: 'Skipped due to fatigue',
+        }),
+      );
+    });
+
+    it('should reject RPE and RIR values for skipped sets even when called directly', async () => {
+      repository.findById.mockResolvedValue({
+        ...plannedWorkout,
+        status: 'IN_PROGRESS',
+      });
+
+      for (const input of [
+        { status: 'SKIPPED' as const, rpe: 8 },
+        { status: 'SKIPPED' as const, rir: 2 },
+      ]) {
+        await expect(
+          service.updateSet('workout-1', 'set-1', athlete, input),
+        ).rejects.toThrow(BadRequestException);
+      }
+
+      expect(repository.updateSet).not.toHaveBeenCalled();
+    });
+
     it('should reject a set update when workout state changes concurrently', async () => {
       repository.findById.mockResolvedValue({
         ...plannedWorkout,
