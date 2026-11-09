@@ -130,15 +130,19 @@ export class WorkoutsService {
       },
     } satisfies Prisma.WorkoutCreateInput;
 
-    return this.workoutsRepository.create({
-      ...data,
-      ...(idempotency
-        ? {
-            idempotencyKey: idempotency.key,
-            idempotencyFingerprint: idempotency.fingerprint,
-          }
-        : {}),
-    });
+    return this.workoutsRepository.create(
+      {
+        ...data,
+        ...(idempotency
+          ? {
+              idempotencyKey: idempotency.key,
+              idempotencyFingerprint: idempotency.fingerprint,
+            }
+          : {}),
+      },
+      actor.id,
+      exerciseIds,
+    );
     });
   }
 
