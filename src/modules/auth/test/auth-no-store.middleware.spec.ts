@@ -44,8 +44,8 @@ describe('AuthNoStoreMiddleware', () => {
     '/auth-token',
     '/v1/auth/login',
   ])('leaves unrelated route %s unchanged', (path) => {
-    const { headers, response } = run(path);
+    const { headers, setHeader } = run(path);
     expect(headers.has('cache-control')).toBe(false);
-    expect(response.setHeader).not.toHaveBeenCalled();
+    expect(setHeader).not.toHaveBeenCalled();
   });
 });
