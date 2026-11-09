@@ -2,10 +2,10 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { UsersRepository } from '../repositories/users.repository.js';
 import { AvatarDiskStorage } from './avatar-disk.storage.js';
+import { AvatarImageProcessor } from './avatar-image.processor.js';
 import {
   assertAvatarKey,
   avatarMimeForKey,
-  validateAvatar,
   type AvatarUploadFile,
 } from './avatar-validation.js';
 
@@ -16,11 +16,12 @@ export class AvatarService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly storage: AvatarDiskStorage,
+    private readonly processor: AvatarImageProcessor,
   ) {}
 
   async upload(userId: string, file?: AvatarUploadFile) {
-    const extension = validateAvatar(file);
-    const key = await this.storage.save(file!.buffer, extension);
+    const { bytes, extension } = await this.processor.process(file);
+    const key = await this.storage.save(bytes, extension);
     const avatarUrl = `/avatars/${key}`;
 
     let previousKey: string | null;

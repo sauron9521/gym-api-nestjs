@@ -2,6 +2,7 @@ import { Logger, NotFoundException } from '@nestjs/common';
 
 import { AvatarService } from '../avatar/avatar.service.js';
 import { AvatarDiskStorage } from '../avatar/avatar-disk.storage.js';
+import { AvatarImageProcessor } from '../avatar/avatar-image.processor.js';
 import { UsersRepository } from '../repositories/users.repository.js';
 
 describe('AvatarService', () => {
@@ -10,6 +11,7 @@ describe('AvatarService', () => {
     isCurrentAvatar: vi.fn(),
   };
   const storage = { save: vi.fn(), remove: vi.fn(), read: vi.fn() };
+  const processor = { process: vi.fn() };
   let service: AvatarService;
   const key = '12345678-1234-4123-8123-123456789abc.png';
   const old = '12345678-1234-4123-8123-123456789abd.png';
@@ -23,8 +25,12 @@ describe('AvatarService', () => {
     service = new AvatarService(
       repository as unknown as UsersRepository,
       storage as unknown as AvatarDiskStorage,
+      processor as unknown as AvatarImageProcessor,
     );
     storage.save.mockResolvedValue(key);
+    processor.process.mockImplementation(async (file: { buffer: Buffer }) => ({
+      bytes: file.buffer, extension: 'png',
+    }));
     repository.replaceAvatar.mockResolvedValue({
       user: { id: 'user-1' }, previousKey: old,
     });
@@ -39,6 +45,30 @@ describe('AvatarService', () => {
       'user-1', { avatarUrl: `/avatars/${key}` }, key,
     );
     expect(storage.remove).toHaveBeenCalledWith(old);
+  });
+
+  it('does not write any bytes when the image decoder rejects an upload', async () => {
+    processor.process.mockRejectedValueOnce(new Error('invalid image'));
+
+    await expect(service.upload('user-1', {
+      buffer: bytes, size: bytes.length, mimetype: 'image/png',
+    })).rejects.toThrow('invalid image');
+
+    expect(storage.save).not.toHaveBeenCalled();
+    expect(repository.replaceAvatar).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('stores sanitized processor output rather than the uploaded raw bytes', async () => {
+    const sanitized = Buffer.from('decoded and re-encoded pixels');
+    processor.process.mockResolvedValueOnce({ bytes: sanitized, extension: 'png' });
+
+    await service.upload('user-1', {
+      buffer: bytes, size: bytes.length, mimetype: 'image/png',
+    });
+
+    expect(storage.save).toHaveBeenCalledWith(sanitized, 'png');
+    expect(storage.save).not.toHaveBeenCalledWith(bytes, 'png');
   });
 
   it('cleans the newly stored image on DB failure', async () => {
