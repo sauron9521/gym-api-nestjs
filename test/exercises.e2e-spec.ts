@@ -214,6 +214,12 @@ describe('Exercises (HTTP + PostgreSQL)', () => {
   afterAll(async () => {
     try {
       if (prisma) {
+        // Remove workouts referencing these exercises before cleaning sources.
+        if (userIds.length > 0) {
+          await prisma.workout.deleteMany({
+            where: { athleteId: { in: userIds } },
+          });
+        }
         // Remove exercises before removing their owners.
         if (exerciseIds.length > 0) {
           await prisma.exercise.deleteMany({
@@ -458,6 +464,65 @@ describe('Exercises (HTTP + PostgreSQL)', () => {
         .set('Cookie', ownerCookie);
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe('Workout start after exercise archive', () => {
+    it('returns the existing 409 contract and preserves a planned workout snapshot', async () => {
+      const source = await request(app!.getHttpServer())
+        .post('/exercises')
+        .set('Cookie', ownerCookie)
+        .send({
+          name: `Archive start regression ${randomUUID()}`,
+          exerciseType: 'STRENGTH',
+          visibility: 'PRIVATE',
+          muscleGroups: [{ slug: 'chest', role: 'PRIMARY' }],
+          equipment: [],
+        });
+      expect(source.status).toBe(201);
+      const sourceId = source.body.id as string;
+      exerciseIds.push(sourceId);
+
+      const created = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .send({
+          title: 'Planned workout with soon-archived exercise',
+          exercises: [{
+            exerciseId: sourceId,
+            sets: [{ plannedReps: 8 }],
+          }],
+        });
+      expect(created.status).toBe(201);
+      expect(created.body.status).toBe('PLANNED');
+      const workoutId = created.body.id as string;
+      expect(created.body.exercises[0].exerciseId).toBe(sourceId);
+
+      const archived = await request(app!.getHttpServer())
+        .delete(`/exercises/${sourceId}`)
+        .set('Cookie', ownerCookie);
+      expect(archived.status).toBe(200);
+      expect(archived.body.isArchived).toBe(true);
+
+      const start = await request(app!.getHttpServer())
+        .post(`/workouts/${workoutId}/start`)
+        .set('Cookie', ownerCookie);
+      expect(start.status).toBe(409);
+      expect(start.body.code).toBe('CONFLICT');
+      expect(start.headers['cache-control']).toBe('no-store');
+
+      const history = await request(app!.getHttpServer())
+        .get(`/workouts/${workoutId}`)
+        .set('Cookie', ownerCookie);
+      expect(history.status).toBe(200);
+      expect(history.body).toMatchObject({
+        status: 'PLANNED',
+        startedAt: null,
+        exercises: [{
+          exerciseId: sourceId,
+          exerciseNameSnapshot: source.body.name,
+        }],
+      });
     });
   });
 });
