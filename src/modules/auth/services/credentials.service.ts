@@ -1,8 +1,8 @@
 import { PasswordHasher } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
-import { UsersRepository } from '#src/modules/users/users.repository';
+import { UsersRepository } from '#src/modules/users/repositories/users.repository';
 import { SignUpDto } from '../dto/auth.dto.js';
-import type { UserResponse } from '#src/modules/users/dto/response-user';
+import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 @Injectable()
 export class CredentialsService {

@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 
 import { AvatarService } from '../avatar/avatar.service.js';
 import { AvatarDiskStorage } from '../avatar/avatar-disk.storage.js';
-import { UsersRepository } from '../users.repository.js';
+import { UsersRepository } from '../repositories/users.repository.js';
 
 describe('AvatarService', () => {
   const repository = {

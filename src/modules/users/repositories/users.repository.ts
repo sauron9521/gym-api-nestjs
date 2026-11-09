@@ -3,44 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
+import { PrismaService } from '#src/infra/database/index';
 
-export const userSelect = {
-  id: true,
-  email: true,
-  emailVerified: true,
-  role: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.UserSelect;
-
-export const userWithProfileSelect = {
-  ...userSelect,
-  profile: {
-    select: {
-      name: true,
-      firstName: true,
-      lastName: true,
-      displayName: true,
-      avatarUrl: true,
-      timezone: true,
-      birthday: true,
-      height: true,
-      weight: true,
-    },
-  },
-} satisfies Prisma.UserSelect;
-
-export const userSelectWithCredentials = {
-  id: true,
-  email: true,
-  passwordHash: true,
-  emailVerified: true,
-  role: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.UserSelect;
+import {
+  profileAvatarOwnerSelect,
+  userAvatarKeySelect,
+  userEmailVerificationSelect,
+  userSelect,
+  userSelectWithCredentials,
+  userWithProfileSelect,
+} from '../selects/user.select.js';
 
 @Injectable()
 export class UsersRepository {
@@ -124,7 +97,7 @@ export class UsersRepository {
 
       const current = await tx.user.findUnique({
         where: { id: userId },
-        select: { profile: { select: { avatarKey: true } } },
+        select: userAvatarKeySelect,
       });
       const previousKey = current?.profile?.avatarKey ?? null;
 
@@ -158,7 +131,7 @@ export class UsersRepository {
   async isCurrentAvatar(key: string): Promise<boolean> {
     const profile = await this.prisma.profile.findUnique({
       where: { avatarKey: key },
-      select: { user: { select: { deletedAt: true } } },
+      select: profileAvatarOwnerSelect,
     });
 
     return Boolean(profile && profile.user.deletedAt === null);
@@ -214,11 +187,7 @@ export class UsersRepository {
     await this.prisma.user.update({
       where: { id: userId },
       data: { emailVerified: true },
-      select: {
-        id: true,
-        email: true,
-        emailVerified: true,
-      },
+      select: userEmailVerificationSelect,
     });
     return true;
   }

@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 
-import { UsersRepository } from '../users.repository.js';
-import { UsersService } from '../users.service.js';
+import { UsersRepository } from '../repositories/users.repository.js';
+import { UsersService } from '../services/users.service.js';
 
 describe('UsersService', () => {
   const repository = {

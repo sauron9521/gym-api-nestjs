@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { VerificationTokenDto } from '../dto/auth.dto.js';
-import type { UserResponse } from '#src/modules/users/dto/response-user';
+import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 @Controller('auth/email')
 export class EmailVerificationController {

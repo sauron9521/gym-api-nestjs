@@ -1,12 +1,12 @@
 import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '#src/infra/database/index';
+import { UsersRepository } from '../repositories/users.repository.js';
 import {
   userSelect,
   userSelectWithCredentials,
   userWithProfileSelect,
-  UsersRepository,
-} from '../users.repository.js';
-import { UserResponse } from '../dto/response-user.js';
+} from '../selects/user.select.js';
+import type { UserResponse } from '../types/user-payload.types.js';
 import { Prisma, type User } from '#prisma/client';
 
 describe('UsersRepository', () => {

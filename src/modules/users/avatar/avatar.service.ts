@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
-import { UsersRepository } from '../users.repository.js';
+import { UsersRepository } from '../repositories/users.repository.js';
 import { AvatarDiskStorage } from './avatar-disk.storage.js';
 import {
   assertAvatarKey,
