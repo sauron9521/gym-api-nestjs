@@ -21,7 +21,7 @@ import {
   trainingAssignmentResponseSchema,
   trainingAssignmentListResponseSchema,
   trainingAssignmentPublicDetailsResponseSchema,
-} from '../../openapi/response-contracts.js';
+} from '../../infra/openapi/response-contracts.js';
 import {
   type CreateTrainingProgramAssignmentDto,
   createTrainingProgramAssignmentSchema,

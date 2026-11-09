@@ -3,7 +3,7 @@ import type {
   TrainingProgramAssignmentStatus,
   TrainingProgramStatus,
   WorkoutSetType,
-} from '../../../generated/prisma/client.js';
+} from '../../../infra/database/generated/prisma/client.js';
 
 export type TrainingProgramActor = {
   id: string;
