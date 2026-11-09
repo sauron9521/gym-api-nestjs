@@ -4,7 +4,7 @@ import { PrismaService } from '#src/infra/database/index';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
 import { trainingProgramDraftAccessSelect } from '../selects/training-program-access.select.js';
 import { trainingProgramVersionListSelect } from '../selects/training-program-query.select.js';
-import type { Prisma } from '#prisma/client';
+import { Prisma } from '#prisma/client';
 import type { TrainingProgramVersionPayload } from '../types/training-program-payload.types.js';
 
 @Injectable()
@@ -260,6 +260,59 @@ export class TrainingProgramVersionRepository {
         }
 
         assertPublishableVersion(currentVersion);
+
+        // Draft editors also take the version row lock through their nested
+        // writes. Once the draft is locked, its reference set cannot change.
+        // Lock the referenced exercise rows as well: archival is a conflicting
+        // UPDATE, so no exercise can become archived between this check and
+        // the PUBLISHED transition.
+        const exerciseIds = [
+          ...new Set(
+            currentVersion.workouts.flatMap((workout) =>
+              workout.exercises.map((exercise) => exercise.exerciseId),
+            ),
+          ),
+        ];
+
+        const sourceExercises = await tx.$queryRaw<
+          Array<{
+            id: string;
+            source: string;
+            createdById: string | null;
+            isArchived: boolean;
+          }>
+        >`
+          SELECT
+            "id",
+            "source",
+            "created_by_id" AS "createdById",
+            "is_archived" AS "isArchived"
+          FROM "exercises"
+          WHERE "id" IN (${Prisma.join(exerciseIds)})
+          ORDER BY "id"
+          FOR SHARE
+        `;
+
+        const program = await tx.trainingProgram.findUnique({
+          where: { id: programId },
+          select: { trainerId: true },
+        });
+
+        if (
+          !program ||
+          sourceExercises.length !== exerciseIds.length ||
+          sourceExercises.some(
+            (exercise) =>
+              exercise.isArchived ||
+              (exercise.source !== 'GLOBAL' &&
+                (exercise.source !== 'TRAINER_CUSTOM' ||
+                  exercise.createdById !== program.trainerId)),
+          )
+        ) {
+          throw new BadRequestException(
+            'A program references unavailable exercises',
+          );
+        }
 
         const published = await tx.trainingProgramVersion.updateMany({
           where: {

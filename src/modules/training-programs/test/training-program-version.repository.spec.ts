@@ -466,14 +466,18 @@ describe('TrainingProgramVersionRepository', () => {
       status: 'DRAFT',
       durationWeeks: 4,
       workouts: [
-        { weekNumber: 1, exercises: [{ sets: [{ id: 'set-1' }] }] },
+        { weekNumber: 1, exercises: [{ exerciseId: 'exercise-1', sets: [{ id: 'set-1' }] }] },
       ],
     };
 
     it('validates a locked draft before publishing', async () => {
       const publishedVersion = { ...validDraft, status: 'PUBLISHED' };
       const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([{ id: 'version-1' }]),
+        $queryRaw: vi.fn()
+          .mockResolvedValueOnce([{ id: 'version-1' }])
+          .mockResolvedValueOnce([
+            { id: 'exercise-1', source: 'GLOBAL', createdById: null, isArchived: false },
+          ]),
         trainingProgramVersion: {
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
           findUnique: vi.fn()
@@ -481,6 +485,7 @@ describe('TrainingProgramVersionRepository', () => {
             .mockResolvedValueOnce(publishedVersion),
         },
         trainingProgram: {
+          findUnique: vi.fn().mockResolvedValue({ trainerId: 'trainer-1' }),
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       };
@@ -492,7 +497,17 @@ describe('TrainingProgramVersionRepository', () => {
 
       const result = await repository.publishVersion('program-1', 'version-1');
 
-      expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(tx.trainingProgram.findUnique).toHaveBeenCalledWith({
+        where: { id: 'program-1' },
+        select: { trainerId: true },
+      });
+      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.$queryRaw.mock.invocationCallOrder[1]!,
+      );
+      expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+        tx.trainingProgramVersion.updateMany.mock.invocationCallOrder[0]!,
+      );
       expect(tx.trainingProgramVersion.findUnique).toHaveBeenCalledTimes(2);
       expect(tx.trainingProgramVersion.updateMany).toHaveBeenCalledWith({
         where: { id: 'version-1', programId: 'program-1', status: 'DRAFT' },
@@ -563,12 +578,17 @@ describe('TrainingProgramVersionRepository', () => {
 
     it('rolls back publication when the program was archived', async () => {
       const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([{ id: 'version-1' }]),
+        $queryRaw: vi.fn()
+          .mockResolvedValueOnce([{ id: 'version-1' }])
+          .mockResolvedValueOnce([
+            { id: 'exercise-1', source: 'GLOBAL', createdById: null, isArchived: false },
+          ]),
         trainingProgramVersion: {
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
           findUnique: vi.fn().mockResolvedValue(validDraft),
         },
         trainingProgram: {
+          findUnique: vi.fn().mockResolvedValue({ trainerId: 'trainer-1' }),
           updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
       };
@@ -580,6 +600,101 @@ describe('TrainingProgramVersionRepository', () => {
         .toBeNull();
       expect(tx.trainingProgramVersion.updateMany).toHaveBeenCalledTimes(1);
       expect(tx.trainingProgram.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      {
+        caseName: 'archived global source',
+        source: { id: 'exercise-1', source: 'GLOBAL', createdById: null, isArchived: true },
+      },
+      {
+        caseName: 'athlete-owned source',
+        source: { id: 'exercise-1', source: 'ATHLETE_CUSTOM', createdById: 'athlete-1', isArchived: false },
+      },
+      {
+        caseName: 'another trainer source',
+        source: { id: 'exercise-1', source: 'TRAINER_CUSTOM', createdById: 'trainer-2', isArchived: false },
+      },
+    ])('rejects publishing with $caseName', async ({ source }) => {
+      const tx = {
+        $queryRaw: vi.fn()
+          .mockResolvedValueOnce([{ id: 'version-1' }])
+          .mockResolvedValueOnce([source]),
+        trainingProgramVersion: {
+          findUnique: vi.fn().mockResolvedValue(validDraft),
+          updateMany: vi.fn(),
+        },
+        trainingProgram: {
+          findUnique: vi.fn().mockResolvedValue({ trainerId: 'trainer-1' }),
+          updateMany: vi.fn(),
+        },
+      };
+      models.$transaction.mockImplementation(
+        (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+      );
+      await expect(repository.publishVersion('program-1', 'version-1'))
+        .rejects.toThrow('A program references unavailable exercises');
+      expect(tx.trainingProgramVersion.updateMany).not.toHaveBeenCalled();
+      expect(tx.trainingProgram.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects source IDs that disappeared before publication locks', async () => {
+      const tx = {
+        $queryRaw: vi.fn()
+          .mockResolvedValueOnce([{ id: 'version-1' }])
+          .mockResolvedValueOnce([]),
+        trainingProgramVersion: {
+          findUnique: vi.fn().mockResolvedValue(validDraft),
+          updateMany: vi.fn(),
+        },
+        trainingProgram: {
+          findUnique: vi.fn().mockResolvedValue({ trainerId: 'trainer-1' }),
+          updateMany: vi.fn(),
+        },
+      };
+      models.$transaction.mockImplementation(
+        (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+      );
+      await expect(repository.publishVersion('program-1', 'version-1'))
+        .rejects.toThrow('A program references unavailable exercises');
+      expect(tx.trainingProgramVersion.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('accepts active trainer-authored exercises and locks each reference only once', async () => {
+      const published = { ...validDraft, status: 'PUBLISHED' };
+      const tx = {
+        $queryRaw: vi.fn()
+          .mockResolvedValueOnce([{ id: 'version-1' }])
+          .mockResolvedValueOnce([
+            { id: 'exercise-1', source: 'TRAINER_CUSTOM', createdById: 'trainer-1', isArchived: false },
+          ]),
+        trainingProgramVersion: {
+          findUnique: vi.fn()
+            .mockResolvedValueOnce({
+              ...validDraft,
+              workouts: [{
+                weekNumber: 1,
+                exercises: [
+                  { exerciseId: 'exercise-1', sets: [{}] },
+                  { exerciseId: 'exercise-1', sets: [{}] },
+                ],
+              }],
+            })
+            .mockResolvedValueOnce(published),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        trainingProgram: {
+          findUnique: vi.fn().mockResolvedValue({ trainerId: 'trainer-1' }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+      models.$transaction.mockImplementation(
+        (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+      );
+      await expect(repository.publishVersion('program-1', 'version-1'))
+        .resolves.toEqual(published);
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(tx.trainingProgramVersion.updateMany).toHaveBeenCalledOnce();
     });
 
     it('propagates unexpected transaction errors', async () => {
