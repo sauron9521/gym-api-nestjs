@@ -169,9 +169,12 @@ describe('WorkoutsRepository', () => {
   describe('create', () => {
     beforeEach(() => {
       prisma.$transaction.mockImplementation(async (cb: (tx: typeof prisma) => Promise<unknown>) => cb(prisma));
-      prisma.exercise.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ id: 'exercise-1', name: 'Bench Press', exerciseType: 'STRENGTH' }]);
+      prisma.$queryRaw.mockResolvedValue([
+        { id: 'exercise-1', source: 'GLOBAL', createdById: null, isArchived: false },
+      ]);
+      prisma.exercise.findMany.mockResolvedValue([
+        { id: 'exercise-1', name: 'Bench Press', exerciseType: 'STRENGTH' },
+      ]);
     });
     it('should create a workout with exercises and sets', async () => {
       const data = {
@@ -237,38 +240,89 @@ describe('WorkoutsRepository', () => {
       expect(result).toEqual(workout);
     });
 
-    it('locks active trainer relationships before the final access check and insert', async () => {
-      prisma.exercise.findMany.mockReset();
-      prisma.exercise.findMany
-        .mockResolvedValueOnce([{ createdById: 'trainer-1' }])
-        .mockResolvedValueOnce([{ id: 'exercise-1', name: 'Trainer Bench', exerciseType: 'STRENGTH' }]);
-      prisma.$queryRaw.mockResolvedValue([{ trainerId: 'trainer-1' }]);
+    it('locks exercises before active trainer relationships and the workout insert', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([
+          { id: 'exercise-1', source: 'TRAINER_CUSTOM', createdById: 'trainer-1', isArchived: false },
+        ])
+        .mockResolvedValueOnce([{ id: 'relationship-1', trainerId: 'trainer-1' }]);
+      prisma.exercise.findMany.mockResolvedValue([
+        { id: 'exercise-1', name: 'Trainer Bench', exerciseType: 'STRENGTH' },
+      ]);
       prisma.workout.create.mockResolvedValue({ id: 'created-workout' });
       await expect(repository.create({
         title: 'Trainer Workout',
         athlete: { connect: { id: 'athlete-1' } },
         createdBy: { connect: { id: 'athlete-1' } },
       }, 'athlete-1', ['exercise-1'])).resolves.toMatchObject({ id: 'created-workout' });
-      expect(prisma.$queryRaw).toHaveBeenCalledOnce();
-      expect(prisma.exercise.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(prisma.exercise.findMany).toHaveBeenCalledOnce();
       expect(prisma.workout.create).toHaveBeenCalledOnce();
       expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.$queryRaw.mock.invocationCallOrder[1]!,
+      );
+      expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
         prisma.workout.create.mock.invocationCallOrder[0]!,
       );
     });
 
-    it('rejects revoked or archived exercises after locking without persisting a workout', async () => {
-      prisma.exercise.findMany.mockReset();
-      prisma.exercise.findMany
-        .mockResolvedValueOnce([{ createdById: 'trainer-1' }])
+    it('rejects a trainer exercise when collaboration ended after exercise locking', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([
+          { id: 'exercise-1', source: 'TRAINER_CUSTOM', createdById: 'trainer-1', isArchived: false },
+        ])
         .mockResolvedValueOnce([]);
-      prisma.$queryRaw.mockResolvedValue([]);
+      prisma.exercise.findMany.mockResolvedValue([]);
       await expect(repository.create({
         title: 'Forbidden Workout',
         athlete: { connect: { id: 'athlete-1' } },
         createdBy: { connect: { id: 'athlete-1' } },
       }, 'athlete-1', ['exercise-1'])).rejects.toThrow('One or more exercises are not available');
       expect(prisma.workout.create).not.toHaveBeenCalled();
+    });
+
+    it.each(['GLOBAL', 'ATHLETE_CUSTOM', 'TRAINER_CUSTOM'] as const)(
+      'rejects archived %s references under the row lock, before creating a workout',
+      async (source) => {
+        prisma.$queryRaw.mockResolvedValueOnce([
+          { id: 'exercise-1', source, createdById: source === 'GLOBAL' ? null : 'user-1', isArchived: true },
+        ]);
+        await expect(repository.create({
+          title: 'Archived reference',
+          athlete: { connect: { id: 'athlete-1' } },
+          createdBy: { connect: { id: 'athlete-1' } },
+        }, 'athlete-1', ['exercise-1'])).rejects.toThrow(
+          'One or more exercises are not available',
+        );
+        expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+        expect(prisma.exercise.findMany).not.toHaveBeenCalled();
+        expect(prisma.workout.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects unavailable exercise IDs after the lock query without inserting', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([]);
+      await expect(repository.create({
+        title: 'Unknown exercise',
+        athlete: { connect: { id: 'athlete-1' } },
+        createdBy: { connect: { id: 'athlete-1' } },
+      }, 'athlete-1', ['exercise-1'])).rejects.toThrow(
+        'One or more exercises are not available',
+      );
+      expect(prisma.exercise.findMany).not.toHaveBeenCalled();
+      expect(prisma.workout.create).not.toHaveBeenCalled();
+    });
+
+    it('locks unique source IDs once even if repeated in the workout', async () => {
+      prisma.workout.create.mockResolvedValue({ id: 'workout-1' });
+      await repository.create({
+        title: 'Repeated reference',
+        athlete: { connect: { id: 'athlete-1' } },
+        createdBy: { connect: { id: 'athlete-1' } },
+      }, 'athlete-1', ['exercise-1', 'exercise-1']);
+      expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+      expect(prisma.exercise.findMany).toHaveBeenCalledOnce();
+      expect(prisma.workout.create).toHaveBeenCalledOnce();
     });
 
     it('should propagate database errors', async () => {
