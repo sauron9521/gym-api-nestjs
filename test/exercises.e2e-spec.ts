@@ -504,6 +504,32 @@ describe('Exercises (HTTP + PostgreSQL)', () => {
       expect(archived.status).toBe(200);
       expect(archived.body.isArchived).toBe(true);
 
+      // PR #67: archival must also prevent creating a NEW workout using the
+      // archived source, while an earlier planned workout stays in history.
+      const blockedCreate = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .send({
+          title: 'Cannot create another workout using archived exercise',
+          exercises: [{
+            exerciseId: sourceId,
+            sets: [{ plannedReps: 8 }],
+          }],
+        });
+      expect(blockedCreate.status).toBe(400);
+      expect(blockedCreate.body).toMatchObject({
+        statusCode: 400,
+        code: 'BAD_REQUEST',
+        message: 'One or more exercises are not available',
+      });
+      expect(blockedCreate.headers['cache-control']).toBe('no-store');
+      expect(await prisma.workout.count({
+        where: {
+          athleteId: ownerId,
+          title: 'Cannot create another workout using archived exercise',
+        },
+      })).toBe(0);
+
       const start = await request(app!.getHttpServer())
         .post(`/workouts/${workoutId}/start`)
         .set('Cookie', ownerCookie);
