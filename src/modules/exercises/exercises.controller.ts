@@ -40,7 +40,7 @@ import {
 } from './dto/query-exercises.dto.js';
 
 import { exerciseIdSchema } from './dto/exercise.schemas.js';
-import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
 
 const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {
   activeTrainerIds: [],

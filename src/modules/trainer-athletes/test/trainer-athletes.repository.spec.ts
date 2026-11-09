@@ -1,10 +1,8 @@
 import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
 
-import {
-  trainerAthleteSelect,
-  TrainerAthletesRepository,
-} from '../trainer-athletes.repository.js';
+import { TrainerAthletesRepository } from '../repositories/trainer-athletes.repository.js';
+import { trainerAthleteSelect } from '../selects/trainer-athlete.select.js';
 
 describe('TrainerAthletesRepository', () => {
   let repository: TrainerAthletesRepository;

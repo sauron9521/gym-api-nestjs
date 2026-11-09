@@ -16,7 +16,7 @@ import type {
   WorkoutActor,
   WorkoutListQuery,
 } from './types/workout.types.js';
-import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
 import { workoutIdempotency } from './workout-idempotency.js';
 import type { WorkoutIdempotency } from './workout-idempotency.js';
 

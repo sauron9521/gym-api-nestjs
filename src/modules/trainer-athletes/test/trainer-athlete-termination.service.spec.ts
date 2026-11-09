@@ -1,6 +1,6 @@
 import { PrismaService } from '#src/infra/database/index';
 
-import { trainerAthleteHistoricalSelect, trainerAthleteSelect } from '../trainer-athletes.repository.js';
+import { trainerAthleteHistoricalSelect, trainerAthleteSelect } from '../selects/trainer-athlete.select.js';
 import { TrainerAthleteTerminationService } from '../services/trainer-athlete-termination.service.js';
 import { TrainerAthleteExerciseCopyService } from '../services/trainer-athlete-exercise-copy.service.js';
 
