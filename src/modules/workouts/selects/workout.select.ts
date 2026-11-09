@@ -67,6 +67,23 @@ export const workoutSelect = {
   updatedAt: true,
 } satisfies Prisma.WorkoutSelect;
 
+/** Compact list item: never fetch nested exercise/set collections. */
+export const workoutSummarySelect = {
+  id: true,
+  title: true,
+  athleteId: true,
+  createdById: true,
+  status: true,
+  scheduledAt: true,
+  startedAt: true,
+  completedAt: true,
+  programAssignmentId: true,
+  programWorkoutId: true,
+  createdAt: true,
+  updatedAt: true,
+  _count: { select: { exercises: true } },
+} satisfies Prisma.WorkoutSelect;
+
 /** Private idempotency lookup never used in HTTP projections. */
 export const workoutIdempotencySelect = {
   id: true,
