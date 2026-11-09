@@ -16,7 +16,9 @@ type ExerciseLockRow = {
 };
 
 export type GrantTrainerAccessResult =
-  | { status: 'NOT_FOUND' | 'PRIVATE' | 'NO_ACTIVE_RELATIONSHIP' }
+  | { status: 'NOT_FOUND' }
+  | { status: 'PRIVATE' }
+  | { status: 'NO_ACTIVE_RELATIONSHIP' }
   | {
       status: 'GRANTED';
       grant: {
