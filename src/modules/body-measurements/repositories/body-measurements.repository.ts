@@ -2,38 +2,12 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
-import { metricKeys } from './dto/body-measurement.schemas.js';
-
-export const bodyMeasurementSelect = {
-  id: true,
-  measuredAt: true,
-  weightKg: true,
-  bodyFatPct: true,
-  chestCm: true,
-  waistCm: true,
-  hipsCm: true,
-  armCm: true,
-  thighCm: true,
-  notes: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.BodyMeasurementSelect;
-
-type MeasurementRecord = Prisma.BodyMeasurementGetPayload<{
-  select: typeof bodyMeasurementSelect;
-}>;
-
-export type MeasurementChanges = Partial<{
-  weightKg: number | null;
-  bodyFatPct: number | null;
-  chestCm: number | null;
-  waistCm: number | null;
-  hipsCm: number | null;
-  armCm: number | null;
-  thighCm: number | null;
-  notes: string | null;
-  measuredAt: Date;
-}>;
+import { metricKeys } from '../dto/body-measurement.schemas.js';
+import { bodyMeasurementSelect } from '../selects/body-measurement.select.js';
+import type {
+  MeasurementChanges,
+  MeasurementRecord,
+} from '../types/body-measurement.types.js';
 
 @Injectable()
 export class BodyMeasurementsRepository {

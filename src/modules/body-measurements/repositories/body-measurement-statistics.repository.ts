@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
-import type { BodyMeasurementMetric } from './dto/body-measurement-statistics.schemas.js';
+import type { BodyMeasurementMetric } from '../dto/body-measurement-statistics.schemas.js';
+import { measurementStatisticsSelect } from '../selects/body-measurement.select.js';
+import type { DailyMetricRecord } from '../types/body-measurement.types.js';
 
 const metricColumns: Record<BodyMeasurementMetric, string> = {
   weightKg: 'weight_kg',
@@ -12,29 +14,6 @@ const metricColumns: Record<BodyMeasurementMetric, string> = {
   hipsCm: 'hips_cm',
   armCm: 'arm_cm',
   thighCm: 'thigh_cm',
-};
-
-/** Small fixed projection for metric endpoints: never load notes or users. */
-export const measurementStatisticsSelect = {
-  id: true,
-  measuredAt: true,
-  weightKg: true,
-  bodyFatPct: true,
-  chestCm: true,
-  waistCm: true,
-  hipsCm: true,
-  armCm: true,
-  thighCm: true,
-} satisfies Prisma.BodyMeasurementSelect;
-
-export type MeasurementStatisticsRecord = Prisma.BodyMeasurementGetPayload<{
-  select: typeof measurementStatisticsSelect;
-}>;
-
-export type DailyMetricRecord = {
-  id: string;
-  measuredAt: Date;
-  value: Prisma.Decimal;
 };
 
 @Injectable()

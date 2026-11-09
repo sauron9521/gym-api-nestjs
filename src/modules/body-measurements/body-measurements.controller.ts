@@ -5,8 +5,8 @@ import {
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 import { ApiBearerAuth, ApiCookieAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
-import { BodyMeasurementsService } from './body-measurements.service.js';
-import { BodyMeasurementStatisticsService } from './body-measurement-statistics.service.js';
+import { BodyMeasurementsService } from './services/body-measurements.service.js';
+import { BodyMeasurementStatisticsService } from './services/body-measurement-statistics.service.js';
 import {
   bodyMeasurementStatisticsQuerySchema,
   type BodyMeasurementStatisticsQueryDto,
