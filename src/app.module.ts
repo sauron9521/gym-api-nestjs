@@ -12,6 +12,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiExceptionFilter } from '#src/common/filters/api-exception.filter';
 import { RolesGuard } from '#src/common/guards/roles.guard';
 import { RequestContextMiddleware } from '#src/common/request-context/request-context.middleware';
+import { DistributedThrottlerStorage } from '#src/common/rate-limit/distributed-throttler.storage';
+import { RateLimitStorageModule } from '#src/common/rate-limit/rate-limit-storage.module';
 import { AuthNoStoreMiddleware } from '#src/modules/auth/middleware/auth-no-store.middleware';
 import { PrivateApiNoStoreMiddleware } from '#src/common/http/private-api-no-store.middleware';
 import type { AppConfigService } from '#src/common/config/app-config.types';
@@ -66,13 +68,13 @@ import { WorkoutsModule } from '#src/modules/workouts/workouts.module';
     }),
     PrismaModule,
     HealthModule,
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 60000,
-          limit: 10,
-        },
-      ],
+    ThrottlerModule.forRootAsync({
+      imports: [RateLimitStorageModule],
+      inject: [DistributedThrottlerStorage],
+      useFactory: (storage: DistributedThrottlerStorage) => ({
+        throttlers: [{ ttl: 60_000, limit: 10 }],
+        storage,
+      }),
     }),
     ScheduleModule.forRoot(),
     UsersModule,

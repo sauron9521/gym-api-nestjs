@@ -28,6 +28,8 @@ describe('validateEnv', () => {
     expect(env.PORT).toBe(3000);
     expect(env.ENABLE_OPENAPI).toBe(false);
     expect(env.LOG_LEVEL).toBe('log');
+    expect(env.REDIS_URL).toBeUndefined();
+    expect(env.TRUSTED_PROXY_CIDRS).toBeUndefined();
   });
 
   it('normalizes optional log level and rejects unsupported values', () => {
@@ -46,6 +48,16 @@ describe('validateEnv', () => {
   it('accepts production with encrypted SMTP', () => {
     expect(validateEnv(validProd).SMTP_URL)
       .toBe(validProd.SMTP_URL);
+  });
+
+  it('accepts named or exact trusted proxies and Redis TLS URL', () => {
+    const env = validateEnv({
+      ...validDev,
+      REDIS_URL: 'rediss://:secret@redis.internal:6380/0',
+      TRUSTED_PROXY_CIDRS: 'loopback,10.12.0.0/16,::1',
+    });
+    expect(env.REDIS_URL).toContain('rediss://');
+    expect(env.TRUSTED_PROXY_CIDRS).toBe('loopback,10.12.0.0/16,::1');
   });
 
   it('parses optional values and booleans', () => {
@@ -71,6 +83,12 @@ describe('validateEnv', () => {
     ['CORS origin with path', { CORS_ORIGINS: 'https://app.example.test/path' }],
     ['URL credentials', { APP_URL: 'https://user:pw@app.example.test' }],
     ['invalid SMTP protocol', { SMTP_URL: 'https://smtp.example.test' }],
+    ['invalid Redis protocol', { REDIS_URL: 'https://redis.example.test' }],
+    ['Redis URL query', { REDIS_URL: 'redis://localhost:6379/?foo=bar' }],
+    ['all proxies trusted', { TRUSTED_PROXY_CIDRS: '0.0.0.0/0' }],
+    ['trust every proxy', { TRUSTED_PROXY_CIDRS: '*' }],
+    ['trust proxy by hops', { TRUSTED_PROXY_CIDRS: '1' }],
+    ['CIDR with bad prefix', { TRUSTED_PROXY_CIDRS: '10.1.0.0/88' }],
     ['MAIL_FROM header injection', { MAIL_FROM: 'a@example.test\r\nBcc: bad@example.test' }],
   ])('rejects %s', (_label, override) => {
     expect(() => validateEnv({ ...validDev, ...override })).toThrow(

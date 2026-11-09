@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { isTrustedProxyList } from './proxy.config.js';
+
 const emptyToUndefined = (value: unknown) =>
   value === '' ? undefined : value;
 
@@ -30,6 +32,21 @@ function isPostgresUrl(value: string): boolean {
     return (
       (url.protocol === 'postgres:' || url.protocol === 'postgresql:') &&
       Boolean(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isRedisUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'redis:' || url.protocol === 'rediss:') &&
+      Boolean(url.hostname) &&
+      !url.hash &&
+      !url.search &&
+      (url.pathname === '' || url.pathname === '/' || (url.pathname.startsWith('/') && /^[0-9]{1,2}$/.test(url.pathname.slice(1))))
     );
   } catch {
     return false;
@@ -101,6 +118,12 @@ const baseEnvSchema = z.object({
   ENABLE_OPENAPI: z.enum(['true', 'false']).default('false')
     .transform((value) => value === 'true'),
   AVATAR_STORAGE_DIR: optionalString,
+  REDIS_URL: z.preprocess(emptyToUndefined,
+    z.string().trim().refine(isRedisUrl, 'Must be a redis:// or rediss:// URL').optional(),
+  ),
+  TRUSTED_PROXY_CIDRS: z.preprocess(emptyToUndefined,
+    z.string().trim().refine(isTrustedProxyList, 'Must be trusted IPs, CIDRs or named local subnets').optional(),
+  ),
 });
 
 export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
