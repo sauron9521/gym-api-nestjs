@@ -80,17 +80,27 @@ export class WorkoutsRepository {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const uniqueIds = [...new Set(exerciseIds)];
-      const trainerExercises = await tx.exercise.findMany({
-        where: { id: { in: uniqueIds }, source: 'TRAINER_CUSTOM' },
-        select: { createdById: true },
-      });
+
+      // Lock exercise rows BEFORE relationship rows (the same order as
+      // startWorkout). Archiving updates these rows and cannot commit between
+      // this authorization check and the final workout insert.
+      const lockedExercises = await this.lockExerciseReferences(tx, uniqueIds);
+      if (
+        lockedExercises.length !== uniqueIds.length ||
+        lockedExercises.some((exercise) => exercise.isArchived)
+      ) {
+        throw new BadRequestException('One or more exercises are not available');
+      }
+
       const trainerIds = [...new Set(
-        trainerExercises
+        lockedExercises
+          .filter((exercise) => exercise.source === 'TRAINER_CUSTOM')
           .map((exercise) => exercise.createdById)
           .filter((id): id is string => id !== null),
       )];
 
-      // Keep the same lock protocol for new workouts and planned starts.
+      // Serialize with relationship termination using the same lock order as
+      // planned workout starts: exercise -> relationship -> assignment.
       const activeRelationships = await this.lockActiveTrainerRelationships(
         tx,
         athleteId,
@@ -237,8 +247,42 @@ export class WorkoutsRepository {
     idempotency?: { key: string; fingerprint: string };
   }) {
     return this.prisma.$transaction(async (tx) => {
-      // Match the termination lock order: relationship first, assignment
-      // second. This also prevents reading ACTIVE after termination begins.
+      // The published workout is immutable to ordinary clients, but load its
+      // exercise references before taking locks so the lock order matches
+      // manual creation and planned starts: exercises -> relationship -> assignment.
+      const reference = await tx.trainingProgramAssignment.findFirst({
+        where: {
+          id: input.assignmentId,
+          athleteId: input.athleteId,
+          status: 'ACTIVE',
+          version: { is: { status: 'PUBLISHED' } },
+        },
+        select: {
+          version: {
+            select: {
+              workouts: {
+                where: { id: input.programWorkoutId },
+                select: { exercises: { select: { exerciseId: true } } },
+              },
+            },
+          },
+        },
+      });
+
+      const candidateWorkout = reference?.version.workouts[0];
+      if (!candidateWorkout) return null;
+
+      const referenceIds = [
+        ...new Set(candidateWorkout.exercises.map((exercise) => exercise.exerciseId)),
+      ];
+      const lockedExercises = await this.lockExerciseReferences(tx, referenceIds);
+      if (
+        lockedExercises.length !== referenceIds.length ||
+        lockedExercises.some((exercise) => exercise.isArchived)
+      ) return null;
+
+      // Check the current relationship AFTER securing the exercise rows,
+      // before locking the assignment. Termination must wait at this boundary.
       const activeRelationships = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT relationship."id"
         FROM "trainer_athletes" AS relationship
@@ -331,6 +375,16 @@ export class WorkoutsRepository {
         return null;
       }
 
+      // Defensive consistency check: a concurrent change to the program
+      // workout cannot introduce an exercise absent from our locked set.
+      const currentIds = [
+        ...new Set(programWorkout.exercises.map((exercise) => exercise.exerciseId)),
+      ];
+      if (
+        currentIds.length !== referenceIds.length ||
+        currentIds.some((id) => !referenceIds.includes(id))
+      ) return null;
+
       return tx.workout.create({
         data: {
           title: programWorkout.title,
@@ -386,6 +440,44 @@ export class WorkoutsRepository {
         select: workoutSelect,
       });
     });
+  }
+
+  /**
+   * Lock all referenced source exercise rows, not just trainer-owned ones.
+   * FOR SHARE conflicts with the UPDATE used by ExercisesRepository.archive().
+   * The transaction retains these locks until it commits the nested workout.
+   */
+  private async lockExerciseReferences(
+    tx: Prisma.TransactionClient,
+    ids: string[],
+  ): Promise<
+    Array<{
+      id: string;
+      source: string;
+      createdById: string | null;
+      isArchived: boolean;
+    }>
+  > {
+    if (ids.length === 0) return [];
+
+    return tx.$queryRaw<
+      Array<{
+        id: string;
+        source: string;
+        createdById: string | null;
+        isArchived: boolean;
+      }>
+    >`
+      SELECT
+        "id",
+        "source",
+        "created_by_id" AS "createdById",
+        "is_archived" AS "isArchived"
+      FROM "exercises"
+      WHERE "id" IN (${Prisma.join(ids)})
+      ORDER BY "id"
+      FOR SHARE
+    `;
   }
 
   /** Obtain and retain current ACTIVE collaboration locks until transaction commit. */
