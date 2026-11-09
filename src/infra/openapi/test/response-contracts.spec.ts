@@ -15,6 +15,8 @@ import {
   trainingProgramSetResponseSchema,
   trainingProgramVersionResponseSchema,
   workoutListResponseSchema,
+  workoutSummaryListResponseSchema,
+  workoutSummaryResponseSchema,
   workoutResponseSchema,
   workoutSetResponseSchema,
   type ResponseSchema,
@@ -23,6 +25,7 @@ import { exerciseSelect } from '#src/modules/exercises/selects/exercise.select';
 import {
   workoutSelect,
   workoutSetSelect,
+  workoutSummarySelect,
 } from '#src/modules/workouts/selects/workout.select';
 import {
   trainerAthleteHistoricalSelect,
@@ -79,6 +82,20 @@ describe('OpenAPI response projections vs Prisma selects', () => {
     expect(workoutResponseSchema.properties).not.toHaveProperty(
       'idempotencyFingerprint',
     );
+  });
+
+  it('documents the opt-in compact workout list without nested arrays', () => {
+    const expected = Object.keys(workoutSummarySelect)
+      .filter((key) => key !== '_count')
+      .concat('exerciseCount')
+      .sort();
+    expect(Object.keys(workoutSummaryResponseSchema.properties ?? {}).sort())
+      .toEqual(expected);
+    expect(workoutSummaryResponseSchema.properties).not.toHaveProperty('exercises');
+    expect(workoutSummaryResponseSchema.properties?.exerciseCount)
+      .toEqual({ type: 'integer' });
+    expect(workoutSummaryListResponseSchema.properties?.data?.items)
+      .toEqual(workoutSummaryResponseSchema);
   });
 
   it('documents normal and historical trainer-athlete responses separately', () => {
