@@ -1,8 +1,9 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
 import {
   assertCanManageExercise,
+  buildExerciseManagementLookupWhere,
   buildExerciseVisibilityWhere,
   getExerciseManagementWhere,
   resolveExerciseSource,
@@ -64,6 +65,27 @@ describe('exercise access policy', () => {
       .toThrow(BadRequestException);
   });
 
+  it.each([athlete, trainer, admin])('limits management lookups to global and actor-owned exercises: %s', (actor) => {
+    expect(buildExerciseManagementLookupWhere(actor)).toEqual({
+      isArchived: false,
+      OR: [
+        { source: 'GLOBAL' },
+        { source: { not: 'GLOBAL' }, createdById: actor.id },
+      ],
+    });
+  });
+
+  it('preserves 403 for visible global resources and 404 for foreign custom resources', () => {
+    const global = { id: 'ex-global', source: 'GLOBAL' as const, createdById: null };
+    const foreign = { id: 'ex-private', source: 'ATHLETE_CUSTOM' as const, createdById: 'other-user' };
+    expect(() => assertCanManageExercise(athlete, global)).toThrow(ForbiddenException);
+    expect(() => assertCanManageExercise(trainer, global)).toThrow(ForbiddenException);
+    expect(() => assertCanManageExercise(admin, global)).not.toThrow();
+    for (const actor of [athlete, trainer, admin]) {
+      expect(() => assertCanManageExercise(actor, foreign)).toThrow(NotFoundException);
+    }
+  });
+
   it('enforces ownership for writes and scopes conditional update predicates', () => {
     const own = { id: 'ex-1', source: 'ATHLETE_CUSTOM' as const, createdById: athlete.id };
     expect(() => assertCanManageExercise(athlete, own)).not.toThrow();
@@ -73,7 +95,7 @@ describe('exercise access policy', () => {
       source: 'ATHLETE_CUSTOM',
       isArchived: false,
     });
-    expect(() => assertCanManageExercise(trainer, own)).toThrow(ForbiddenException);
+    expect(() => assertCanManageExercise(trainer, own)).toThrow(NotFoundException);
     const global = { id: 'ex-2', source: 'GLOBAL' as const, createdById: null };
     expect(() => assertCanManageExercise(admin, global)).not.toThrow();
     expect(getExerciseManagementWhere(admin, global)).toEqual({

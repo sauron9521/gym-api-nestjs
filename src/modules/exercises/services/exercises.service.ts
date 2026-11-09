@@ -10,6 +10,7 @@ import { Prisma } from '#prisma/client';
 import { ExercisesRepository } from '../repositories/exercises.repository.js';
 import {
   assertCanManageExercise,
+  buildExerciseManagementLookupWhere,
   buildExerciseVisibilityWhere,
   getExerciseManagementWhere,
   resolveExerciseSource,
@@ -176,9 +177,10 @@ export class ExercisesService {
 
   // UPDATE
   async update(id: string, actor: ExerciseActor, input: UpdateExerciseInput) {
-    const exercise = await this.exercisesRepository.findById(id, {
-      isArchived: false,
-    });
+    const exercise = await this.exercisesRepository.findById(
+      id,
+      buildExerciseManagementLookupWhere(actor),
+    );
 
     if (!exercise) {
       throw new NotFoundException('Exercise not found');
@@ -265,9 +267,10 @@ export class ExercisesService {
 
   // ARCHIVE
   async archive(id: string, actor: ExerciseActor) {
-    const exercise = await this.exercisesRepository.findById(id, {
-      isArchived: false,
-    });
+    const exercise = await this.exercisesRepository.findById(
+      id,
+      buildExerciseManagementLookupWhere(actor),
+    );
 
     if (!exercise) {
       throw new NotFoundException('Exercise not found');
