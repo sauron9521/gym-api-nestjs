@@ -472,16 +472,43 @@ describe('ExercisesService', () => {
       );
     });
 
-    it('should reject updating another users exercise', async () => {
+    it('hides foreign custom exercises during update before any write', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.update(exercise.id, athlete, { name: 'Changed name' }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(repository.findById).toHaveBeenCalledWith(exercise.id, {
+        isArchived: false,
+        OR: [
+          { source: 'GLOBAL' },
+          { source: { not: 'GLOBAL' }, createdById: athlete.id },
+        ],
+      });
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('defensively maps a foreign custom exercise to 404 even if a repository mock returns it', async () => {
       repository.findById.mockResolvedValue({
         ...exercise,
         createdById: 'another-athlete',
       });
-
       await expect(
         service.update(exercise.id, athlete, { name: 'Changed name' }),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(NotFoundException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
 
+    it('keeps 403 when a non-admin attempts to update a global exercise', async () => {
+      repository.findById.mockResolvedValue({
+        ...exercise,
+        source: 'GLOBAL',
+        createdById: null,
+      });
+      await expect(
+        service.update(exercise.id, athlete, { name: 'Cannot update global' }),
+      ).rejects.toThrow(ForbiddenException);
       expect(repository.update).not.toHaveBeenCalled();
     });
 
@@ -565,17 +592,62 @@ describe('ExercisesService', () => {
       );
     });
 
-    it('should reject archiving another users exercise', async () => {
+    it('hides foreign custom exercises during archive before any write', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.archive(exercise.id, athlete)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(repository.findById).toHaveBeenCalledWith(exercise.id, {
+        isArchived: false,
+        OR: [
+          { source: 'GLOBAL' },
+          { source: { not: 'GLOBAL' }, createdById: athlete.id },
+        ],
+      });
+      expect(repository.archive).not.toHaveBeenCalled();
+    });
+
+    it('defensively maps foreign custom archive attempts to 404', async () => {
       repository.findById.mockResolvedValue({
         ...exercise,
         createdById: 'another-athlete',
       });
+      await expect(service.archive(exercise.id, athlete)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(repository.archive).not.toHaveBeenCalled();
+    });
 
+    it('keeps 403 when a non-admin attempts to archive a global exercise', async () => {
+      repository.findById.mockResolvedValue({
+        ...exercise,
+        source: 'GLOBAL',
+        createdById: null,
+      });
       await expect(service.archive(exercise.id, athlete)).rejects.toThrow(
         ForbiddenException,
       );
-
       expect(repository.archive).not.toHaveBeenCalled();
+    });
+
+    it('allows admin to archive global exercises', async () => {
+      repository.findById.mockResolvedValue({
+        ...exercise,
+        source: 'GLOBAL',
+        createdById: null,
+      });
+      repository.archive.mockResolvedValue({ id: exercise.id, isArchived: true });
+      await expect(service.archive(exercise.id, admin)).resolves.toEqual({
+        id: exercise.id,
+        isArchived: true,
+      });
+      expect(repository.archive).toHaveBeenCalledWith({
+        id: exercise.id,
+        source: 'GLOBAL',
+        isArchived: false,
+      });
     });
 
     it('should throw NotFoundException when exercise is missing', async () => {

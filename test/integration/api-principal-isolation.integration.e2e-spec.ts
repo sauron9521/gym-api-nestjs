@@ -331,7 +331,12 @@ describe('API principal isolation (HTTP + PostgreSQL)', () => {
         ? request(app.getHttpServer()).patch(`/exercises/${exerciseId}`).send({ name: 'Hijacked' })
         : request(app.getHttpServer()).delete(`/exercises/${exerciseId}`);
       const response = await req.set('Authorization', `Bearer ${attackerAccessToken}`);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
+      expect(response.body).toMatchObject({
+        statusCode: 404,
+        code: 'NOT_FOUND',
+        message: 'Exercise not found',
+      });
       expect(response.headers['cache-control']).toBe('no-store');
       expect(JSON.stringify(response.body)).not.toContain(secretExercise);
     }

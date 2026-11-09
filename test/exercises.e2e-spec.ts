@@ -290,6 +290,64 @@ describe('Exercises (HTTP + PostgreSQL)', () => {
     });
   });
 
+  describe('PATCH/DELETE /exercises/:id anti-enumeration', () => {
+    it.each(['patch', 'delete'] as const)(
+      'returns indistinguishable 404 error details for foreign private and unknown ids on %s',
+      async (method) => {
+        const missingId = randomUUID();
+        const perform = (id: string) => method === 'patch'
+          ? request(app!.getHttpServer())
+              .patch(`/exercises/${id}`)
+              .set('Cookie', ownerCookie)
+              .send({ name: 'Unauthorized change' })
+          : request(app!.getHttpServer())
+              .delete(`/exercises/${id}`)
+              .set('Cookie', ownerCookie);
+
+        const [foreign, missing] = await Promise.all([
+          perform(privateExerciseId),
+          perform(missingId),
+        ]);
+        for (const response of [foreign, missing]) {
+          expect(response.status).toBe(404);
+          expect(response.body).toMatchObject({
+            statusCode: 404,
+            code: 'NOT_FOUND',
+            message: 'Exercise not found',
+          });
+          expect(response.headers['cache-control']).toBe('no-store');
+          expect(response.headers['x-request-id']).toBe(response.body.requestId);
+          expect(JSON.stringify(response.body)).not.toContain(privateName);
+        }
+        expect(foreign.body.code).toBe(missing.body.code);
+        expect(foreign.body.message).toBe(missing.body.message);
+
+        const preserved = await prisma.exercise.findUniqueOrThrow({
+          where: { id: privateExerciseId },
+          select: { name: true, isArchived: true },
+        });
+        expect(preserved).toEqual({ name: privateName, isArchived: false });
+      },
+    );
+
+    it.each(['patch', 'delete'] as const)(
+      'keeps global exercises visible but rejects non-admin management with 403 on %s',
+      async (method) => {
+        const response = method === 'patch'
+          ? await request(app!.getHttpServer())
+              .patch(`/exercises/${globalExerciseId}`)
+              .set('Cookie', ownerCookie)
+              .send({ name: 'Unauthorized global update' })
+          : await request(app!.getHttpServer())
+              .delete(`/exercises/${globalExerciseId}`)
+              .set('Cookie', ownerCookie);
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe('FORBIDDEN');
+        expect(response.headers['cache-control']).toBe('no-store');
+      },
+    );
+  });
+
   describe('POST /exercises', () => {
     it('should reject unauthenticated requests', async () => {
       const response = await request(app!.getHttpServer())
@@ -371,7 +429,12 @@ describe('Exercises (HTTP + PostgreSQL)', () => {
           name: 'Unauthorized Update',
         });
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
+      expect(response.body).toMatchObject({
+        statusCode: 404,
+        code: 'NOT_FOUND',
+        message: 'Exercise not found',
+      });
     });
   });
 

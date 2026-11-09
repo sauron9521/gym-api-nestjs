@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 
 import type { ExerciseSource, ExerciseVisibility, Prisma } from '#prisma/client';
 import type { ExerciseAccessContext, ExerciseActor } from '../types/exercise.types.js';
@@ -99,6 +99,24 @@ export function resolveExerciseVisibility(
   return requested ?? 'PRIVATE';
 }
 
+/**
+ * Narrow management lookups to an exercise the actor owns or a global exercise.
+ * Foreign custom IDs never reach the service, so PATCH and DELETE cannot reveal
+ * their existence via a different status from an unknown ID.
+ * Global exercises are included to preserve 403 for non-admin writers.
+ */
+export function buildExerciseManagementLookupWhere(
+  actor: ExerciseActor,
+): Prisma.ExerciseWhereInput {
+  return {
+    isArchived: false,
+    OR: [
+      { source: 'GLOBAL' },
+      { source: { not: 'GLOBAL' }, createdById: actor.id },
+    ],
+  };
+}
+
 export function assertCanManageExercise(
   actor: ExerciseActor,
   exercise: {
@@ -112,6 +130,10 @@ export function assertCanManageExercise(
 
   if (exercise.source !== 'GLOBAL' && exercise.createdById === actor.id) {
     return;
+  }
+
+  if (exercise.source !== 'GLOBAL') {
+    throw new NotFoundException('Exercise not found');
   }
 
   throw new ForbiddenException('You cannot modify this exercise');
