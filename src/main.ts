@@ -1,17 +1,25 @@
 import { ConsoleLogger, Logger, StandardSchemaValidationPipe, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from '#src/app.module';
 import type { AppConfigService } from '#src/common/config/app-config.types';
 import { getCorsOrigins } from '#src/common/config/http.config';
+import { getTrustedProxies } from '#src/common/config/proxy.config';
 import { getLogLevels } from '#src/common/config/logger.config';
 import { enableOpenApi } from '#src/infra/openapi/openapi';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: new ConsoleLogger({ json: process.env.NODE_ENV === 'production' }),
   });
   const config = app.get<AppConfigService>(ConfigService);
+  const trustedProxies = getTrustedProxies(config.get('TRUSTED_PROXY_CIDRS'));
+  if (trustedProxies.length > 0) {
+    // Only explicit reverse-proxy source networks can supply client IPs.
+    // Never trust arbitrary X-Forwarded-For headers or a variable hop count.
+    app.set('trust proxy', trustedProxies);
+  }
 
   // The Zod parser validates the level and provides its default before use.
   app.useLogger(new ConsoleLogger({
