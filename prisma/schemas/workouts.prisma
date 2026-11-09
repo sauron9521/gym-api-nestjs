@@ -56,6 +56,7 @@ model Workout {
   @@index([programWorkoutId])
   @@index([athleteId, scheduledAt])
   @@index([athleteId, status, scheduledAt])
+  @@index([athleteId, status, completedAt(sort: Desc)])
   @@index([createdById, createdAt])
   @@map("workouts")
 }
