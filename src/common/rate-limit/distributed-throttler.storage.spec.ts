@@ -10,6 +10,24 @@ function withRedis(url?: string): DistributedThrottlerStorage {
 }
 
 describe('DistributedThrottlerStorage', () => {
+  it('reports readiness with the local in-memory throttler', async () => {
+    const storage = withRedis();
+    try {
+      await expect(storage.checkReadiness()).resolves.toBe(true);
+    } finally {
+      await storage.onApplicationShutdown();
+    }
+  });
+
+  it('returns false without exposing connection errors when Redis is offline', async () => {
+    const storage = withRedis('redis://127.0.0.1:1');
+    try {
+      await expect(storage.checkReadiness()).resolves.toBe(false);
+    } finally {
+      await storage.onApplicationShutdown();
+    }
+  });
+
   it('retains existing local limits when Redis is not configured', async () => {
     const storage = withRedis();
     try {

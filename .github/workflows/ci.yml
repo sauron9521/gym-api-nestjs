@@ -98,6 +98,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate backup tooling without production credentials
+        run: |
+          bash -n scripts/backup-production.sh scripts/test-backup-production.sh
+          bash scripts/test-backup-production.sh
+
       - name: Validate application test environment
         run: npm run config:validate
 

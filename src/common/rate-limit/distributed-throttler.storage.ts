@@ -78,6 +78,39 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
     });
   }
 
+  /**
+   * Readiness of the actual throttling backend. With Redis disabled the
+   * single-process memory store is always available; when enabled, use a
+   * real PING rather than only trusting the connection's last status.
+   * Errors remain private to prevent leaking Redis hosts or credentials.
+   */
+  async checkReadiness(): Promise<boolean> {
+    if (!this.redis) return true;
+    try {
+      await this.ensureRedisReady(this.redis);
+      return (await this.redis.ping()) === 'PONG';
+    } catch {
+      return false;
+    }
+  }
+
+  private async ensureRedisReady(redis: Redis): Promise<void> {
+    if (redis.status === 'ready') return;
+
+    // Share the first connection across requests and health probes.
+    if (redis.status === 'wait' && !this.connectPromise) {
+      this.connectPromise = redis.connect().finally(() => {
+        this.connectPromise = null;
+      });
+    }
+    if (this.connectPromise) await this.connectPromise;
+
+    // Awaiting the promise changes ioredis' state outside TS control flow.
+    if ((redis.status as string) !== 'ready') {
+      throw new Error('Redis not ready');
+    }
+  }
+
   async increment(
     key: string,
     ttl: number,
@@ -98,22 +131,7 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
     const blockedKey = `gym:throttle:block:${hash}`;
 
     try {
-      if (this.redis.status !== 'ready') {
-        // All concurrent requests share the first connection attempt.
-        // Calling ioredis.connect() twice while connecting throws, and must
-        // not reject legitimate requests as 503 during initial startup.
-        if (this.redis.status === 'wait' && !this.connectPromise) {
-          this.connectPromise = this.redis.connect().finally(() => {
-            this.connectPromise = null;
-          });
-        }
-        if (this.connectPromise) await this.connectPromise;
-        // A concurrent await may transition ioredis from connecting to ready.
-        // TypeScript cannot infer that side-effect from the Promise.
-        if ((this.redis.status as string) !== 'ready') {
-          throw new Error('Redis not ready');
-        }
-      }
+      await this.ensureRedisReady(this.redis);
       const reply: unknown = await this.redis.eval(
         RATE_LIMIT_LUA,
         2,

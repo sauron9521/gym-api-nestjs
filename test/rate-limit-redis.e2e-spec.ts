@@ -56,6 +56,13 @@ redisDescribe('distributed throttling (Redis + HTTP)', () => {
     for (const storage of storages) await storage.onApplicationShutdown();
   });
 
+  it('probes a working Redis connection for health readiness', async () => {
+    const storage = storageForRedis();
+    storages.push(storage);
+    await expect(storage.checkReadiness()).resolves.toBe(true);
+    await expect(storage.checkReadiness()).resolves.toBe(true);
+  });
+
   it('shares atomic counters between two separate process-like instances', async () => {
     const [first, second] = [storageForRedis(), storageForRedis()];
     storages.push(first, second);
