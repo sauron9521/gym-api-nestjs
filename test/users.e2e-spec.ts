@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
+import sharp from 'sharp';
 
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/infra/database/index.js';
@@ -374,6 +375,65 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
       select: { avatarKey: true, avatarUrl: true },
     });
     expect(after).toEqual({ avatarKey: null, avatarUrl: null });
+  });
+
+  it('serves a resized JPEG without source EXIF metadata', async () => {
+    const original = await sharp({
+      create: { width: 1024, height: 640, channels: 3, background: 'blue' },
+    })
+      .withExif({ IFD0: { ImageDescription: 'PRIVATE-METADATA' } })
+      .jpeg()
+      .toBuffer();
+
+    expect((await sharp(original).metadata()).exif).toBeDefined();
+
+    const upload = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .attach('file', original, {
+        filename: 'photo.jpg', contentType: 'image/jpeg',
+      });
+    expect(upload.status).toBe(200);
+    expect(upload.body.avatarUrl).toMatch(/^\\/avatars\\/[0-9a-f-]+\\.jpg$/);
+
+    const result = await request(app.getHttpServer()).get(upload.body.avatarUrl);
+    expect(result.status).toBe(200);
+    expect(result.headers['content-type']).toContain('image/jpeg');
+    expect(Buffer.isBuffer(result.body)).toBe(true);
+
+    const metadata = await sharp(result.body as Buffer).metadata();
+    expect(metadata.width).toBe(512);
+    expect(metadata.height).toBeLessThanOrEqual(512);
+    expect(metadata.exif).toBeUndefined();
+    expect((result.body as Buffer).includes(Buffer.from('PRIVATE-METADATA')))
+      .toBe(false);
+
+    await request(app.getHttpServer())
+      .delete('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .expect(200);
+  });
+
+  it('rejects corrupted image data after a superficially valid header', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lGQAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const truncated = png.subarray(0, 33);
+
+    const response = await request(app.getHttpServer())
+      .post('/users/me/avatar')
+      .set('Cookie', athleteCookie)
+      .attach('file', truncated, {
+        filename: 'apparently-valid.png', contentType: 'image/png',
+      });
+    expect(response.status).toBe(400);
+
+    const profile = await prisma.profile.findUniqueOrThrow({
+      where: { userId: athleteId },
+      select: { avatarKey: true, avatarUrl: true },
+    });
+    expect(profile).toEqual({ avatarKey: null, avatarUrl: null });
   });
 
   it('rejects malformed image bytes, large files, and unauthorized uploads', async () => {
