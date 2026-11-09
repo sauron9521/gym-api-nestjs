@@ -10,6 +10,7 @@ import {
   workoutSetSelect,
   workoutSetStatusSelect,
   workoutStartReferenceSelect,
+  workoutSummarySelect,
 } from '../selects/workout.select.js';
 import type { FindManyWorkoutsParams } from '../types/workout.types.js';
 
@@ -38,6 +39,38 @@ export class WorkoutsRepository {
 
     return {
       data,
+      meta: {
+        total,
+        skip,
+        take,
+        totalPages: Math.ceil(total / take),
+      },
+    };
+  }
+
+  /** Opt-in compact page for list screens, without nested exercise/sets. */
+  async findManySummary({
+    where = {},
+    skip,
+    take,
+    orderBy = [{ createdAt: 'desc' }, { id: 'desc' }],
+  }: FindManyWorkoutsParams) {
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.workout.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        select: workoutSummarySelect,
+      }),
+      this.prisma.workout.count({ where }),
+    ]);
+
+    return {
+      data: rows.map(({ _count, ...workout }) => ({
+        ...workout,
+        exerciseCount: _count.exercises,
+      })),
       meta: {
         total,
         skip,
