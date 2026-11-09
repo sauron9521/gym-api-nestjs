@@ -83,6 +83,7 @@ describe('AuthController (HTTP)', () => {
         });
 
       expect(response.status).toBe(200);
+      expect(response.headers['cache-control']).toBe('no-store');
       expect(response.body).toEqual({ mfaRequired: false });
 
       expect(credentialsService.verify).toHaveBeenCalledWith(
@@ -106,6 +107,9 @@ describe('AuthController (HTTP)', () => {
         });
 
       expect(response.status).toBe(401);
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(JSON.stringify(response.body)).not.toContain('WrongPassword123!');
+      expect(JSON.stringify(response.body)).not.toContain('test@example.com');
 
       expect(response.body.message).toBe(
         'Invalid credentials! Wrong email or password.',

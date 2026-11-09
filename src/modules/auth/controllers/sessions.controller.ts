@@ -15,8 +15,11 @@ import {
   Param,
   Post,
   UnauthorizedException,
+  UseInterceptors,
 } from '@nestjs/common';
+import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
 
+@UseInterceptors(AuthNoStoreInterceptor)
 @Controller('auth')
 export class SessionsController {
   constructor(

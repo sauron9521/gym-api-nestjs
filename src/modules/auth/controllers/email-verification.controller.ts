@@ -10,11 +10,14 @@ import {
   Controller,
   HttpCode,
   Post,
+  UseInterceptors,
 } from '@nestjs/common';
+import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
 import { Throttle } from '@nestjs/throttler';
 import { VerificationTokenDto } from '../dto/auth.dto.js';
 import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
+@UseInterceptors(AuthNoStoreInterceptor)
 @Controller('auth/email')
 export class EmailVerificationController {
   constructor(

@@ -5,12 +5,15 @@ import {
   HttpCode,
   Post,
   UnauthorizedException,
+  UseInterceptors,
 } from '@nestjs/common';
+import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
 import { CredentialsService } from '../services/index.js';
 import { RefreshTokenDto, SignInDto } from '../dto/auth.dto.js';
 import { Throttle } from '@nestjs/throttler';
 
 @Public()
+@UseInterceptors(AuthNoStoreInterceptor)
 @Controller('auth/token')
 export class TokensController {
   constructor(

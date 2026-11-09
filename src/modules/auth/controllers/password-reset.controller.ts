@@ -5,11 +5,14 @@ import {
   Controller,
   HttpCode,
   Post,
+  UseInterceptors,
 } from '@nestjs/common';
+import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
 import { Throttle } from '@nestjs/throttler';
 import { EmailDto, ResetPasswordDto } from '../dto/auth.dto.js';
 
 @Public()
+@UseInterceptors(AuthNoStoreInterceptor)
 @Controller('auth/password-reset')
 export class PasswordResetController {
   constructor(private readonly passwordResetService: PasswordResetService) {}

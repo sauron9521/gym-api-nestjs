@@ -4,7 +4,9 @@ import {
   HttpCode,
   Post,
   UnauthorizedException,
+  UseInterceptors,
 } from '@nestjs/common';
+import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
 import {
   EmailVerificationService,
   Public,
@@ -17,6 +19,7 @@ import { CredentialsService } from '../services/index.js';
 
 @Public()
 @ApiTags('Authentication')
+@UseInterceptors(AuthNoStoreInterceptor)
 @Controller('auth')
 export class AuthController {
   constructor(
