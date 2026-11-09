@@ -208,11 +208,15 @@ export class WorkoutsService {
         : {}),
     };
 
-    return this.workoutsRepository.findMany({
+    const params = {
       where,
       skip: (query.page - 1) * query.limit,
       take: query.limit,
-    });
+    };
+
+    return query.view === 'summary'
+      ? this.workoutsRepository.findManySummary(params)
+      : this.workoutsRepository.findMany(params);
   }
 
   // FIND ONE
