@@ -31,6 +31,15 @@ export function buildExerciseVisibilityWhere(
           createdById: {
             in: access.activeTrainerIds,
           },
+          // Re-check the relationship in the same SQL query. The context
+          // above can be stale if collaboration ended after its lookup.
+          createdBy: {
+            is: {
+              trainerRelationships: {
+                some: { athleteId: actor.id, status: 'ACTIVE' },
+              },
+            },
+          },
         },
       ],
     };
@@ -56,6 +65,15 @@ export function buildExerciseVisibilityWhere(
             some: {
               trainerId: actor.id,
               revokedAt: null,
+            },
+          },
+          // Both an unrevoked grant and a currently ACTIVE relationship
+          // are required; a once-valid context cannot restore old access.
+          createdBy: {
+            is: {
+              athleteRelationships: {
+                some: { trainerId: actor.id, status: 'ACTIVE' },
+              },
             },
           },
         },

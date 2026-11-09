@@ -29,7 +29,17 @@ describe('exercise access policy', () => {
       OR: [
         { source: 'GLOBAL' },
         { source: 'ATHLETE_CUSTOM', createdById: athlete.id },
-        { source: 'TRAINER_CUSTOM', createdById: { in: ['trainer-1'] } },
+        {
+          source: 'TRAINER_CUSTOM',
+          createdById: { in: ['trainer-1'] },
+          createdBy: {
+            is: {
+              trainerRelationships: {
+                some: { athleteId: athlete.id, status: 'ACTIVE' },
+              },
+            },
+          },
+        },
       ],
     });
   });
@@ -44,9 +54,54 @@ describe('exercise access policy', () => {
           visibility: 'SELECTED_TRAINERS',
           createdById: { in: ['athlete-1'] },
           trainerAccesses: { some: { trainerId: trainer.id, revokedAt: null } },
+          createdBy: {
+            is: {
+              athleteRelationships: {
+                some: { trainerId: trainer.id, status: 'ACTIVE' },
+              },
+            },
+          },
         },
       ],
     });
+  });
+
+  it('does not substitute the cached actor context for a current relationship check', () => {
+    const context = {
+      activeTrainerIds: ['former-trainer'],
+      activeAthleteIds: ['former-athlete'],
+    };
+    const athleteScope = buildExerciseVisibilityWhere(athlete, context);
+    const trainerScope = buildExerciseVisibilityWhere(trainer, context);
+    expect(athleteScope).toEqual(expect.objectContaining({
+      OR: expect.arrayContaining([
+        expect.objectContaining({
+          createdById: { in: ['former-trainer'] },
+          createdBy: {
+            is: {
+              trainerRelationships: {
+                some: { athleteId: athlete.id, status: 'ACTIVE' },
+              },
+            },
+          },
+        }),
+      ]),
+    }));
+    expect(trainerScope).toEqual(expect.objectContaining({
+      OR: expect.arrayContaining([
+        expect.objectContaining({
+          createdById: { in: ['former-athlete'] },
+          trainerAccesses: { some: { trainerId: trainer.id, revokedAt: null } },
+          createdBy: {
+            is: {
+              athleteRelationships: {
+                some: { trainerId: trainer.id, status: 'ACTIVE' },
+              },
+            },
+          },
+        }),
+      ]),
+    }));
   });
 
   it('keeps existing admin read and global-source behavior', () => {
