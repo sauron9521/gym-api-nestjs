@@ -11,11 +11,12 @@ import { ConfigService } from '@nestjs/config';
 import {
   ThrottlerStorageService,
   type ThrottlerStorage,
-  type ThrottlerStorageRecord,
 } from '@nestjs/throttler';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 import type { AppConfigService } from '#src/common/config/app-config.types';
+
+type ThrottlerStorageRecord = Awaited<ReturnType<ThrottlerStorage['increment']>>;
 
 /**
  * Atomic fixed-window count and optional timed block. A stable SHA-256 digest
@@ -65,7 +66,7 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
           enableOfflineQueue: false,
           maxRetriesPerRequest: 1,
           connectTimeout: 2_000,
-          retryStrategy: (attempt) => Math.min(attempt * 250, 2_000),
+          retryStrategy: (attempt: number) => Math.min(attempt * 250, 2_000),
         })
       : null;
 
