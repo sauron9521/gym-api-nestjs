@@ -9,8 +9,8 @@ import {
 import { Prisma } from '#prisma/client';
 
 import { UsersRepository } from '#src/modules/users/repositories/users.repository';
-import { TrainerAthletesRepository } from './trainer-athletes.repository.js';
-import { TrainerAthleteTerminationService } from './services/trainer-athlete-termination.service.js';
+import { TrainerAthletesRepository } from '../repositories/trainer-athletes.repository.js';
+import { TrainerAthleteTerminationService } from './trainer-athlete-termination.service.js';
 
 import type { ExerciseAccessContext } from '#src/modules/exercises/types/exercise.types';
 
@@ -19,7 +19,7 @@ import type {
   TerminateTrainerAthleteInput,
   TrainerAthleteActor,
   TrainerAthleteListQuery,
-} from './types/trainer-athlete.types.js';
+} from '../types/trainer-athlete.types.js';
 
 @Injectable()
 export class TrainerAthletesService {

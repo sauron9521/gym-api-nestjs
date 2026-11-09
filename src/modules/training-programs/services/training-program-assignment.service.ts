@@ -8,7 +8,7 @@ import {
 
 import { Prisma } from '#prisma/client';
 
-import { TrainerAthletesService } from '#src/modules/trainer-athletes/trainer-athletes.service';
+import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
 
 import { TrainingProgramAssignmentRepository } from '../repositories/training-program-assignment.repository.js';
 import { TrainingProgramAccessService } from './training-program-access.service.js';

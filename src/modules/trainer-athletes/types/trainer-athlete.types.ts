@@ -1,7 +1,12 @@
 import type {
+  Prisma,
   Role,
   TrainerAthleteStatus,
 } from '#prisma/client';
+import type {
+  trainerAthleteHistoricalSelect,
+  trainerAthleteSelect,
+} from '../selects/trainer-athlete.select.js';
 
 export type TrainerAthleteActor = {
   id: string;
@@ -20,4 +25,21 @@ export type TrainerAthleteListQuery = {
 
 export type TerminateTrainerAthleteInput = {
   reason?: string | null;
+};
+
+
+/** Prisma-derived selected records (not repository ReturnType aliases). */
+export type TrainerAthleteRecord = Prisma.TrainerAthleteGetPayload<{
+  select: typeof trainerAthleteSelect;
+}>;
+
+export type TrainerAthleteHistoricalRecord = Prisma.TrainerAthleteGetPayload<{
+  select: typeof trainerAthleteHistoricalSelect;
+}>;
+
+export type FindManyTrainerAthletesParams = {
+  where: Prisma.TrainerAthleteWhereInput;
+  skip: number;
+  take: number;
+  orderBy?: Prisma.TrainerAthleteOrderByWithRelationInput[];
 };

@@ -8,8 +8,8 @@ import {
 import { Prisma } from '#prisma/client';
 
 import { UsersRepository } from '#src/modules/users/repositories/users.repository';
-import { TrainerAthletesRepository } from '../trainer-athletes.repository.js';
-import { TrainerAthletesService } from '../trainer-athletes.service.js';
+import { TrainerAthletesRepository } from '../repositories/trainer-athletes.repository.js';
+import { TrainerAthletesService } from '../services/trainer-athletes.service.js';
 import { TrainerAthleteTerminationService } from '../services/trainer-athlete-termination.service.js';
 
 import type { TrainerAthleteActor } from '../types/trainer-athlete.types.js';

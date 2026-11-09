@@ -27,7 +27,7 @@ import {
 import {
   trainerAthleteHistoricalSelect,
   trainerAthleteSelect,
-} from '#src/modules/trainer-athletes/trainer-athletes.repository';
+} from '#src/modules/trainer-athletes/selects/trainer-athlete.select';
 import { trainingProgramSelect } from '#src/modules/training-programs/selects/training-program.select';
 import { trainingProgramVersionSelect } from '#src/modules/training-programs/selects/training-program-version.select';
 import {
