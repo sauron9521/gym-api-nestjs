@@ -241,11 +241,7 @@ describe('TrainingProgramVersionRepository', () => {
       };
 
       const tx = {
-        trainingProgram: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'program-1',
-          }),
-        },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: 'program-1' }]),
         trainingProgramVersion: {
           findFirst: vi
             .fn()
@@ -263,13 +259,7 @@ describe('TrainingProgramVersionRepository', () => {
       const result =
         await repository.createDraftFromLatestPublished('program-1');
 
-      expect(tx.trainingProgram.findFirst).toHaveBeenCalledWith({
-        where: {
-          id: 'program-1',
-          status: { not: 'ARCHIVED' },
-        },
-        select: { id: true },
-      });
+      expect(tx.$queryRaw).toHaveBeenCalledOnce();
 
       expect(tx.trainingProgramVersion.findFirst).toHaveBeenNthCalledWith(2, {
         where: {
@@ -334,13 +324,14 @@ describe('TrainingProgramVersionRepository', () => {
       });
 
       expect(result).toEqual(draft);
+      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.trainingProgramVersion.findFirst.mock.invocationCallOrder[0]!,
+      );
     });
 
     it('returns null when the program does not exist or is archived', async () => {
       const tx = {
-        trainingProgram: {
-          findFirst: vi.fn().mockResolvedValue(null),
-        },
+        $queryRaw: vi.fn().mockResolvedValue([]),
         trainingProgramVersion: {
           findFirst: vi.fn(),
           create: vi.fn(),
@@ -355,13 +346,7 @@ describe('TrainingProgramVersionRepository', () => {
       const result =
         await repository.createDraftFromLatestPublished('program-1');
 
-      expect(tx.trainingProgram.findFirst).toHaveBeenCalledWith({
-        where: {
-          id: 'program-1',
-          status: { not: 'ARCHIVED' },
-        },
-        select: { id: true },
-      });
+      expect(tx.$queryRaw).toHaveBeenCalledOnce();
 
       expect(result).toBeNull();
 
@@ -372,11 +357,7 @@ describe('TrainingProgramVersionRepository', () => {
 
     it('returns null when a draft version already exists', async () => {
       const tx = {
-        trainingProgram: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'program-1',
-          }),
-        },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: 'program-1' }]),
         trainingProgramVersion: {
           findFirst: vi.fn().mockResolvedValue({
             id: 'existing-draft',
@@ -412,11 +393,7 @@ describe('TrainingProgramVersionRepository', () => {
 
     it('returns null when no published version exists', async () => {
       const tx = {
-        trainingProgram: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'program-1',
-          }),
-        },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: 'program-1' }]),
         trainingProgramVersion: {
           findFirst: vi
             .fn()
@@ -457,6 +434,25 @@ describe('TrainingProgramVersionRepository', () => {
 
       expect(result).toBeNull();
     });
+    it('acquires a parent lock once and returns null before reading when the program was archived', async () => {
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([]),
+        trainingProgramVersion: {
+          findFirst: vi.fn(),
+          create: vi.fn(),
+        },
+      };
+      models.$transaction.mockImplementation(
+        (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      );
+      await expect(repository.createDraftFromLatestPublished('program-1'))
+        .resolves.toBeNull();
+      expect(tx.$queryRaw).toHaveBeenCalledOnce();
+      expect(tx.trainingProgramVersion.findFirst).not.toHaveBeenCalled();
+      expect(tx.trainingProgramVersion.create).not.toHaveBeenCalled();
+    });
+
   });
 
   describe('publishVersion', () => {

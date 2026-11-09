@@ -429,6 +429,93 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
         },
       });
 
+      // Clone a nontrivial tree: multiple weeks, exercises and sets with
+      // distinct load, time, distance, target and notes values.
+      await prisma.trainingProgramSet.create({
+        data: {
+          programExerciseId: programExercise.id,
+          setNumber: 2,
+          setType: 'WARMUP',
+          plannedReps: 12,
+          plannedWeightKg: '42.75',
+          plannedDurationSeconds: 75,
+          plannedDistanceMeters: '125.55',
+          restSeconds: 45,
+          targetRpe: '6.5',
+          targetRir: 3,
+          notes: 'Warm-up with distance and duration',
+        },
+      });
+      await prisma.trainingProgramExercise.create({
+        data: {
+          workoutId: workout.id,
+          exerciseId,
+          exerciseNameSnapshot: 'Bench Press – second exercise slot',
+          exerciseTypeSnapshot: 'STRENGTH',
+          sortOrder: 1,
+          notes: 'Second exercise notes',
+          sets: {
+            create: [
+              {
+                setNumber: 1,
+                setType: 'WORKING',
+                plannedReps: 6,
+                plannedWeightKg: '92.25',
+                restSeconds: 180,
+                targetRpe: '8.5',
+                targetRir: 1,
+              },
+              {
+                setNumber: 2,
+                setType: 'DROP_SET',
+                plannedReps: 12,
+                plannedWeightKg: '57.50',
+                restSeconds: 60,
+                targetRpe: '7.5',
+                notes: 'Drop set',
+              },
+            ],
+          },
+        },
+      });
+      await prisma.trainingProgramWorkout.create({
+        data: {
+          versionId: version.id,
+          weekNumber: 2,
+          dayNumber: 2,
+          title: 'Week 2 — Strength',
+          notes: 'Progression session',
+          exercises: {
+            create: {
+              exerciseId,
+              exerciseNameSnapshot: 'Alternate week snapshot',
+              exerciseTypeSnapshot: 'STRENGTH',
+              sortOrder: 0,
+              notes: 'Different week',
+              sets: {
+                create: [
+                  {
+                    setNumber: 1,
+                    setType: 'WARMUP',
+                    plannedReps: 10,
+                    plannedWeightKg: '40.25',
+                  },
+                  {
+                    setNumber: 2,
+                    setType: 'WORKING',
+                    plannedReps: 5,
+                    plannedWeightKg: '100.75',
+                    restSeconds: 240,
+                    targetRpe: '9.0',
+                    targetRir: 1,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+
       // Arrange: snapshot of the original published version
       const sourceBefore = await repository.findVersionById(version.id);
 
@@ -457,7 +544,7 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       expect(draft.id).not.toBe(sourceBefore.id);
 
       // Assert: workout copy
-      expect(draft.workouts).toHaveLength(1);
+      expect(draft.workouts).toHaveLength(2);
 
       const sourceWorkout = sourceBefore.workouts[0]!;
       const copiedWorkout = draft.workouts[0]!;
@@ -473,7 +560,7 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       });
 
       // Assert: exercise copy
-      expect(copiedWorkout.exercises).toHaveLength(1);
+      expect(copiedWorkout.exercises).toHaveLength(2);
 
       const sourceExercise = sourceWorkout.exercises[0]!;
       const copiedExercise = copiedWorkout.exercises[0]!;
@@ -490,7 +577,7 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       });
 
       // Assert: set copy
-      expect(copiedExercise.sets).toHaveLength(1);
+      expect(copiedExercise.sets).toHaveLength(2);
 
       const sourceSet = sourceExercise.sets[0]!;
       const copiedSet = copiedExercise.sets[0]!;
@@ -509,10 +596,66 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       expect(copiedSet.plannedWeightKg?.toString()).toBe('80');
       expect(copiedSet.targetRpe?.toString()).toBe('8');
 
+      // Compare every domain field for every copied workout, exercise and
+      // set. UUIDs, relation parent IDs and timestamps are expected to differ.
+      const contentOf = (tree: NonNullable<typeof sourceBefore>) =>
+        tree.workouts.map((workoutItem) => ({
+          weekNumber: workoutItem.weekNumber,
+          dayNumber: workoutItem.dayNumber,
+          title: workoutItem.title,
+          notes: workoutItem.notes,
+          exercises: workoutItem.exercises.map((exerciseItem) => ({
+            exerciseId: exerciseItem.exerciseId,
+            exerciseNameSnapshot: exerciseItem.exerciseNameSnapshot,
+            exerciseTypeSnapshot: exerciseItem.exerciseTypeSnapshot,
+            sortOrder: exerciseItem.sortOrder,
+            notes: exerciseItem.notes,
+            sets: exerciseItem.sets.map((set) => ({
+              setNumber: set.setNumber,
+              setType: set.setType,
+              plannedReps: set.plannedReps,
+              plannedWeightKg: set.plannedWeightKg?.toString() ?? null,
+              plannedDurationSeconds: set.plannedDurationSeconds,
+              plannedDistanceMeters: set.plannedDistanceMeters?.toString() ?? null,
+              restSeconds: set.restSeconds,
+              targetRpe: set.targetRpe?.toString() ?? null,
+              targetRir: set.targetRir,
+              notes: set.notes,
+            })),
+          })),
+        }));
+      expect(contentOf(draft)).toEqual(contentOf(sourceBefore));
+      expect(
+        draft.workouts.flatMap((item) => item.exercises)
+          .flatMap((item) => item.sets).length,
+      ).toBe(6);
+
+      for (const [index, sourceWorkout] of sourceBefore.workouts.entries()) {
+        const clonedWorkout = draft.workouts[index]!;
+        expect(clonedWorkout.id).not.toBe(sourceWorkout.id);
+        for (const [exerciseIndex, original] of sourceWorkout.exercises.entries()) {
+          const clonedExercise = clonedWorkout.exercises[exerciseIndex]!;
+          expect(clonedExercise.id).not.toBe(original.id);
+          for (const [setIndex, originalSet] of original.sets.entries()) {
+            expect(clonedExercise.sets[setIndex]!.id).not.toBe(originalSet.id);
+            expect(clonedExercise.sets[setIndex]!.programExerciseId).toBe(clonedExercise.id);
+          }
+        }
+      }
+
+      // Changing the editable copy cannot mutate the source published tree.
+      await prisma.trainingProgramSet.update({
+        where: { id: draft.workouts[0]!.exercises[0]!.sets[0]!.id },
+        data: { plannedReps: 99 },
+      });
+      const unchangedSource = await repository.findVersionById(version.id);
+      expect(unchangedSource).toEqual(sourceBefore);
+
       // Assert: changes are persisted in PostgreSQL
       const persistedDraft = await repository.findVersionById(draft.id);
 
-      expect(persistedDraft).toEqual(draft);
+      expect(persistedDraft?.workouts[0]?.exercises[0]?.sets[0]?.plannedReps).toBe(99);
+      expect(persistedDraft?.id).toBe(draft.id);
 
       // Assert: original published version is unchanged
       const sourceAfter = await repository.findVersionById(version.id);
@@ -585,17 +728,16 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       programId = program.id;
 
       // Act: two concurrent requests
-      const results = await Promise.allSettled([
+      // Both calls must settle normally. The parent FOR UPDATE lock makes
+      // the second request observe the first committed draft rather than
+      // leaking a uniqueness violation from PostgreSQL.
+      const results = await Promise.all([
         repository.createDraftFromLatestPublished(programId),
         repository.createDraftFromLatestPublished(programId),
       ]);
 
-      // Exactly one request should create a draft
-      const created = results.flatMap((result) =>
-        result.status === 'fulfilled' && result.value !== null
-          ? [result.value]
-          : [],
-      );
+      const created = results.filter((result) => result !== null);
+      expect(results).toContain(null);
 
       expect(created).toHaveLength(1);
 
@@ -604,16 +746,6 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
         version: 2,
         status: 'DRAFT',
       });
-
-      // The second request can return null if it sees
-      // the existing draft or fail with a unique violation.
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          expect(result.reason).toMatchObject({
-            code: 'P2002',
-          });
-        }
-      }
 
       // Verify actual database state
       const persistedDrafts = await prisma.trainingProgramVersion.findMany({
@@ -651,6 +783,101 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       }
     }
   });
+
+  it('waits for a program archive and does not clone when archival commits first', async () => {
+    let trainerId: string | undefined;
+    let programId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.create({
+        data: {
+          email: `archive-clone-race-${randomUUID()}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'TRAINER',
+        },
+        select: { id: true },
+      });
+      trainerId = trainer.id;
+
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId,
+          status: 'PUBLISHED',
+          versions: {
+            create: {
+              version: 1,
+              title: 'Cannot clone archived program',
+              status: 'PUBLISHED',
+              publishedAt: new Date(),
+            },
+          },
+        },
+        select: { id: true },
+      });
+      programId = program.id;
+      let clonePromise: ReturnType<
+        TrainingProgramVersionRepository['createDraftFromLatestPublished']
+      > | undefined;
+      let observedBlock = false;
+
+      await prisma.$transaction(async (tx) => {
+        const [holder] = await tx.$queryRaw<Array<{ pid: number }>>`
+          SELECT pg_backend_pid()::integer AS pid
+          FROM "training_programs"
+          WHERE "id" = ${programId}
+          FOR UPDATE
+        `;
+        expect(holder).toBeDefined();
+
+        clonePromise = repository.createDraftFromLatestPublished(programId!);
+
+        // Confirm an actual DB lock wait, not a timer-based coincidence.
+        for (let attempt = 0; attempt < 60; attempt++) {
+          const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity AS activity
+              WHERE activity.datname = current_database()
+                AND ${holder!.pid} = ANY(pg_blocking_pids(activity.pid))
+            ) AS blocked
+          `;
+          if (state?.blocked) {
+            observedBlock = true;
+            break;
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        }
+
+        await tx.trainingProgram.update({
+          where: { id: programId },
+          data: { status: 'ARCHIVED' },
+        });
+      }, { timeout: 15_000 });
+
+      expect(observedBlock).toBe(true);
+      expect(await clonePromise).toBeNull();
+      expect(await prisma.trainingProgramVersion.count({
+        where: { programId, status: 'DRAFT' },
+      })).toBe(0);
+
+      const persisted = await prisma.trainingProgram.findUniqueOrThrow({
+        where: { id: programId },
+        select: { status: true },
+      });
+      expect(persisted.status).toBe('ARCHIVED');
+    } finally {
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+        await prisma.trainingProgram.delete({
+          where: { id: programId },
+        });
+      }
+      if (trainerId) {
+        await prisma.user.delete({ where: { id: trainerId } });
+      }
+    }
+  }, 20_000);
 
   it('enforces one draft per program regardless of version number', async () => {
     let trainerId: string | undefined;

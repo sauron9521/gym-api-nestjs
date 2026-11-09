@@ -134,15 +134,20 @@ export class TrainingProgramVersionRepository {
 
   async createDraftFromLatestPublished(programId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const program = await tx.trainingProgram.findFirst({
-        where: {
-          id: programId,
-          status: { not: 'ARCHIVED' },
-        },
-        select: { id: true },
-      });
+      // Serialize cloning requests on the parent program row. The partial
+      // unique DRAFT index remains a second line of defence, but concurrent
+      // requests now observe the first committed draft instead of racing to
+      // insert and exposing Prisma P2002 to one caller. Program archival also
+      // updates this row, so it cannot commit after eligibility is checked.
+      const programs = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "training_programs"
+        WHERE "id" = ${programId}
+          AND "status" <> 'ARCHIVED'
+        FOR UPDATE
+      `;
 
-      if (!program) {
+      if (programs.length !== 1) {
         return null;
       }
 
