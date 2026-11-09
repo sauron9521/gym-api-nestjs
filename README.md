@@ -56,6 +56,7 @@ managed environment; use a separate migration container in production.
 - Exercises: [access and sharing](docs/exercise-sharing-active-relationship.md)
 - Workouts: [list responses](docs/workout-list-summary.md)
 - Body measurements: [statistics consistency](docs/body-measurement-statistics-consistency.md)
+- Workout analytics: [athlete-only UTC statistics and actual strength volume](docs/workout-analytics.md)
 - Import conventions: [native ESM aliases](docs/native-esm-imports.md)
 
 ## Production operations
