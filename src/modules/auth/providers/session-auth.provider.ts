@@ -4,8 +4,8 @@ import {
   SessionRecord,
 } from '@nestjs/authentication';
 import { Injectable } from '@nestjs/common';
-import { UsersRepository } from '#src/modules/users/users.repository';
-import type { UserResponse } from '#src/modules/users/dto/response-user';
+import { UsersRepository } from '#src/modules/users/repositories/users.repository';
+import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 @Injectable()
 export class SessionAuth extends SessionCookieProvider<UserResponse> {

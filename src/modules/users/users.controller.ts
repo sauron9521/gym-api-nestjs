@@ -10,7 +10,7 @@ import type { AvatarUploadFile } from './avatar/avatar-validation.js';
 import { MAX_AVATAR_SIZE } from './avatar/avatar-validation.js';
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 
-import { UsersService } from './users.service.js';
+import { UsersService } from './services/users.service.js';
 import {
   type UpdateMyProfileDto,
   updateMyProfileSchema,

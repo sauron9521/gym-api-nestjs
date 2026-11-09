@@ -4,7 +4,7 @@ import { ConflictException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { UsersRepository } from '../../src/modules/users/users.repository.js';
+import { UsersRepository } from '../../src/modules/users/repositories/users.repository.js';
 import { PrismaModule, PrismaService } from '../../src/infra/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 import { UsersModule } from '../../src/modules/users/users.module.js';

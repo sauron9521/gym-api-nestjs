@@ -3,9 +3,9 @@ import {
   JwtBearerProvider,
   JwtClaims,
 } from '@nestjs/authentication';
-import { UsersRepository } from '#src/modules/users/users.repository';
+import { UsersRepository } from '#src/modules/users/repositories/users.repository';
 import { Injectable } from '@nestjs/common';
-import type { UserResponse } from '#src/modules/users/dto/response-user';
+import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 @Injectable()
 export class JwtAuth extends JwtBearerProvider<UserResponse> {
