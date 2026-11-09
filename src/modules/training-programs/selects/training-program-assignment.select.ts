@@ -1,4 +1,4 @@
-import { Prisma } from '../../../generated/prisma/client.js';
+import { Prisma } from '../../../infra/database/generated/prisma/client.js';
 import { trainingProgramVersionSelect } from './training-program-version.select.js';
 
 export const trainingProgramAssignmentSelect = {
