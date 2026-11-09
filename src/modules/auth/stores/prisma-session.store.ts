@@ -1,14 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
   AuthenticationStorage,
-  type MfaState,
   type SessionRecord,
   type SessionStore,
 } from '@nestjs/authentication';
-import {
-  Prisma,
-  type Session as PrismaSession,
-} from '#prisma/client';
+import { Prisma } from '#prisma/client';
+import { authSessionSelect } from '../selects/auth-session.select.js';
+import { toSessionRecord } from '../mappers/auth-session.mapper.js';
 import { PrismaService } from '#src/infra/database/index';
 
 @Injectable()
@@ -24,9 +22,10 @@ export class PrismaSessionStore implements SessionStore {
   async getSession(id: string): Promise<SessionRecord | undefined> {
     const session = await this.prisma.session.findUnique({
       where: { id, user: { deletedAt: null } },
+      select: authSessionSelect,
     });
 
-    return session ? this.toSessionRecord(session) : undefined;
+    return session ? toSessionRecord(session) : undefined;
   }
 
   async createSession(record: SessionRecord): Promise<void> {
@@ -68,9 +67,10 @@ export class PrismaSessionStore implements SessionStore {
     const sessions = await this.prisma.session.findMany({
       where: { userId, user: { deletedAt: null } },
       orderBy: { createdAt: 'desc' },
+      select: authSessionSelect,
     });
 
-    return sessions.map((session) => this.toSessionRecord(session));
+    return sessions.map(toSessionRecord);
   }
 
   async deleteUserSessions(userId: string): Promise<void> {
@@ -79,19 +79,4 @@ export class PrismaSessionStore implements SessionStore {
     });
   }
 
-  private toSessionRecord(session: PrismaSession): SessionRecord {
-    return {
-      id: session.id,
-      userId: session.userId,
-      createdAt: session.createdAt,
-      expiresAt: session.expiresAt,
-      lastActiveAt: session.lastActiveAt,
-      ...(session.mfa !== null ? { mfa: session.mfa as MfaState } : {}),
-      ...(session.metadata !== null
-        ? {
-            metadata: session.metadata as Record<string, unknown>,
-          }
-        : {}),
-    };
-  }
 }

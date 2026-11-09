@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticationStorage, MfaState } from '@nestjs/authentication';
 import { PrismaSessionStore } from '../stores/index.js';
 import { PrismaService } from '#src/infra/database/index';
+import { authSessionSelect } from '../selects/auth-session.select.js';
 
 describe('PrismaSessionStore', () => {
   const prisma = {
@@ -57,6 +58,7 @@ describe('PrismaSessionStore', () => {
     await expect(store.getSession(session.id)).resolves.toBeUndefined();
     expect(prisma.session.findUnique).toHaveBeenCalledWith({
       where: { id: session.id, user: { deletedAt: null } },
+      select: authSessionSelect,
     });
   });
 
@@ -135,6 +137,7 @@ describe('PrismaSessionStore', () => {
     expect(prisma.session.findMany).toHaveBeenCalledWith({
       where: { userId: session.userId, user: { deletedAt: null } },
       orderBy: { createdAt: 'desc' },
+      select: authSessionSelect,
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(session.id);
