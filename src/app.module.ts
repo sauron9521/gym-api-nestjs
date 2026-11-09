@@ -81,6 +81,7 @@ import { WorkoutAnalyticsModule } from '#src/modules/workout-analytics/workout-a
     UsersModule,
     ExercisesModule,
     WorkoutsModule,
+    WorkoutAnalyticsModule,
     BodyMeasurementsModule,
     TrainerAthletesModule,
     TrainingProgramsModule,
