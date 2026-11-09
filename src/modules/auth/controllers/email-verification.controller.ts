@@ -9,7 +9,9 @@ import {
   ConflictException,
   Controller,
   HttpCode,
+  Logger,
   Post,
+  ServiceUnavailableException,
   UseInterceptors,
 } from '@nestjs/common';
 import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
@@ -20,6 +22,8 @@ import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 @UseInterceptors(AuthNoStoreInterceptor)
 @Controller('auth/email')
 export class EmailVerificationController {
+  private readonly logger = new Logger(EmailVerificationController.name);
+
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
   ) {}
@@ -43,6 +47,14 @@ export class EmailVerificationController {
     if (user.emailVerified) {
       throw new ConflictException('Email address already verified');
     }
-    await this.emailVerificationService.send(user);
+    try {
+      await this.emailVerificationService.send(user);
+    } catch {
+      // Do not expose or log email addresses, verification links or SMTP errors.
+      this.logger.warn('AUTH_VERIFICATION_EMAIL_RESEND_FAILED');
+      throw new ServiceUnavailableException(
+        'Verification email is temporarily unavailable. Please retry later.',
+      );
+    }
   }
 }
