@@ -40,3 +40,4 @@ metrics and alerting.
 
 Never log access tokens, refresh tokens, session cookies, password hashes,
 SMTP credentials, or password-reset/email-verification links.
+\nFor operator alert suggestions, backup instructions, recovery and safe\nrollback, see [production operations runbook](production-operations-runbook.md).\n
