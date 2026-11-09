@@ -42,19 +42,19 @@ describe('BodyMeasurementStatisticsRepository snapshot', () => {
       series: [],
     });
 
-    const sql = tx.$queryRaw.mock.calls[0]?.[0] as {
-      strings: string[];
-      values: unknown[];
-    };
-    expect(sql.strings.join('')).toContain("AT TIME ZONE 'UTC'");
-    expect(sql.values.some(
+    // A tagged Prisma $queryRaw call passes the template string array as
+    // its first argument, followed by the interpolated values.
+    const sqlArgs = tx.$queryRaw.mock.calls[0] as unknown as unknown[];
+    const sqlStrings = sqlArgs[0] as readonly string[];
+    expect(sqlStrings.join('')).toContain("AT TIME ZONE 'UTC'");
+    expect(sqlArgs.some(
       (value) => value instanceof Date &&
         value.toISOString() === '2026-03-24T00:00:00.000Z',
     )).toBe(true);
-    expect(sql.values.some(
+    expect(sqlArgs.some(
       (value) => value instanceof Date &&
         value.getTime() === asOf.getTime(),
     )).toBe(true);
-    expect(sql.values).toContain('user-123');
+    expect(sqlArgs).toContain('user-123');
   });
 });
