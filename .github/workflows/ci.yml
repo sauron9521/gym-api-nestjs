@@ -64,9 +64,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     env:
       NODE_ENV: test
+      TEST_REDIS_URL: redis://127.0.0.1:6379
       CORS_ORIGINS: http://localhost:3000
       MAIL_FROM: Gym Test <no-reply@example.test>
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gym_app_test?schema=public
