@@ -57,6 +57,7 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
   private readonly logger = new Logger(DistributedThrottlerStorage.name);
   private readonly memory = new ThrottlerStorageService();
   private readonly redis: Redis | null;
+  private connectPromise: Promise<void> | null = null;
 
   constructor(@Inject(ConfigService) config: AppConfigService) {
     const url = config.get('REDIS_URL');
@@ -97,11 +98,19 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
     const blockedKey = `gym:throttle:block:${hash}`;
 
     try {
-      if (this.redis.status === 'wait') {
-        await this.redis.connect();
-      }
       if (this.redis.status !== 'ready') {
-        throw new Error('Redis not ready');
+        // All concurrent requests share the first connection attempt.
+        // Calling ioredis.connect() twice while connecting throws, and must
+        // not reject legitimate requests as 503 during initial startup.
+        if (this.redis.status === 'wait' && !this.connectPromise) {
+          this.connectPromise = this.redis.connect().finally(() => {
+            this.connectPromise = null;
+          });
+        }
+        if (this.connectPromise) await this.connectPromise;
+        if (this.redis.status !== 'ready') {
+          throw new Error('Redis not ready');
+        }
       }
       const reply: unknown = await this.redis.eval(
         RATE_LIMIT_LUA,
