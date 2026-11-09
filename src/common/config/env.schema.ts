@@ -94,6 +94,10 @@ const baseEnvSchema = z.object({
     z.string().trim().max(254)
       .refine(isMailFrom, 'Must be an email address or Display Name <email>').optional(),
   ),
+  LOG_LEVEL: z.preprocess(
+    emptyToUndefined,
+    z.enum(['fatal', 'error', 'warn', 'log', 'debug', 'verbose']).default('log'),
+  ),
   ENABLE_OPENAPI: z.enum(['true', 'false']).default('false')
     .transform((value) => value === 'true'),
   AVATAR_STORAGE_DIR: optionalString,

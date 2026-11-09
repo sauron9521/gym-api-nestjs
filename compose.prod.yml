@@ -13,6 +13,7 @@ x-api-env: &api-env
   MAIL_FROM: ${MAIL_FROM:?MAIL_FROM must be set}
   PORT: "3000"
   ENABLE_OPENAPI: "false"
+  LOG_LEVEL: ${LOG_LEVEL:-log}
 
 services:
   api:

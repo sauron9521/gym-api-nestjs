@@ -12,9 +12,9 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiExceptionFilter } from '#src/common/filters/api-exception.filter';
 import { RolesGuard } from '#src/common/guards/roles.guard';
 import { RequestContextMiddleware } from '#src/common/request-context/request-context.middleware';
-import type { AppEnv } from '#src/config/env.schema';
-import { validateEnv } from '#src/config/env.validation';
-import { createMailOptions } from '#src/config/mail.config';
+import type { AppConfigService } from '#src/common/config/app-config.types';
+import { validateEnv } from '#src/common/config/env.validation';
+import { createMailOptions } from '#src/common/config/mail.config';
 import { PrismaModule } from '#src/infra/database/index';
 import { HealthModule } from '#src/infra/health/health.module';
 import { AuthModule } from '#src/modules/auth/auth.module';
@@ -29,19 +29,19 @@ import { WorkoutsModule } from '#src/modules/workouts/workouts.module';
   imports: [
     AuthenticationModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      useFactory: (config: AppConfigService) => ({
         accessToken: {
-          key: config.getOrThrow<string>('JWT_SECRET'),
-          issuer: config.getOrThrow<string>('JWT_ISSUER'),
+          key: config.getOrThrow('JWT_SECRET'),
+          issuer: config.getOrThrow('JWT_ISSUER'),
           audience: 'mobile-app',
           ttl: '15m',
         },
         session: { absoluteTtl: '7d', idleTtl: '1d' },
         emailVerification: {
-          url: `${config.getOrThrow<string>('APP_URL')}/verify-email`,
+          url: `${config.getOrThrow('APP_URL')}/verify-email`,
         },
         passwordReset: {
-          url: `${config.getOrThrow<string>('APP_URL')}/reset-password`,
+          url: `${config.getOrThrow('APP_URL')}/reset-password`,
         },
       }),
     }),
@@ -52,12 +52,12 @@ import { WorkoutsModule } from '#src/modules/workouts/workouts.module';
     }),
     MailModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
+      useFactory: (config: AppConfigService) =>
         createMailOptions(
           {
-            NODE_ENV: config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV'),
-            SMTP_URL: config.get<AppEnv['SMTP_URL']>('SMTP_URL'),
-            MAIL_FROM: config.get<AppEnv['MAIL_FROM']>('MAIL_FROM'),
+            NODE_ENV: config.getOrThrow('NODE_ENV'),
+            SMTP_URL: config.get('SMTP_URL'),
+            MAIL_FROM: config.get('MAIL_FROM'),
           },
           join(import.meta.dirname, 'mail/templates'),
         ),

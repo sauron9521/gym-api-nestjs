@@ -26,6 +26,8 @@ production logs**. Set NODE_ENV=test for CI.
   MAIL_FROM must be a valid sender. Percent-encode special characters in
   SMTP credentials; provide secrets via your secret manager.
 - ENABLE_OPENAPI defaults to false. PORT defaults to 3000.
+- LOG_LEVEL defaults to `log`; supported values: `fatal`, `error`, `warn`,
+  `log`, `debug`, `verbose`. Production JSON logging remains enabled.
 
 This PR deliberately requires implicit TLS (`smtps://`) in production.
 STARTTLS on port 587 needs a separately tested require-TLS transport
@@ -39,3 +41,15 @@ validation reports only field names and safe policy messages.
 
 The avatar store remains local in this PR; multi-instance production
 deployments require persistent shared/object storage in a later PR.
+
+## Source layout and types (PR #49)
+
+Application configuration and all Zod validators live in
+`src/common/config/`. Inject the standard Nest `ConfigService` token,
+using the `AppConfigService` type for compile-time checked keys and
+normalized values. Startup validation is still fail-fast. Database CLI
+commands use `prisma7.config.ts` independently, without bootstrapping Nest.
+
+Production and development use Nest's existing ConsoleLogger; `LOG_LEVEL`
+controls the lowest included severity. Logging never prints environment
+values or passwords during validation.

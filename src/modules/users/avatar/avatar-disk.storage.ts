@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { AppConfigService } from '#src/common/config/app-config.types';
 
 import { assertAvatarKey, type AvatarExtension } from './avatar-validation.js';
 
@@ -15,9 +16,9 @@ import { assertAvatarKey, type AvatarExtension } from './avatar-validation.js';
 export class AvatarDiskStorage {
   private readonly directory: string;
 
-  constructor(config: ConfigService) {
+  constructor(@Inject(ConfigService) config: AppConfigService) {
     this.directory = resolve(
-      config.get<string>('AVATAR_STORAGE_DIR') ||
+      config.get('AVATAR_STORAGE_DIR') ||
         join(process.cwd(), 'uploads', 'avatars'),
     );
   }
