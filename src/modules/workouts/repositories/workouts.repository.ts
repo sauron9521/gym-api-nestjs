@@ -90,20 +90,12 @@ export class WorkoutsRepository {
           .filter((id): id is string => id !== null),
       )];
 
-      // FOR SHARE conflicts with termination's UPDATE of the relationship.
-      // Lock only trainers whose exercises are referenced; do not block
-      // unrelated relationships or queries using global/personal exercises.
-      const activeRelationships = trainerIds.length
-        ? await tx.$queryRaw<Array<{ trainerId: string }>>`
-            SELECT "trainer_id" AS "trainerId"
-            FROM "trainer_athletes"
-            WHERE "athlete_id" = ${athleteId}
-              AND "trainer_id" IN (${Prisma.join(trainerIds)})
-              AND "status" = 'ACTIVE'
-            ORDER BY "id"
-            FOR SHARE
-          `
-        : [];
+      // Keep the same lock protocol for new workouts and planned starts.
+      const activeRelationships = await this.lockActiveTrainerRelationships(
+        tx,
+        athleteId,
+        trainerIds,
+      );
 
       // Never trust the earlier service-side availability check: it may
       // have run before a concurrent termination. Validate inside this
@@ -396,6 +388,28 @@ export class WorkoutsRepository {
     });
   }
 
+  /** Obtain and retain current ACTIVE collaboration locks until transaction commit. */
+  private async lockActiveTrainerRelationships(
+    tx: Prisma.TransactionClient,
+    athleteId: string,
+    trainerIds: string[],
+  ): Promise<Array<{ id: string; trainerId: string }>> {
+    const ids = [...new Set(trainerIds)];
+    if (ids.length === 0) return [];
+
+    // Ordered row locks prevent lock-order inversions when multiple trainers
+    // contribute exercises to the same workout.
+    return tx.$queryRaw<Array<{ id: string; trainerId: string }>>`
+      SELECT "id", "trainer_id" AS "trainerId"
+      FROM "trainer_athletes"
+      WHERE "athlete_id" = ${athleteId}
+        AND "trainer_id" IN (${Prisma.join(ids)})
+        AND "status" = 'ACTIVE'
+      ORDER BY "id"
+      FOR SHARE
+    `;
+  }
+
   async startWorkout(input: {
     id: string;
     athleteId: string;
@@ -415,9 +429,71 @@ export class WorkoutsRepository {
         return null;
       }
 
+      // A planned manual workout can contain trainer exercises that were
+      // accessible at creation time but no longer are. Identify the owners
+      // before locking any assignment, then serialize against termination.
+      const trainerExercises = await tx.exercise.findMany({
+        where: {
+          source: 'TRAINER_CUSTOM',
+          workoutExercises: { some: { workoutId: input.id } },
+        },
+        select: { createdById: true },
+      });
+
+      if (trainerExercises.some((exercise) => !exercise.createdById)) {
+        return null;
+      }
+
+      const assignmentLink = workout.programAssignmentId
+        ? await tx.trainingProgramAssignment.findFirst({
+            where: {
+              id: workout.programAssignmentId,
+              athleteId: input.athleteId,
+            },
+            select: {
+              trainerAthleteId: true,
+              trainerAthlete: { select: { trainerId: true } },
+            },
+          })
+        : null;
+
+      if (workout.programAssignmentId && !assignmentLink) return null;
+
+      const requiredTrainerIds = [
+        ...new Set([
+          ...trainerExercises.map((exercise) => exercise.createdById!),
+          ...(assignmentLink ? [assignmentLink.trainerAthlete.trainerId] : []),
+        ]),
+      ];
+      // Uses FOR SHARE, conflicting with termination's UPDATE. If termination
+      // won first, rows are no longer ACTIVE and the start is denied; if start
+      // won first, termination waits until the start commits.
+      const activeRelationships = await this.lockActiveTrainerRelationships(
+        tx,
+        input.athleteId,
+        requiredTrainerIds,
+      );
+      const activeTrainerIds = new Set(
+        activeRelationships.map((relationship) => relationship.trainerId),
+      );
+
+      if (requiredTrainerIds.some((id) => !activeTrainerIds.has(id))) {
+        return null;
+      }
+      // A new relationship with the same trainer must not revive an old
+      // program assignment after its original relationship ended.
+      if (
+        assignmentLink &&
+        !activeRelationships.some(
+          (relationship) => relationship.id === assignmentLink.trainerAthleteId,
+        )
+      ) {
+        return null;
+      }
+
       if (workout.programAssignmentId) {
-        // Lock the assignment row to serialize workout start
-        // with cancellation, completion and termination.
+        // Lock-order discipline: relationship(s) first, assignment second.
+        // This serializes with cancellation, completion and termination.
         const assignments = await tx.$queryRaw<
           Array<{
             id: string;
