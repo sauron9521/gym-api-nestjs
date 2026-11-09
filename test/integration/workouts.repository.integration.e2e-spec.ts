@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { INestApplication } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
@@ -170,6 +171,8 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     cleanup.assignmentIds.push(assignment.id);
 
     return {
+      trainerId: trainer.id,
+      trainerAthleteId: trainerAthlete.id,
       athleteId: athlete.id,
       assignmentId: assignment.id,
       programWorkoutId: programWorkout.id,
@@ -929,5 +932,135 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     });
 
     expect(workouts).toEqual([{ status: 'PLANNED' }]);
+  }, 20_000);
+
+  it('serializes manual trainer-exercise workout creation with relationship termination', async () => {
+    const fixture = await createFixture();
+    const source = await prisma.exercise.create({
+      data: {
+        name: 'Trainer exercise for atomic workout race',
+        source: 'TRAINER_CUSTOM',
+        exerciseType: 'STRENGTH',
+        createdById: fixture.trainerId,
+      },
+      select: { id: true },
+    });
+    cleanup.exerciseIds.push(source.id);
+
+    const workoutData = {
+      title: 'New workout with shared exercise',
+      athlete: { connect: { id: fixture.athleteId } },
+      createdBy: { connect: { id: fixture.athleteId } },
+      exercises: {
+        create: [{
+          exercise: { connect: { id: source.id } },
+          exerciseNameSnapshot: 'Trainer exercise for atomic workout race',
+          exerciseTypeSnapshot: 'STRENGTH' as const,
+          sortOrder: 0,
+          sets: { create: [{ setNumber: 1, plannedReps: 10 }] },
+        }],
+      },
+    };
+
+    let creationPromise: Promise<'CREATED' | 'DENIED' | 'OTHER'> | undefined;
+    let observedBlocking = false;
+
+    // A holds the same relationship row that termination would UPDATE.
+    await prisma.$transaction(async (tx) => {
+      const [locked] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "trainer_athletes"
+        WHERE "id" = ${fixture.trainerAthleteId}
+        FOR UPDATE
+      `;
+      expect(locked).toBeDefined();
+
+      // B's validation must wait for the shared relationship lock.
+      creationPromise = repository
+        .create(workoutData, fixture.athleteId, [source.id])
+        .then(
+          () => 'CREATED' as const,
+          (error: unknown) => error instanceof BadRequestException
+            ? 'DENIED' as const : 'OTHER' as const,
+        );
+
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${locked!.pid} = ANY(pg_blocking_pids(activity.pid))
+          ) AS blocked
+        `;
+        if (state?.blocked) {
+          observedBlocking = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+
+      // A commits revocation while B is blocked. B must then revalidate.
+      await tx.trainerAthlete.update({
+        where: { id: fixture.trainerAthleteId },
+        data: { status: 'TERMINATED', endedAt: new Date(), endedById: fixture.trainerId },
+      });
+    }, { timeout: 15_000 });
+
+    expect(observedBlocking).toBe(true);
+    expect(await creationPromise).toBe('DENIED');
+    expect(await prisma.workout.count({
+      where: { athleteId: fixture.athleteId, title: workoutData.title },
+    })).toBe(0);
+  }, 20_000);
+
+  it('locks the relationship before program assignment when termination races creation', async () => {
+    const fixture = await createFixture();
+    let creationPromise: Promise<'CREATED' | 'DENIED' | 'OTHER'> | undefined;
+    let observedBlocking = false;
+
+    await prisma.$transaction(async (tx) => {
+      const [locked] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "trainer_athletes"
+        WHERE "id" = ${fixture.trainerAthleteId}
+        FOR UPDATE
+      `;
+      expect(locked).toBeDefined();
+
+      creationPromise = repository.createFromProgram({
+        athleteId: fixture.athleteId,
+        assignmentId: fixture.assignmentId,
+        programWorkoutId: fixture.programWorkoutId,
+      }).then(
+        (result) => result ? 'CREATED' as const : 'DENIED' as const,
+        () => 'OTHER' as const,
+      );
+
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${locked!.pid} = ANY(pg_blocking_pids(activity.pid))
+          ) AS blocked
+        `;
+        if (state?.blocked) {
+          observedBlocking = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+
+      await tx.trainerAthlete.update({
+        where: { id: fixture.trainerAthleteId },
+        data: { status: 'TERMINATED', endedAt: new Date(), endedById: fixture.trainerId },
+      });
+    }, { timeout: 15_000 });
+
+    expect(observedBlocking).toBe(true);
+    expect(await creationPromise).toBe('DENIED');
+    expect(await prisma.workout.count({
+      where: { programAssignmentId: fixture.assignmentId },
+    })).toBe(0);
   }, 20_000);
 });
