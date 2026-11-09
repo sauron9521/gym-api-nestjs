@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/infra/database/index.js';
+import { ExercisesService } from '../src/modules/exercises/services/exercises.service.js';
 import { useTestDatabase } from './utility/test-db-helper.js';
 
 describe('Trainer-athlete exercise copies (HTTP + PostgreSQL)', () => {
@@ -295,6 +296,41 @@ describe('Trainer-athlete exercise copies (HTTP + PostgreSQL)', () => {
     expect(acceptResponse.status).toBe(200);
     expect(acceptResponse.body.status).toBe('ACTIVE');
 
+    // Both directions are accessible during an ACTIVE collaboration.
+    const trainerShared = await request(app!.getHttpServer())
+      .get(`/exercises/${athleteSharedExerciseId}`)
+      .set('Cookie', trainerCookie);
+    expect(trainerShared.status).toBe(200);
+    expect(trainerShared.body.id).toBe(athleteSharedExerciseId);
+
+    const athleteBorrowed = await request(app!.getHttpServer())
+      .get(`/exercises/${usedExerciseId}`)
+      .set('Cookie', athleteCookie);
+    expect(athleteBorrowed.status).toBe(200);
+    expect(athleteBorrowed.body.id).toBe(usedExerciseId);
+
+    // Deliberately keep the old ACTIVE context to simulate a concurrent
+    // termination between context lookup and the exercise SQL query.
+    const staleAthleteContext = {
+      activeTrainerIds: [trainerId],
+      activeAthleteIds: [],
+    };
+    const staleTrainerContext = {
+      activeTrainerIds: [],
+      activeAthleteIds: [athleteId],
+    };
+    const exerciseService = app!.get(ExercisesService);
+    await expect(exerciseService.findAvailableForWorkout(
+      { id: athleteId, role: 'ATHLETE' },
+      [usedExerciseId],
+      staleAthleteContext,
+    )).resolves.toEqual([expect.objectContaining({ id: usedExerciseId })]);
+    await expect(exerciseService.findOne(
+      athleteSharedExerciseId,
+      { id: trainerId, role: 'TRAINER' },
+      staleTrainerContext,
+    )).resolves.toMatchObject({ id: athleteSharedExerciseId });
+
     // 3. Trainer assigns an exercise to the athlete.
     await prisma.exerciseAthleteAssignment.create({
       data: {
@@ -434,6 +470,49 @@ describe('Trainer-athlete exercise copies (HTTP + PostgreSQL)', () => {
 
     expect(trainerAccess?.revokedAt).toBeTruthy();
 
+    // A stale, once-active context cannot bypass the relationship check
+    // after termination. Verify directly at the service boundary to simulate
+    // a request racing the state change, in addition to real HTTP calls.
+    await expect(exerciseService.findAvailableForWorkout(
+      { id: athleteId, role: 'ATHLETE' },
+      [usedExerciseId],
+      staleAthleteContext,
+    )).rejects.toMatchObject({ status: 400 });
+    await expect(exerciseService.findOne(
+      athleteSharedExerciseId,
+      { id: trainerId, role: 'TRAINER' },
+      staleTrainerContext,
+    )).rejects.toMatchObject({ status: 404 });
+
+    const trainerCannotRead = await request(app!.getHttpServer())
+      .get(`/exercises/${athleteSharedExerciseId}`)
+      .set('Cookie', trainerCookie);
+    expect(trainerCannotRead.status).toBe(404);
+    expect(trainerCannotRead.headers['cache-control']).toBe('no-store');
+
+    const trainerCannotList = await request(app!.getHttpServer())
+      .get('/exercises')
+      .set('Cookie', trainerCookie)
+      .query({ search: 'E2E Athlete Shared Exercise' });
+    expect(trainerCannotList.status).toBe(200);
+    expect(trainerCannotList.body.data).toEqual([]);
+
+    const athleteCannotReadAssigned = await request(app!.getHttpServer())
+      .get(`/exercises/${assignedExerciseId}`)
+      .set('Cookie', athleteCookie);
+    expect(athleteCannotReadAssigned.status).toBe(404);
+
+    const deniedWorkout = await request(app!.getHttpServer())
+      .post('/workouts')
+      .set('Cookie', athleteCookie)
+      .send({
+        title: 'Cannot reuse revoked trainer original',
+        exercises: [{ exerciseId: usedExerciseId, sets: [{ plannedReps: 8 }] }],
+      });
+    expect(deniedWorkout.status).toBe(400);
+    expect(deniedWorkout.body.message).toBe('One or more exercises are not available');
+    expect(deniedWorkout.headers['cache-control']).toBe('no-store');
+
     // 10. Trainer exercise is no longer visible to the athlete.
     const originalExerciseResponse = await request(app!.getHttpServer())
       .get(`/exercises/${usedExerciseId}`)
@@ -448,6 +527,11 @@ describe('Trainer-athlete exercise copies (HTTP + PostgreSQL)', () => {
 
     expect(copyResponse.status).toBe(200);
     expect(copyResponse.body.id).toBe(usedCopy!.id);
+
+    const formerTrainerCannotReadCopy = await request(app!.getHttpServer())
+      .get(`/exercises/${usedCopy!.id}`)
+      .set('Cookie', trainerCookie);
+    expect(formerTrainerCannotReadCopy.status).toBe(404);
 
     // 11. The old workout still references the original exercise.
     const oldWorkoutExercise = await prisma.workoutExercise.findFirst({
