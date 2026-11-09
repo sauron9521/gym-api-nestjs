@@ -1,7 +1,7 @@
 import {
   AuthenticationRegistry,
   JwtBearerProvider,
-  JwtClaims,
+  type JwtClaims,
 } from '@nestjs/authentication';
 import { UsersRepository } from '#src/modules/users/repositories/users.repository';
 import { Injectable } from '@nestjs/common';
