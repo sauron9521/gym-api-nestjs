@@ -29,6 +29,7 @@ Create an untracked .env.production file containing all the following:
   CORS_ORIGINS=https://app.example.com
   SMTP_URL=smtps://user:password@mail.example.com:465
   MAIL_FROM="Gym API <no-reply@example.com>"
+  LOG_LEVEL=log
 
 All example values are placeholders, not production credentials.
 The application validates the environment at startup. JWT_SECRET must be

@@ -27,6 +27,15 @@ describe('validateEnv', () => {
     expect(env.NODE_ENV).toBe('development');
     expect(env.PORT).toBe(3000);
     expect(env.ENABLE_OPENAPI).toBe(false);
+    expect(env.LOG_LEVEL).toBe('log');
+  });
+
+  it('normalizes optional log level and rejects unsupported values', () => {
+    expect(validateEnv({ ...validDev, LOG_LEVEL: 'debug' }).LOG_LEVEL).toBe('debug');
+    expect(validateEnv({ ...validDev, LOG_LEVEL: '' }).LOG_LEVEL).toBe('log');
+    expect(() => validateEnv({ ...validDev, LOG_LEVEL: 'trace' })).toThrow(
+      'Invalid environment configuration: LOG_LEVEL',
+    );
   });
 
   it('accepts test configuration without SMTP', () => {
