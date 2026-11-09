@@ -34,6 +34,8 @@ export const updateWorkoutSetSchema = z
         data.actualWeightKg,
         data.actualDurationSeconds,
         data.actualDistanceMeters,
+        data.rpe,
+        data.rir,
       ].some((value) => value !== undefined && value !== null)
     ) {
       ctx.addIssue({
