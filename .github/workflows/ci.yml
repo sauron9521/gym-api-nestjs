@@ -14,9 +14,11 @@ on:
 permissions:
   contents: read
 
-# Cancel obsolete branch/PR runs, but never cancel a main-branch verification.
+# Isolate push and pull_request concurrency groups. Otherwise the PR event
+# cancels its branch push and the aggregate gate correctly reports a failure.
+# Preserve every main-branch push as a release-verification baseline.
 concurrency:
-  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
