@@ -319,10 +319,9 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
   });
 
   it('uploads, serves, replaces and deletes a managed avatar', async () => {
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lGQAAAAASUVORK5CYII=',
-      'base64',
-    );
+    const png = await sharp({
+      create: { width: 1, height: 1, channels: 4, background: 'white' },
+    }).png().toBuffer();
 
     const first = await request(app.getHttpServer())
       .post('/users/me/avatar')
@@ -415,10 +414,9 @@ describe('Users /me (HTTP + PostgreSQL)', () => {
   });
 
   it('rejects corrupted image data after a superficially valid header', async () => {
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lGQAAAAASUVORK5CYII=',
-      'base64',
-    );
+    const png = await sharp({
+      create: { width: 1, height: 1, channels: 4, background: 'white' },
+    }).png().toBuffer();
     const truncated = png.subarray(0, 33);
 
     const response = await request(app.getHttpServer())
