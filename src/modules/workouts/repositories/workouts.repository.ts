@@ -429,17 +429,41 @@ export class WorkoutsRepository {
         return null;
       }
 
-      // A planned manual workout can contain trainer exercises that were
-      // accessible at creation time but no longer are. Identify the owners
-      // before locking any assignment, then serialize against termination.
-      const trainerExercises = await tx.exercise.findMany({
-        where: {
-          source: 'TRAINER_CUSTOM',
-          workoutExercises: { some: { workoutId: input.id } },
-        },
-        select: { createdById: true },
-      });
+      // Exercise archival is an UPDATE of the exercise row. FOR SHARE
+      // conflicts with that UPDATE, so a concurrent archive either commits
+      // before this read (and is observed) or waits for this start to commit.
+      // Lock all referenced exercises, not just trainer-owned ones: global
+      // and athlete-owned exercises can be archived too.
+      const referencedExercises = await tx.$queryRaw<
+        Array<{
+          id: string;
+          source: string;
+          createdById: string | null;
+          isArchived: boolean;
+        }>
+      >`
+        SELECT
+          e."id",
+          e."source",
+          e."created_by_id" AS "createdById",
+          e."is_archived" AS "isArchived"
+        FROM "exercises" AS e
+        INNER JOIN "workout_exercises" AS we
+          ON we."exercise_id" = e."id"
+        WHERE we."workout_id" = ${input.id}
+        ORDER BY e."id"
+        FOR SHARE OF e
+      `;
 
+      // Keep historical workout and exercise snapshots, but do not start an
+      // old PLANNED workout with any archived source exercise.
+      if (referencedExercises.some((exercise) => exercise.isArchived)) {
+        return null;
+      }
+
+      const trainerExercises = referencedExercises.filter(
+        (exercise) => exercise.source === 'TRAINER_CUSTOM',
+      );
       if (trainerExercises.some((exercise) => !exercise.createdById)) {
         return null;
       }
