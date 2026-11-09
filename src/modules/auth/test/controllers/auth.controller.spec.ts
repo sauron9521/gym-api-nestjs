@@ -3,7 +3,7 @@ import {
   EmailVerificationService,
   SignInService,
 } from '@nestjs/authentication';
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthController } from '../../controllers/index.js';
 import { CredentialsService } from '../../services/index.js';
@@ -71,7 +71,50 @@ describe('AuthController', () => {
         method: 'password',
       });
       expect(emailVerificationService.send).toHaveBeenCalledWith(user);
-      expect(result).toEqual(user);
+      expect(result).toEqual({ ...user, verificationEmailStatus: 'SUBMITTED' });
+    });
+    it('keeps the created account and session when email submission fails', async () => {
+      const input = {
+        email: 'new-user@example.test',
+        password: 'StrongPassword123!',
+      };
+      const user = { id: 'user-1', email: input.email, emailVerified: false };
+      const error = new Error('SMTP password and private address must stay hidden');
+      const log = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      credentialsService.register.mockResolvedValue(user);
+      signInService.signIn.mockResolvedValue({});
+      emailVerificationService.send.mockRejectedValue(error);
+
+      try {
+        await expect(controller.signUp(input)).resolves.toEqual({
+          ...user,
+          verificationEmailStatus: 'RETRY_REQUIRED',
+        });
+        expect(credentialsService.register).toHaveBeenCalledOnce();
+        expect(signInService.signIn).toHaveBeenCalledWith(user.id, {
+          method: 'password',
+        });
+        expect(emailVerificationService.send).toHaveBeenCalledWith(user);
+        expect(log).toHaveBeenCalledWith(
+          'AUTH_REGISTRATION_VERIFICATION_EMAIL_SUBMISSION_FAILED',
+        );
+        expect(JSON.stringify(log.mock.calls)).not.toContain('SMTP password');
+        expect(JSON.stringify(log.mock.calls)).not.toContain(input.email);
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it('does not hide sign-in failure or claim registration success', async () => {
+      const input = {
+        email: 'new-user@example.test',
+        password: 'StrongPassword123!',
+      };
+      credentialsService.register.mockResolvedValue({ id: 'user-1', email: input.email });
+      signInService.signIn.mockRejectedValue(new Error('Session storage failed'));
+
+      await expect(controller.signUp(input)).rejects.toThrow('Session storage failed');
+      expect(emailVerificationService.send).not.toHaveBeenCalled();
     });
   });
 
