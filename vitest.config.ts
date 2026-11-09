@@ -14,7 +14,7 @@ export default defineConfig({
     include: ['src/**/*.spec.ts'],
     exclude: ['**/*.e2e-spec.ts'],
     coverage: {
-      exclude: ['generated/**', '**/index.ts'],
+      exclude: ['**/generated/**', '**/index.ts'],
       // Baseline on main before PR #36:
       // statements 68.49%, branches 59.55%, functions 65.32%, lines 68.98%.
       // Enforce an initial regression floor; raise it as coverage improves.

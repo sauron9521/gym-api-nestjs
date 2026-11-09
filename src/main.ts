@@ -2,7 +2,7 @@ import { ConsoleLogger, Logger, StandardSchemaValidationPipe, ValidationPipe } f
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
-import { enableOpenApi } from './openapi/openapi.js';
+import { enableOpenApi } from './infra/openapi/openapi.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
