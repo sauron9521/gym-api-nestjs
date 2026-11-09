@@ -4,7 +4,9 @@ import { PrismaService } from '#src/infra/database/index';
 
 import {
   archivedExerciseSelect,
+  equipmentLookupSelect,
   exerciseSelect,
+  muscleGroupLookupSelect,
   workoutExerciseReferenceSelect,
 } from '../selects/exercise.select.js';
 import type { FindManyExercisesParams } from '../types/exercise.types.js';
@@ -88,11 +90,7 @@ export class ExercisesRepository {
       where: {
         slug: { in: slugs },
       },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-      },
+      select: muscleGroupLookupSelect,
     });
   }
 
@@ -101,11 +99,7 @@ export class ExercisesRepository {
       where: {
         slug: { in: slugs },
       },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-      },
+      select: equipmentLookupSelect,
     });
   }
 

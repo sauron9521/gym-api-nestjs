@@ -56,3 +56,16 @@ export const workoutExerciseReferenceSelect = {
   name: true,
   exerciseType: true,
 } satisfies Prisma.ExerciseSelect;
+
+/** Lookup projections for validating create/update exercise relations. */
+export const muscleGroupLookupSelect = {
+  id: true,
+  name: true,
+  slug: true,
+} satisfies Prisma.MuscleGroupSelect;
+
+export const equipmentLookupSelect = {
+  id: true,
+  name: true,
+  slug: true,
+} satisfies Prisma.EquipmentSelect;
