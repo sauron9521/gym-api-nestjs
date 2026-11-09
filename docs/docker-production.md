@@ -50,7 +50,7 @@ is reachable from containers:
 
     docker compose --env-file .env.production -f compose.prod.yml config --quiet
 
-2. Back up the production database and avatar volume.
+2. Back up the production database and avatar volume with the operator workflow\n   in [production operations runbook](production-operations-runbook.md):\n\n    bash scripts/backup-production.sh /srv/private/gym-backups\n\n   Supply DATABASE_URL securely and verify checksums before continuing.
 3. Apply pending migrations once, using the separate migration target:
 
     docker compose --env-file .env.production -f compose.prod.yml --profile ops run --build --rm migrate
