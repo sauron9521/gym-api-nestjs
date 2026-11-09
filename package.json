@@ -35,7 +35,7 @@
     "config:validate": "tsx scripts/validate-env.ts",
     "security:audit:prod": "npm audit --omit=dev --audit-level=high",
     "security:audit:critical": "npm audit --audit-level=critical",
-    "imports:smoke": "node --input-type=module -e \"import { validateEnv } from '#src/config/env.validation'; import { Prisma } from '#prisma/client'; if (typeof validateEnv !== 'function' || !Prisma) process.exit(1); console.log('Native ESM aliases resolved')\""
+    "imports:smoke": "node --input-type=module -e \"import { validateEnv } from '#src/common/config/env.validation'; import { Prisma } from '#prisma/client'; if (typeof validateEnv !== 'function' || !Prisma) process.exit(1); console.log('Native ESM aliases resolved')\""
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.4",
