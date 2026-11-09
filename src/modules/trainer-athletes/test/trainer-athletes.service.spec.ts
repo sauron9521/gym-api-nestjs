@@ -7,7 +7,7 @@ import {
 
 import { Prisma } from '#prisma/client';
 
-import { UsersRepository } from '#src/modules/users/users.repository';
+import { UsersRepository } from '#src/modules/users/repositories/users.repository';
 import { TrainerAthletesRepository } from '../trainer-athletes.repository.js';
 import { TrainerAthletesService } from '../trainer-athletes.service.js';
 import { TrainerAthleteTerminationService } from '../services/trainer-athlete-termination.service.js';
