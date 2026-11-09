@@ -174,7 +174,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   ): Promise<EmailTokenRecord | undefined> {
     // DELETE ... RETURNING is atomic: a concurrent request cannot consume the
     // same link, and a purpose mismatch leaves the token untouched.
-    const rows = await this.prisma.$queryRaw<Array<AuthConsumedEmailTokenRow>>DELETE FROM "email_tokens"
+    const rows = await this.prisma.$queryRaw<Array<AuthConsumedEmailTokenRow>>`DELETE FROM "email_tokens"
       WHERE "id" = ${id} AND "purpose" = ${purpose}
       RETURNING "id", "purpose", "user_id" AS "userId", "email",
                 "fingerprint", "created_at" AS "createdAt",
