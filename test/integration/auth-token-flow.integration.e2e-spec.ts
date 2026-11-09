@@ -142,7 +142,7 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
     // Verify that the real bearer provider accepts the access token returned
     // by TokenService, rather than only checking a mocked controller result.
     await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Authorization', `Bearer ${initial.accessToken}`)
       .expect(200);
 
@@ -156,7 +156,7 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
     expect(rotated.refreshToken).not.toBe(initial.refreshToken);
 
     await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Authorization', `Bearer ${rotated.accessToken}`)
       .expect(200);
 
@@ -218,7 +218,7 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
     // Existing access JWTs are stateless and remain valid until their short TTL
     // expires; sign-out-everywhere revokes sessions and refresh-token families.
     await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Authorization', `Bearer ${tokens.accessToken}`)
       .expect(200);
   });

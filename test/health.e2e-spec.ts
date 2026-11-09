@@ -43,9 +43,21 @@ describe('Health and request correlation (HTTP + PostgreSQL)', () => {
     expect(response.headers['x-request-id']).toBeTruthy();
   });
 
-  it('uses the same server-generated ID for error header and body', async () => {
+  it('returns 404 for the removed legacy root route and keeps request correlation', async () => {
     const response = await request(app.getHttpServer())
       .get('/')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      statusCode: 404,
+      code: 'NOT_FOUND',
+    });
+    expect(response.body.requestId).toBe(response.headers['x-request-id']);
+  });
+
+  it('uses the same server-generated ID for error header and body', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/users/me')
       .set('X-Request-ID', 'forged-id');
     expect([401, 403]).toContain(response.status);
     expect(response.body.requestId).toBe(response.headers['x-request-id']);

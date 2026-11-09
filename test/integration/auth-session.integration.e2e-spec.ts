@@ -101,7 +101,7 @@ describe('Authentication sessions (HTTP + PostgreSQL)', () => {
 
     // 3. The authenticated user can access a protected endpoint.
     const beforeDelete = await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Cookie', sessionCookie);
 
     expect(beforeDelete.status).toBe(200);
@@ -122,7 +122,7 @@ describe('Authentication sessions (HTTP + PostgreSQL)', () => {
 
     // 5. The old cookie must no longer authorize the user.
     const afterDelete = await request(app.getHttpServer())
-      .get('/')
+      .get('/users/me')
       .set('Cookie', sessionCookie);
 
     expect([401, 403]).toContain(afterDelete.status);
