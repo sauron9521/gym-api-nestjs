@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Prisma } from '../../../generated/prisma/client.js';
+import { Prisma } from '../../../infra/database/generated/prisma/client.js';
 
 import { TrainingProgramWorkoutRepository } from '../repositories/training-program-workout.repository.js';
 import { TrainingProgramAccessService } from './training-program-access.service.js';

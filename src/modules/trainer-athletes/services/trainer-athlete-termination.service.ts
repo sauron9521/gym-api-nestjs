@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../../database/index.js';
+import { PrismaService } from '../../../infra/database/index.js';
 import { TrainerAthleteExerciseCopyService } from './trainer-athlete-exercise-copy.service.js';
 import {
   trainerAthleteHistoricalSelect,

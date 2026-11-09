@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../database/index.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
+import { PrismaService } from '../../../infra/database/index.js';
+import type { Prisma } from '../../../infra/database/generated/prisma/client.js';
 import {
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentDetailsSelect,

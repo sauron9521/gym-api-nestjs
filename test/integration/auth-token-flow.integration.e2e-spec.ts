@@ -13,7 +13,7 @@ import {
   expect,
   it,
 } from 'vitest';
-import { PrismaService } from '../../src/database/index.js';
+import { PrismaService } from '../../src/infra/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 import { ThrottlerGuard } from '@nestjs/throttler';
 

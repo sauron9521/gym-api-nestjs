@@ -25,3 +25,7 @@ docker
 docker-compose.yml
 compose.prod.yml
 README.md
+
+# Prisma Client is regenerated inside the image, never copied from the host.
+src/generated/
+src/infra/database/generated/

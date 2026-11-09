@@ -6,7 +6,7 @@ import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import type { NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { RequestContextMiddleware } from './common/request-context/request-context.middleware.js';
-import { HealthModule } from './health/health.module.js';
+import { HealthModule } from './infra/health/health.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthenticationModule } from '@nestjs/authentication';
 import {
@@ -19,7 +19,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { ExercisesModule } from './modules/exercises/exercises.module.js';
 import { WorkoutsModule } from './modules/workouts/workouts.module.js';
 import { BodyMeasurementsModule } from './modules/body-measurements/body-measurements.module.js';
-import { PrismaModule } from './database/index.js';
+import { PrismaModule } from './infra/database/index.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { TrainerAthletesModule } from './modules/trainer-athletes/trainer-athletes.module.js';

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 import { TrainingProgramsModule } from '../../src/modules/training-programs/training-programs.module.js';
-import { PrismaModule, PrismaService } from '../../src/database/index.js';
+import { PrismaModule, PrismaService } from '../../src/infra/database/index.js';
 import { WorkoutsModule } from '../../src/modules/workouts/workouts.module.js';
 import { WorkoutsRepository } from '../../src/modules/workouts/workouts.repository.js';
 import { TrainingProgramAssignmentRepository } from '../../src/modules/training-programs/repositories/training-program-assignment.repository.js';

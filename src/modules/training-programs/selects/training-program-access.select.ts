@@ -1,4 +1,4 @@
-import { Prisma } from '../../../generated/prisma/client.js';
+import { Prisma } from '../../../infra/database/generated/prisma/client.js';
 
 /**
  * The draft editor needs IDs/order only. Do not load descriptions, planned

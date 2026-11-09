@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertPublishableVersion } from '../policies/training-program-publication.policy.js';
-import { PrismaService } from '../../../database/index.js';
+import { PrismaService } from '../../../infra/database/index.js';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
 import { trainingProgramDraftAccessSelect } from '../selects/training-program-access.select.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
+import type { Prisma } from '../../../infra/database/generated/prisma/client.js';
 import type { TrainingProgramVersionPayload } from '../types/training-program-payload.types.js';
 
 @Injectable()

@@ -7,8 +7,8 @@ import {
   type RefreshTokenRecord,
   type RefreshTokenStore,
 } from '@nestjs/authentication';
-import { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../database/index.js';
+import { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import { PrismaService } from '../../../infra/database/index.js';
 
 /** PostgreSQL-backed stores for opaque refresh tokens and email links. */
 @Injectable()

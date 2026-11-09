@@ -5,7 +5,7 @@ import { authenticationStoreContract } from '@nestjs/authentication/testing';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 
 import type { INestApplication } from '@nestjs/common';
-import { PrismaService } from '../../src/database/index.js';
+import { PrismaService } from '../../src/infra/database/index.js';
 import { PrismaSessionStore } from '../../src/modules/auth/stores/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 

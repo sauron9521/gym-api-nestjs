@@ -13,7 +13,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
-import { PrismaService } from '../src/database/index.js';
+import { PrismaService } from '../src/infra/database/index.js';
 import { WorkoutsRepository } from '../src/modules/workouts/workouts.repository.js';
 import { useTestDatabase } from './utility/test-db-helper.js';
 

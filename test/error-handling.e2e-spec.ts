@@ -16,7 +16,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ApiExceptionFilter } from '../src/common/filters/api-exception.filter.js';
-import { Prisma } from '../src/generated/prisma/client.js';
+import { Prisma } from '../src/infra/database/generated/prisma/client.js';
 
 @Controller('__error-contract')
 class ErrorFixtureController {
