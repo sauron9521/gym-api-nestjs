@@ -9,6 +9,7 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/infra/database/index.js';
+import { BodyMeasurementStatisticsRepository } from '../src/modules/body-measurements/repositories/body-measurement-statistics.repository.js';
 import { useTestDatabase } from './utility/test-db-helper.js';
 
 describe('Body Measurements (HTTP + PostgreSQL)', () => {
@@ -305,6 +306,72 @@ describe('Body Measurements (HTTP + PostgreSQL)', () => {
     } finally {
       await prisma.bodyMeasurement.deleteMany({
         where: { userId: firstId, notes: fixtureNotes },
+      });
+    }
+  });
+
+  it('uses exact UTC calendar-day bounds and the existing time-range index', async () => {
+    // March 29 is a DST transition in Europe/Kyiv. UTC calendar days
+    // must remain stable regardless of API/database host timezone.
+    const asOf = new Date('2026-03-30T00:30:00.000Z');
+    const notes = 'utc-statistics-boundary-fixture';
+    const fixtures = [
+      ['2026-03-23T23:59:59.999Z', 79.0], // before first UTC day
+      ['2026-03-24T00:00:00.000Z', 80.0], // exact inclusive boundary
+      ['2026-03-24T23:59:00.000Z', 80.5], // most recent for that UTC day
+      ['2026-03-29T23:59:00.000Z', 82.0],
+      ['2026-03-30T00:15:00.000Z', 83.0],
+      ['2026-03-30T00:31:00.000Z', 84.0], // after the asOf snapshot cutoff
+    ] as const;
+
+    await prisma.bodyMeasurement.createMany({
+      data: fixtures.map(([timestamp, weightKg]) => ({
+        userId: firstId,
+        measuredAt: new Date(timestamp),
+        weightKg,
+        notes,
+      })),
+    });
+
+    try {
+      const repository = app.get(BodyMeasurementStatisticsRepository);
+      const result = await repository.readStatistics(
+        firstId, 'weightKg', asOf, 7,
+      );
+
+      expect(result.first?.weightKg?.toNumber()).toBe(79);
+      expect(result.latest?.weightKg?.toNumber()).toBe(83);
+      expect(result.series.map((item) => ({
+        at: item.measuredAt.toISOString(),
+        weight: Number(item.value),
+      }))).toEqual([
+        { at: '2026-03-24T23:59:00.000Z', weight: 80.5 },
+        { at: '2026-03-29T23:59:00.000Z', weight: 82 },
+        { at: '2026-03-30T00:15:00.000Z', weight: 83 },
+      ]);
+
+      // With a tiny test fixture PostgreSQL may prefer a sequential scan.
+      // Disabling it inside this transaction checks that the existing
+      // (user_id, measured_at DESC, id DESC) index supports the access path.
+      const plan = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SET LOCAL enable_seqscan = off`;
+        return tx.$queryRaw<Array<{ 'QUERY PLAN': string }>>`
+          EXPLAIN
+          SELECT "id", "measured_at", "weight_kg"
+          FROM "body_measurements"
+          WHERE "user_id" = ${firstId}
+            AND "measured_at" >= ${new Date('2026-03-24T00:00:00.000Z')}
+            AND "measured_at" <= ${asOf}
+            AND "weight_kg" IS NOT NULL
+          ORDER BY "measured_at" DESC, "id" DESC
+        `;
+      });
+      expect(plan.some((row) =>
+        row['QUERY PLAN'].includes('body_measurements_user_id_measured_at_id_idx'),
+      )).toBe(true);
+    } finally {
+      await prisma.bodyMeasurement.deleteMany({
+        where: { userId: firstId, notes },
       });
     }
   });
