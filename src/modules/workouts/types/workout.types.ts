@@ -64,6 +64,7 @@ export type WorkoutListQuery = {
   page: number;
   limit: number;
   status?: WorkoutStatus;
+  view?: 'summary' | 'full';
   scheduledFrom?: Date;
   scheduledTo?: Date;
 };
