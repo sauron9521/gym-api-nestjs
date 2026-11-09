@@ -1,105 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '#src/infra/database/index';
-import { Prisma } from '#prisma/client';
-
-export const trainerAthleteSelect = {
-  id: true,
-  trainerId: true,
-  athleteId: true,
-  initiatedById: true,
-  status: true,
-
-  respondedAt: true,
-  endedAt: true,
-  endedById: true,
-  endReason: true,
-
-  trainer: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  athlete: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  initiatedBy: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  endedBy: {
-    select: {
-      id: true,
-      email: true,
-      role: true,
-    },
-  },
-
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.TrainerAthleteSelect;
-
-export const trainerAthleteHistoricalSelect = {
-  id: true,
-  trainerId: true,
-  athleteId: true,
-  initiatedById: true,
-  status: true,
-  respondedAt: true,
-  endedAt: true,
-  endedById: true,
-  endReason: true,
-
-  trainer: {
-    select: {
-      id: true,
-      role: true,
-    },
-  },
-
-  athlete: {
-    select: {
-      id: true,
-      role: true,
-    },
-  },
-
-  initiatedBy: {
-    select: {
-      id: true,
-      role: true,
-    },
-  },
-
-  endedBy: {
-    select: {
-      id: true,
-      role: true,
-    },
-  },
-
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.TrainerAthleteSelect;
-
-export type FindManyTrainerAthletesParams = {
-  where: Prisma.TrainerAthleteWhereInput;
-  skip: number;
-  take: number;
-  orderBy?: Prisma.TrainerAthleteOrderByWithRelationInput[];
-};
+import type { Prisma } from '#prisma/client';
+import {
+  trainerAthleteHistoricalSelect,
+  trainerAthleteSelect,
+} from '../selects/trainer-athlete.select.js';
+import type { FindManyTrainerAthletesParams } from '../types/trainer-athlete.types.js';
 
 @Injectable()
 export class TrainerAthletesRepository {

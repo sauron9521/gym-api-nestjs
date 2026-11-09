@@ -5,7 +5,7 @@ import { TrainerAthleteExerciseCopyService } from './trainer-athlete-exercise-co
 import {
   trainerAthleteHistoricalSelect,
   trainerAthleteSelect,
-} from '../trainer-athletes.repository.js';
+} from '../selects/trainer-athlete.select.js';
 
 /**
  * Coordinates relationship termination, copies, assignment termination and
