@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../database/index.js';
+import { PrismaService } from '../../../infra/database/index.js';
 import { trainingProgramVersionSelect } from '../selects/training-program-version.select.js';
 
 import type {
