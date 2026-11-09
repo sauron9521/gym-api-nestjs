@@ -35,7 +35,7 @@ describe('AvatarDiskStorage orphan scanning', () => {
     expect(keys).toEqual([old]);
 
     await storage.remove(old);
-    expect(await storage.listOldKeys(new Date())).toEqual([recent]);
+    expect(await storage.listOldKeys(new Date(Date.now() + 60_000))).toEqual([recent]);
   });
 
   it('treats a missing storage directory as an empty collection', async () => {
