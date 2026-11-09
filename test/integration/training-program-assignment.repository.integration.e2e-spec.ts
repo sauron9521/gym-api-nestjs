@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import type { Prisma } from '../../src/generated/prisma/client.js';
+import type { Prisma } from '../../src/infra/database/generated/prisma/client.js';
 
-import { PrismaModule, PrismaService } from '../../src/database/index.js';
+import { PrismaModule, PrismaService } from '../../src/infra/database/index.js';
 import { TrainingProgramAssignmentRepository } from '../../src/modules/training-programs/repositories/training-program-assignment.repository.js';
 import { TrainerAthleteTerminationService } from '../../src/modules/trainer-athletes/services/trainer-athlete-termination.service.js';
 import { TrainerAthleteExerciseCopyService } from '../../src/modules/trainer-athletes/services/trainer-athlete-exercise-copy.service.js';

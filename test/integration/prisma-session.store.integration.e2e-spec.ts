@@ -5,7 +5,7 @@ import { Test } from '@nestjs/testing';
 import { AuthenticationStorage, SessionRecord } from '@nestjs/authentication';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaSessionStore } from '../../src/modules/auth/stores/index.js';
-import { PrismaModule, PrismaService } from '../../src/database/index.js';
+import { PrismaModule, PrismaService } from '../../src/infra/database/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 describe('PrismaSessionStore integration (e2e)', () => {

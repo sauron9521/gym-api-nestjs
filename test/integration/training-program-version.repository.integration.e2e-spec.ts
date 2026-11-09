@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
-import { PrismaModule, PrismaService } from '../../src/database/index.js';
+import { PrismaModule, PrismaService } from '../../src/infra/database/index.js';
 import { TrainingProgramVersionRepository } from '../../src/modules/training-programs/repositories/training-program-version.repository.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
