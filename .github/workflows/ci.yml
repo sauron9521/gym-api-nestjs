@@ -14,6 +14,11 @@ on:
 permissions:
   contents: read
 
+# Cancel obsolete branch/PR runs, but never cancel a main-branch verification.
+concurrency:
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   dependency-security:
     name: Dependency vulnerability audit
@@ -265,3 +270,37 @@ jobs:
             docker logs --tail 40 gym-api-smoke
             exit 1
           fi
+
+  # Single stable branch-protection check. A green unit job alone is insufficient:
+  # dependency auditing and production-image smoke must also succeed.
+  required-gates:
+    name: CI / required gates
+    if: ${{ always() }}
+    needs:
+      - dependency-security
+      - quality-and-tests
+      - docker-production-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Summarize and enforce required gate outcomes
+        env:
+          SECURITY_RESULT: ${{ needs.dependency-security.result }}
+          QUALITY_RESULT: ${{ needs.quality-and-tests.result }}
+          DOCKER_RESULT: ${{ needs.docker-production-smoke.result }}
+        run: |
+          {
+            echo "### Required CI gates"
+            echo "| Gate | Result |"
+            echo "| --- | --- |"
+            echo "| Dependency vulnerability audit | ${SECURITY_RESULT} |"
+            echo "| Lint, build and tests | ${QUALITY_RESULT} |"
+            echo "| Docker production build and HTTP smoke | ${DOCKER_RESULT} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for result in "${SECURITY_RESULT}" "${QUALITY_RESULT}" "${DOCKER_RESULT}"; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::Required CI gate failed, was cancelled or was skipped. Review the summary for the individual job status."
+              exit 1
+            fi
+          done
