@@ -1,5 +1,5 @@
-import { BodyMeasurementStatisticsRepository } from '../body-measurement-statistics.repository.js';
-import { BodyMeasurementStatisticsService } from '../body-measurement-statistics.service.js';
+import { BodyMeasurementStatisticsRepository } from '../repositories/body-measurement-statistics.repository.js';
+import { BodyMeasurementStatisticsService } from '../services/body-measurement-statistics.service.js';
 
 describe('BodyMeasurementStatisticsService', () => {
   const repository = { readStatistics: vi.fn() };

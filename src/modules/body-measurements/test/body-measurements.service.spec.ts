@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
-import { BodyMeasurementsRepository } from '../body-measurements.repository.js';
-import { BodyMeasurementsService } from '../body-measurements.service.js';
+import { BodyMeasurementsRepository } from '../repositories/body-measurements.repository.js';
+import { BodyMeasurementsService } from '../services/body-measurements.service.js';
 
 describe('BodyMeasurementsService', () => {
   const repository = {
