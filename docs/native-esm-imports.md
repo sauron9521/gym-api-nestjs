@@ -34,6 +34,20 @@ Do not use \`@src/*\` purely as a TypeScript path alias: without a
 runtime transform Node would not resolve it in built ESM. Node-native
 internal import aliases must begin with \`#\`.
 
+
+### Vitest identity and source resolution
+
+Node's native imports map \`#src/*\` to compiled \`dist\` in production.
+Vitest **must not** load these compiled modules while tests import others
+via relative \`src\` paths: Nest DI uses class identity as its provider
+token, and two copies of PrismaService are not interchangeable.
+
+Both Vitest configs explicitly point \`#src\` and \`#prisma\` aliases to
+their source locations using \`resolve.alias\`, in addition to
+\`tsconfigPaths\`. The production build and the native Node smoke test
+still use \`package.json#imports\` directly. Do not remove these Vitest
+source aliases without an equivalent test that proves provider identity.
+
 ## Verification
 
 After editing import boundaries, run:
