@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
+import { DistributedThrottlerStorage } from '../src/common/rate-limit/distributed-throttler.storage.js';
 import { useTestDatabase } from './utility/test-db-helper.js';
 
 describe('Health and request correlation (HTTP + PostgreSQL)', () => {
@@ -33,6 +34,11 @@ describe('Health and request correlation (HTTP + PostgreSQL)', () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
     }
+  });
+
+  it('reports healthy throttling backend in single-instance mode', async () => {
+    const storage = app.get(DistributedThrottlerStorage);
+    await expect(storage.checkReadiness()).resolves.toBe(true);
   });
 
   it('checks PostgreSQL readiness without authentication', async () => {
