@@ -1319,4 +1319,229 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     });
     expect(persisted).toEqual({ status: 'PLANNED', startedAt: null });
   }, 20_000);
+
+  async function createPlannedSnapshotWorkout(
+    athleteId: string,
+    exerciseId: string,
+    title: string,
+  ) {
+    return prisma.workout.create({
+      data: {
+        athleteId,
+        createdById: athleteId,
+        title,
+        exercises: {
+          create: [{
+            exerciseId,
+            exerciseNameSnapshot: title,
+            exerciseTypeSnapshot: 'STRENGTH',
+            sortOrder: 0,
+            sets: { create: [{ setNumber: 1, plannedReps: 8 }] },
+          }],
+        },
+      },
+      select: { id: true },
+    });
+  }
+
+  it.each(['GLOBAL', 'ATHLETE_CUSTOM', 'TRAINER_CUSTOM'] as const)(
+    'does not start a planned manual workout with an archived %s exercise',
+    async (source) => {
+      const fixture = await createFixture();
+      let exerciseId = fixture.exerciseId;
+
+      if (source !== 'GLOBAL') {
+        const created = await prisma.exercise.create({
+          data: {
+            name: `Archived ${source} exercise regression`,
+            source,
+            exerciseType: 'STRENGTH',
+            createdById: source === 'ATHLETE_CUSTOM'
+              ? fixture.athleteId
+              : fixture.trainerId,
+            ...(source === 'ATHLETE_CUSTOM' ? { visibility: 'PRIVATE' as const } : {}),
+          },
+          select: { id: true },
+        });
+        cleanup.exerciseIds.push(created.id);
+        exerciseId = created.id;
+      }
+
+      const title = `Historical ${source} exercise snapshot`;
+      const workout = await createPlannedSnapshotWorkout(
+        fixture.athleteId,
+        exerciseId,
+        title,
+      );
+
+      // Archiving is a regular row UPDATE and must be visible to startWorkout.
+      await prisma.exercise.update({
+        where: { id: exerciseId },
+        data: { isArchived: true },
+      });
+
+      const started = await repository.startWorkout({
+        id: workout.id,
+        athleteId: fixture.athleteId,
+        startedAt: new Date(),
+      });
+
+      expect(started).toBeNull();
+      const persisted = await prisma.workout.findUniqueOrThrow({
+        where: { id: workout.id },
+        select: {
+          status: true,
+          startedAt: true,
+          exercises: {
+            select: { exerciseId: true, exerciseNameSnapshot: true },
+          },
+        },
+      });
+      expect(persisted).toEqual({
+        status: 'PLANNED',
+        startedAt: null,
+        exercises: [{ exerciseId, exerciseNameSnapshot: title }],
+      });
+    },
+  );
+
+  it('keeps already-started workout history when its exercise is archived later', async () => {
+    const fixture = await createFixture();
+    const workout = await createPlannedSnapshotWorkout(
+      fixture.athleteId,
+      fixture.exerciseId,
+      'Snapshot retained after archival',
+    );
+    const start = await repository.startWorkout({
+      id: workout.id,
+      athleteId: fixture.athleteId,
+      startedAt: new Date(),
+    });
+    expect(start?.status).toBe('IN_PROGRESS');
+
+    await prisma.exercise.update({
+      where: { id: fixture.exerciseId },
+      data: { isArchived: true },
+    });
+    const persisted = await prisma.workout.findUniqueOrThrow({
+      where: { id: workout.id },
+      select: {
+        status: true,
+        exercises: { select: { exerciseNameSnapshot: true } },
+      },
+    });
+    expect(persisted.status).toBe('IN_PROGRESS');
+    expect(persisted.exercises[0]?.exerciseNameSnapshot).toBe(
+      'Snapshot retained after archival',
+    );
+  });
+
+  it('rejects program workout starts when a referenced global exercise is archived', async () => {
+    const fixture = await createFixture();
+    const created = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+    expect(created).not.toBeNull();
+
+    await prisma.exercise.update({
+      where: { id: fixture.exerciseId },
+      data: { isArchived: true },
+    });
+    const result = await repository.startWorkout({
+      id: created!.id,
+      athleteId: fixture.athleteId,
+      startedAt: new Date(),
+    });
+    expect(result).toBeNull();
+
+    const [stored, assignment] = await Promise.all([
+      prisma.workout.findUniqueOrThrow({
+        where: { id: created!.id },
+        select: {
+          status: true,
+          startedAt: true,
+          exercises: { select: { exerciseNameSnapshot: true } },
+        },
+      }),
+      prisma.trainingProgramAssignment.findUniqueOrThrow({
+        where: { id: fixture.assignmentId },
+        select: { status: true, startedAt: true },
+      }),
+    ]);
+    expect(stored.status).toBe('PLANNED');
+    expect(stored.startedAt).toBeNull();
+    expect(stored.exercises).toEqual([
+      { exerciseNameSnapshot: 'Bench Press Snapshot' },
+    ]);
+    expect(assignment).toEqual({ status: 'ACTIVE', startedAt: null });
+  });
+
+  it('waits for a concurrent exercise archive and rejects a stale planned start', async () => {
+    const fixture = await createFixture();
+    const workout = await createPlannedSnapshotWorkout(
+      fixture.athleteId,
+      fixture.exerciseId,
+      'Archived during concurrent start',
+    );
+
+    let startPromise: ReturnType<WorkoutsRepository['startWorkout']> | undefined;
+    let observedBlocking = false;
+
+    await prisma.$transaction(async (tx) => {
+      const [holder] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "exercises"
+        WHERE "id" = ${fixture.exerciseId}
+        FOR UPDATE
+      `;
+      expect(holder).toBeDefined();
+
+      startPromise = repository.startWorkout({
+        id: workout.id,
+        athleteId: fixture.athleteId,
+        startedAt: new Date(),
+      });
+
+      // Confirm the real PostgreSQL backend is blocked on the exercise row;
+      // polling state is safer than relying on a timing-only promise race.
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${holder!.pid} = ANY(pg_blocking_pids(activity.pid))
+          ) AS blocked
+        `;
+        if (state?.blocked) {
+          observedBlocking = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+
+      // Archive commits first; start must re-read the updated flag.
+      await tx.exercise.update({
+        where: { id: fixture.exerciseId },
+        data: { isArchived: true },
+      });
+    }, { timeout: 15_000 });
+
+    expect(observedBlocking).toBe(true);
+    expect(await startPromise).toBeNull();
+    const stored = await prisma.workout.findUniqueOrThrow({
+      where: { id: workout.id },
+      select: {
+        status: true,
+        startedAt: true,
+        exercises: { select: { exerciseNameSnapshot: true } },
+      },
+    });
+    expect(stored).toEqual({
+      status: 'PLANNED',
+      startedAt: null,
+      exercises: [{ exerciseNameSnapshot: 'Archived during concurrent start' }],
+    });
+  }, 20_000);
 });
