@@ -8,8 +8,8 @@ import {
 import type {
   ExerciseSource,
   ExerciseVisibility,
-} from '../../generated/prisma/client.js';
-import { Prisma } from '../../generated/prisma/client.js';
+} from '../../infra/database/generated/prisma/client.js';
+import { Prisma } from '../../infra/database/generated/prisma/client.js';
 
 import { ExercisesRepository } from './exercises.repository.js';
 
