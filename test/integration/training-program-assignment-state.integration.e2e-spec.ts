@@ -18,6 +18,7 @@ describe('TrainingProgramAssignmentRepository eligibility (PostgreSQL)', () => {
   let relationshipId: string;
   let programId: string;
   let versionId: string;
+  let exerciseId: string;
 
   const createAssignment = () =>
     repository.createAssignmentForActiveRelationship({
@@ -72,6 +73,16 @@ describe('TrainingProgramAssignmentRepository eligibility (PostgreSQL)', () => {
       select: { id: true },
     });
     relationshipId = relationship.id;
+
+    const exercise = await prisma.exercise.create({
+      data: {
+        name: 'Assignment source availability regression',
+        source: 'GLOBAL',
+        exerciseType: 'STRENGTH',
+      },
+      select: { id: true },
+    });
+    exerciseId = exercise.id;
   }, 20_000);
 
   beforeEach(async () => {
@@ -95,6 +106,26 @@ describe('TrainingProgramAssignmentRepository eligibility (PostgreSQL)', () => {
     });
     programId = program.id;
     versionId = program.versions[0]!.id;
+
+    await prisma.trainingProgramWorkout.create({
+      data: {
+        versionId,
+        weekNumber: 1,
+        dayNumber: 1,
+        title: 'Published program with a real source',
+        exercises: {
+          create: [{
+            exerciseId,
+            exerciseNameSnapshot: 'Assignment source availability regression',
+            exerciseTypeSnapshot: 'STRENGTH',
+            sortOrder: 0,
+            sets: {
+              create: { setNumber: 1, plannedReps: 8 },
+            },
+          }],
+        },
+      },
+    });
   });
 
   afterEach(async () => {
@@ -105,9 +136,16 @@ describe('TrainingProgramAssignmentRepository eligibility (PostgreSQL)', () => {
       where: { programId },
     });
     await prisma.trainingProgram.delete({ where: { id: programId } });
+    await prisma.exercise.update({
+      where: { id: exerciseId },
+      data: { isArchived: false },
+    });
   });
 
   afterAll(async () => {
+    if (exerciseId) {
+      await prisma.exercise.delete({ where: { id: exerciseId } });
+    }
     if (relationshipId) {
       await prisma.trainerAthlete.delete({
         where: { id: relationshipId },
@@ -194,6 +232,85 @@ describe('TrainingProgramAssignmentRepository eligibility (PostgreSQL)', () => {
       await prisma.trainingProgram.delete({ where: { id: other.id } });
     }
   });
+
+
+  it('rejects assignment when a previously published exercise is now archived', async () => {
+    await prisma.exercise.update({
+      where: { id: exerciseId },
+      data: { isArchived: true },
+    });
+
+    expect(await createAssignment()).toBeNull();
+    expect(await prisma.trainingProgramAssignment.count({
+      where: { versionId, athleteId },
+    })).toBe(0);
+
+    // Neither the published version nor its historical exercise snapshot is
+    // changed simply because the source became unavailable.
+    const version = await prisma.trainingProgramVersion.findUniqueOrThrow({
+      where: { id: versionId },
+      select: {
+        status: true,
+        workouts: {
+          select: {
+            exercises: {
+              select: { exerciseId: true, exerciseNameSnapshot: true },
+            },
+          },
+        },
+      },
+    });
+    expect(version.status).toBe('PUBLISHED');
+    expect(version.workouts[0]?.exercises[0]).toEqual({
+      exerciseId,
+      exerciseNameSnapshot: 'Assignment source availability regression',
+    });
+  });
+
+  it('waits on an archiving exercise before creating a new assignment', async () => {
+    let creation: ReturnType<
+      TrainingProgramAssignmentRepository['createAssignmentForActiveRelationship']
+    > | undefined;
+    let blocked = false;
+
+    await prisma.$transaction(async (tx) => {
+      const [holder] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "exercises"
+        WHERE "id" = ${exerciseId}
+        FOR UPDATE
+      `;
+      expect(holder).toBeDefined();
+
+      creation = createAssignment();
+
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const [state] = await prisma.$queryRaw<Array<{ is_blocked: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${holder!.pid} = ANY(pg_blocking_pids(activity.pid))
+          ) AS is_blocked
+        `;
+        if (state?.is_blocked) {
+          blocked = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+
+      await tx.exercise.update({
+        where: { id: exerciseId },
+        data: { isArchived: true },
+      });
+    }, { timeout: 15_000 });
+
+    expect(blocked).toBe(true);
+    expect(await creation).toBeNull();
+    expect(await prisma.trainingProgramAssignment.count({
+      where: { versionId, athleteId },
+    })).toBe(0);
+  }, 20_000);
 
   it('serializes creation with a concurrent program archive', async () => {
     let creation:
