@@ -70,10 +70,10 @@ export class AvatarService {
 
     try {
       await this.storage.remove(key);
-    } catch (error) {
-      // An orphan is recoverable; we must not report failure after a DB
-      // transaction has already committed or delete the current blob.
-      this.logger.warn(`Unable to clean old avatar ${key}: ${String(error)}`);
+    } catch {
+      // Cleanup is best-effort after commit. Never log filesystem paths,
+      // unpredictable storage errors or unguessable avatar keys.
+      this.logger.warn('AVATAR_CLEANUP_FAILED');
     }
   }
 }
