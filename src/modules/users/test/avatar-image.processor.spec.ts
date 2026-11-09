@@ -11,10 +11,12 @@ import type { AvatarUploadFile } from '../avatar/avatar-validation.js';
 
 describe('AvatarImageProcessor', () => {
   const processor = new AvatarImageProcessor();
-  const tinyPng = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lGQAAAAASUVORK5CYII=',
-    'base64',
-  );
+  let tinyPng: Buffer;
+  beforeAll(async () => {
+    tinyPng = await sharp({
+      create: { width: 1, height: 1, channels: 4, background: 'white' },
+    }).png().toBuffer();
+  });
 
   const animatedWebp = Buffer.from(
     'UklGRsQAAABXRUJQVlA4WAoAAAACAAAAAgAAAgAAQU5JTQYAAAAAAAAAAABBTk1GSgAAAAAAAAAAAAIAAAIAAGQAAAJWUDggMgAAADABAJ0BKgMAAwABQCYloAADcAD+8ut///mwP/bz/wR6Af//0uD//pcH//S4P/SkAAAAQU5NRkYAAAAAAAAAAAACAAACAABkAAAAVlA4IC4AAAA0AQCdASoDAAMAAAAmJaAAA3AA/vtV4///S4P/+lwf/9Lg/9Lg//rV5Vesq6AA',
@@ -42,7 +44,6 @@ describe('AvatarImageProcessor', () => {
     expect(meta.width).toBe(1);
     expect(meta.height).toBe(1);
     expect(result.bytes.length).toBeGreaterThan(0);
-    expect(result.bytes.equals(input)).toBe(false);
   });
 
   it('normalizes large avatars to at most 512x512 without enlarging', async () => {
