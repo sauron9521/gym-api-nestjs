@@ -3,7 +3,7 @@ import type {
   ExerciseVisibility,
   MuscleRole,
   Role,
-} from '../../../infra/database/generated/prisma/client.js';
+} from '#prisma/client';
 
 export type ExerciseActor = {
   id: string;

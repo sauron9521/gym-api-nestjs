@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import type { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import type { Prisma } from '#prisma/client';
 
 /** Creates private athlete-owned copies using the caller's transaction. */
 @Injectable()

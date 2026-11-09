@@ -18,6 +18,17 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,
-    "types": ["vitest/globals", "node"]
+    "types": [
+      "vitest/globals",
+      "node"
+    ],
+    "paths": {
+      "#src/*": [
+        "./src/*"
+      ],
+      "#prisma/*": [
+        "./src/infra/database/generated/prisma/*"
+      ]
+    }
   }
 }

@@ -1,7 +1,7 @@
 import type {
   Role,
   TrainerAthleteStatus,
-} from '../../../infra/database/generated/prisma/client.js';
+} from '#prisma/client';
 
 export type TrainerAthleteActor = {
   id: string;

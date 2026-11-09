@@ -19,23 +19,23 @@ import {
   workoutSetResponseSchema,
   type ResponseSchema,
 } from '../response-contracts.js';
-import { exerciseSelect } from '../../../modules/exercises/exercises.repository.js';
+import { exerciseSelect } from '#src/modules/exercises/exercises.repository';
 import {
   workoutSelect,
   workoutSetSelect,
-} from '../../../modules/workouts/workouts.repository.js';
+} from '#src/modules/workouts/workouts.repository';
 import {
   trainerAthleteHistoricalSelect,
   trainerAthleteSelect,
-} from '../../../modules/trainer-athletes/trainer-athletes.repository.js';
-import { trainingProgramSelect } from '../../../modules/training-programs/selects/training-program.select.js';
-import { trainingProgramVersionSelect } from '../../../modules/training-programs/selects/training-program-version.select.js';
+} from '#src/modules/trainer-athletes/trainer-athletes.repository';
+import { trainingProgramSelect } from '#src/modules/training-programs/selects/training-program.select';
+import { trainingProgramVersionSelect } from '#src/modules/training-programs/selects/training-program-version.select';
 import {
   trainingProgramAssignmentDetailsSelect,
   trainingProgramAssignmentHistoricalSelect,
   trainingProgramAssignmentSelect,
   trainingProgramAssignmentSummarySelect,
-} from '../../../modules/training-programs/selects/training-program-assignment.select.js';
+} from '#src/modules/training-programs/selects/training-program-assignment.select';
 
 function assertMatchesSelect(
   schema: ResponseSchema,

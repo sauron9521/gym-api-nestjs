@@ -12,7 +12,7 @@ import {
 import type { Request, Response } from 'express';
 import { getRequestId } from '../request-context/request-context.middleware.js';
 
-import { Prisma } from '../../infra/database/generated/prisma/client.js';
+import { Prisma } from '#prisma/client';
 
 type ErrorBody = {
   statusCode: number;

@@ -1,29 +1,29 @@
 import { join } from 'node:path';
-import { validateEnv } from './config/env.validation.js';
-import { createMailOptions } from './config/mail.config.js';
-import type { AppEnv } from './config/env.schema.js';
+
+import { AuthenticationModule } from '@nestjs/authentication';
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import type { NestModule } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { RequestContextMiddleware } from './common/request-context/request-context.middleware.js';
-import { HealthModule } from './infra/health/health.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthenticationModule } from '@nestjs/authentication';
-import {
-  MailModule,
-} from '@nestjs/mail';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { MailModule } from '@nestjs/mail';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AuthModule } from './modules/auth/auth.module.js';
-import { UsersModule } from './modules/users/users.module.js';
-import { ExercisesModule } from './modules/exercises/exercises.module.js';
-import { WorkoutsModule } from './modules/workouts/workouts.module.js';
-import { BodyMeasurementsModule } from './modules/body-measurements/body-measurements.module.js';
-import { PrismaModule } from './infra/database/index.js';
-import { RolesGuard } from './common/guards/roles.guard.js';
-import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
-import { TrainerAthletesModule } from './modules/trainer-athletes/trainer-athletes.module.js';
-import { TrainingProgramsModule } from './modules/training-programs/training-programs.module.js';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+
+import { ApiExceptionFilter } from '#src/common/filters/api-exception.filter';
+import { RolesGuard } from '#src/common/guards/roles.guard';
+import { RequestContextMiddleware } from '#src/common/request-context/request-context.middleware';
+import type { AppEnv } from '#src/config/env.schema';
+import { validateEnv } from '#src/config/env.validation';
+import { createMailOptions } from '#src/config/mail.config';
+import { PrismaModule } from '#src/infra/database/index';
+import { HealthModule } from '#src/infra/health/health.module';
+import { AuthModule } from '#src/modules/auth/auth.module';
+import { BodyMeasurementsModule } from '#src/modules/body-measurements/body-measurements.module';
+import { ExercisesModule } from '#src/modules/exercises/exercises.module';
+import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-athletes.module';
+import { TrainingProgramsModule } from '#src/modules/training-programs/training-programs.module';
+import { UsersModule } from '#src/modules/users/users.module';
+import { WorkoutsModule } from '#src/modules/workouts/workouts.module';
 
 @Module({
   imports: [

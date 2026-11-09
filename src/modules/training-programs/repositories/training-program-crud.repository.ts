@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../infra/database/index.js';
-import { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import { PrismaService } from '#src/infra/database/index';
+import { Prisma } from '#prisma/client';
 
 import { trainingProgramSelect } from '../selects/training-program.select.js';
 

@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../../infra/database/index.js';
-import { Prisma } from '../../infra/database/generated/prisma/client.js';
+import { PrismaService } from '#src/infra/database/index';
+import { Prisma } from '#prisma/client';
 
 export const userSelect = {
   id: true,

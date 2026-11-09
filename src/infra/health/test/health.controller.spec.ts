@@ -1,7 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PrismaService } from '../../database/index.js';
+import type { PrismaService } from '#src/infra/database/index';
 import { HealthController } from '../health.controller.js';
 
 describe('HealthController', () => {

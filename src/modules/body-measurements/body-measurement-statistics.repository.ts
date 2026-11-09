@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../infra/database/index.js';
-import { Prisma } from '../../infra/database/generated/prisma/client.js';
+import { PrismaService } from '#src/infra/database/index';
+import { Prisma } from '#prisma/client';
 import type { BodyMeasurementMetric } from './dto/body-measurement-statistics.schemas.js';
 
 const metricColumns: Record<BodyMeasurementMetric, string> = {

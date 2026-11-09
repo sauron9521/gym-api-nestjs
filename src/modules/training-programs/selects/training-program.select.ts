@@ -1,4 +1,4 @@
-import { Prisma } from '../../../infra/database/generated/prisma/client.js';
+import { Prisma } from '#prisma/client';
 
 export const trainingProgramSelect = {
   id: true,
