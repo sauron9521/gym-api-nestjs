@@ -5,13 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import type {
-  ExerciseSource,
-  ExerciseVisibility,
-} from '#prisma/client';
 import { Prisma } from '#prisma/client';
 
-import { ExercisesRepository } from './exercises.repository.js';
+import { ExercisesRepository } from '../repositories/exercises.repository.js';
+import {
+  assertCanManageExercise,
+  buildExerciseVisibilityWhere,
+  getExerciseManagementWhere,
+  resolveExerciseSource,
+  resolveExerciseVisibility,
+} from '../policies/exercise-access.policy.js';
 
 import type {
   CreateExerciseInput,
@@ -19,7 +22,7 @@ import type {
   ExerciseActor,
   ExerciseListQuery,
   UpdateExerciseInput,
-} from './types/exercise.types.js';
+} from '../types/exercise.types.js';
 
 @Injectable()
 export class ExercisesService {
@@ -27,9 +30,9 @@ export class ExercisesService {
 
   // CREATE
   async create(actor: ExerciseActor, input: CreateExerciseInput) {
-    const source = this.resolveSource(actor);
+    const source = resolveExerciseSource(actor);
 
-    const visibility = this.resolveVisibility(source, input.visibility);
+    const visibility = resolveExerciseVisibility(source, input.visibility);
 
     await this.validateRelations(input.muscleGroups, input.equipment);
 
@@ -74,7 +77,7 @@ export class ExercisesService {
   ) {
     this.validatePagination(query);
 
-    const where = this.buildVisibilityWhere(actor, access);
+    const where = buildExerciseVisibilityWhere(actor, access);
 
     const filters: Prisma.ExerciseWhereInput[] = [where, { isArchived: false }];
 
@@ -130,7 +133,7 @@ export class ExercisesService {
     actor: ExerciseActor | null,
     access: ExerciseAccessContext,
   ) {
-    const where = this.buildVisibilityWhere(actor, access);
+    const where = buildExerciseVisibilityWhere(actor, access);
 
     const exercise = await this.exercisesRepository.findById(id, {
       AND: [where, { isArchived: false }],
@@ -181,7 +184,7 @@ export class ExercisesService {
       throw new NotFoundException('Exercise not found');
     }
 
-    this.assertCanManage(actor, exercise);
+    assertCanManageExercise(actor, exercise);
 
     if (input.muscleGroups !== undefined || input.equipment !== undefined) {
       await this.validateRelations(input.muscleGroups, input.equipment);
@@ -247,7 +250,7 @@ export class ExercisesService {
       };
     }
 
-    const where = this.getManagementWhere(actor, exercise);
+    const where = getExerciseManagementWhere(actor, exercise);
 
     try {
       return await this.exercisesRepository.update(where, data);
@@ -270,11 +273,11 @@ export class ExercisesService {
       throw new NotFoundException('Exercise not found');
     }
 
-    this.assertCanManage(actor, exercise);
+    assertCanManageExercise(actor, exercise);
 
     try {
       return await this.exercisesRepository.archive(
-        this.getManagementWhere(actor, exercise),
+        getExerciseManagementWhere(actor, exercise),
       );
     } catch (error) {
       if (this.isRecordNotFound(error)) {
@@ -283,144 +286,6 @@ export class ExercisesService {
 
       throw error;
     }
-  }
-
-  // ACCESS RULES
-  private buildVisibilityWhere(
-    actor: ExerciseActor | null,
-    access: ExerciseAccessContext,
-  ): Prisma.ExerciseWhereInput {
-    if (!actor) {
-      return { source: 'GLOBAL' };
-    }
-
-    if (actor.role === 'ADMIN') {
-      return {};
-    }
-
-    if (actor.role === 'ATHLETE') {
-      return {
-        OR: [
-          { source: 'GLOBAL' },
-
-          {
-            source: 'ATHLETE_CUSTOM',
-            createdById: actor.id,
-          },
-
-          {
-            source: 'TRAINER_CUSTOM',
-            createdById: {
-              in: access.activeTrainerIds,
-            },
-          },
-        ],
-      };
-    }
-
-    if (actor.role === 'TRAINER') {
-      return {
-        OR: [
-          { source: 'GLOBAL' },
-
-          {
-            source: 'TRAINER_CUSTOM',
-            createdById: actor.id,
-          },
-
-          {
-            source: 'ATHLETE_CUSTOM',
-            visibility: 'SELECTED_TRAINERS',
-            createdById: {
-              in: access.activeAthleteIds,
-            },
-            trainerAccesses: {
-              some: {
-                trainerId: actor.id,
-                revokedAt: null,
-              },
-            },
-          },
-        ],
-      };
-    }
-
-    throw new ForbiddenException();
-  }
-
-  private resolveSource(actor: ExerciseActor): ExerciseSource {
-    switch (actor.role) {
-      case 'ADMIN':
-        return 'GLOBAL';
-
-      case 'TRAINER':
-        return 'TRAINER_CUSTOM';
-
-      case 'ATHLETE':
-        return 'ATHLETE_CUSTOM';
-
-      default:
-        throw new ForbiddenException('You cannot create exercises');
-    }
-  }
-
-  private resolveVisibility(
-    source: ExerciseSource,
-    requested?: ExerciseVisibility,
-  ): ExerciseVisibility | null {
-    if (source !== 'ATHLETE_CUSTOM') {
-      if (requested !== undefined) {
-        throw new BadRequestException(
-          'Visibility is only available for athlete custom exercises',
-        );
-      }
-
-      return null;
-    }
-
-    return requested ?? 'PRIVATE';
-  }
-
-  private assertCanManage(
-    actor: ExerciseActor,
-    exercise: {
-      source: ExerciseSource;
-      createdById: string | null;
-    },
-  ): void {
-    if (actor.role === 'ADMIN' && exercise.source === 'GLOBAL') {
-      return;
-    }
-
-    if (exercise.source !== 'GLOBAL' && exercise.createdById === actor.id) {
-      return;
-    }
-
-    throw new ForbiddenException('You cannot modify this exercise');
-  }
-
-  private getManagementWhere(
-    actor: ExerciseActor,
-    exercise: {
-      id: string;
-      source: ExerciseSource;
-      createdById: string | null;
-    },
-  ): Prisma.ExerciseWhereUniqueInput {
-    if (actor.role === 'ADMIN' && exercise.source === 'GLOBAL') {
-      return {
-        id: exercise.id,
-        source: 'GLOBAL',
-        isArchived: false,
-      };
-    }
-
-    return {
-      id: exercise.id,
-      createdById: actor.id,
-      source: exercise.source,
-      isArchived: false,
-    };
   }
 
   // VALIDATION
@@ -480,7 +345,7 @@ export class ExercisesService {
     const exercises = await this.exercisesRepository.findAvailableForWorkout(
       uniqueIds,
       {
-        AND: [this.buildVisibilityWhere(actor, access), { isArchived: false }],
+        AND: [buildExerciseVisibilityWhere(actor, access), { isArchived: false }],
       },
     );
 

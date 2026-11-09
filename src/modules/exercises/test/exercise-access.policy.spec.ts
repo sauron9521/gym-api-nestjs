@@ -1,0 +1,83 @@
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { describe, expect, it } from 'vitest';
+
+import {
+  assertCanManageExercise,
+  buildExerciseVisibilityWhere,
+  getExerciseManagementWhere,
+  resolveExerciseSource,
+  resolveExerciseVisibility,
+} from '../policies/exercise-access.policy.js';
+import type { ExerciseActor, ExerciseAccessContext } from '../types/exercise.types.js';
+
+const trainer: ExerciseActor = { id: 'trainer-1', role: 'TRAINER' };
+const athlete: ExerciseActor = { id: 'athlete-1', role: 'ATHLETE' };
+const admin: ExerciseActor = { id: 'admin-1', role: 'ADMIN' };
+const access: ExerciseAccessContext = {
+  activeTrainerIds: ['trainer-1'],
+  activeAthleteIds: ['athlete-1'],
+};
+
+describe('exercise access policy', () => {
+  it('restricts guests to global exercises', () => {
+    expect(buildExerciseVisibilityWhere(null, access)).toEqual({ source: 'GLOBAL' });
+  });
+
+  it('allows athletes their own and active trainers custom exercises', () => {
+    expect(buildExerciseVisibilityWhere(athlete, access)).toEqual({
+      OR: [
+        { source: 'GLOBAL' },
+        { source: 'ATHLETE_CUSTOM', createdById: athlete.id },
+        { source: 'TRAINER_CUSTOM', createdById: { in: ['trainer-1'] } },
+      ],
+    });
+  });
+
+  it('requires an explicit, unrevoked grant for trainer access to athlete exercises', () => {
+    expect(buildExerciseVisibilityWhere(trainer, access)).toEqual({
+      OR: [
+        { source: 'GLOBAL' },
+        { source: 'TRAINER_CUSTOM', createdById: trainer.id },
+        {
+          source: 'ATHLETE_CUSTOM',
+          visibility: 'SELECTED_TRAINERS',
+          createdById: { in: ['athlete-1'] },
+          trainerAccesses: { some: { trainerId: trainer.id, revokedAt: null } },
+        },
+      ],
+    });
+  });
+
+  it('keeps existing admin read and global-source behavior', () => {
+    expect(buildExerciseVisibilityWhere(admin, access)).toEqual({});
+    expect(resolveExerciseSource(admin)).toBe('GLOBAL');
+    expect(resolveExerciseSource(trainer)).toBe('TRAINER_CUSTOM');
+    expect(resolveExerciseSource(athlete)).toBe('ATHLETE_CUSTOM');
+  });
+
+  it('keeps private as athlete default and rejects visibility on non-athlete exercises', () => {
+    expect(resolveExerciseVisibility('ATHLETE_CUSTOM')).toBe('PRIVATE');
+    expect(resolveExerciseVisibility('ATHLETE_CUSTOM', 'SELECTED_TRAINERS'))
+      .toBe('SELECTED_TRAINERS');
+    expect(resolveExerciseVisibility('TRAINER_CUSTOM')).toBeNull();
+    expect(() => resolveExerciseVisibility('TRAINER_CUSTOM', 'PRIVATE'))
+      .toThrow(BadRequestException);
+  });
+
+  it('enforces ownership for writes and scopes conditional update predicates', () => {
+    const own = { id: 'ex-1', source: 'ATHLETE_CUSTOM' as const, createdById: athlete.id };
+    expect(() => assertCanManageExercise(athlete, own)).not.toThrow();
+    expect(getExerciseManagementWhere(athlete, own)).toEqual({
+      id: 'ex-1',
+      createdById: athlete.id,
+      source: 'ATHLETE_CUSTOM',
+      isArchived: false,
+    });
+    expect(() => assertCanManageExercise(trainer, own)).toThrow(ForbiddenException);
+    const global = { id: 'ex-2', source: 'GLOBAL' as const, createdById: null };
+    expect(() => assertCanManageExercise(admin, global)).not.toThrow();
+    expect(getExerciseManagementWhere(admin, global)).toEqual({
+      id: 'ex-2', source: 'GLOBAL', isArchived: false,
+    });
+  });
+});

@@ -17,7 +17,7 @@ import {
   exerciseResponseSchema,
 } from '#src/infra/openapi/response-contracts';
 
-import { ExercisesService } from './exercises.service.js';
+import { ExercisesService } from './services/exercises.service.js';
 
 import type {
   ExerciseAccessContext,

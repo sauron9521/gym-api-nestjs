@@ -19,7 +19,7 @@ import {
   workoutSetResponseSchema,
   type ResponseSchema,
 } from '../response-contracts.js';
-import { exerciseSelect } from '#src/modules/exercises/exercises.repository';
+import { exerciseSelect } from '#src/modules/exercises/selects/exercise.select';
 import {
   workoutSelect,
   workoutSetSelect,

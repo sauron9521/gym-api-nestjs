@@ -4,8 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { ExercisesService } from '../exercises.service.js';
-import { ExercisesRepository } from '../exercises.repository.js';
+import { ExercisesService } from '../services/exercises.service.js';
+import { ExercisesRepository } from '../repositories/exercises.repository.js';
 
 import type {
   CreateExerciseInput,

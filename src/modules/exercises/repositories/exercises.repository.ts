@@ -1,55 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '#prisma/client';
+import type { Prisma } from '#prisma/client';
 import { PrismaService } from '#src/infra/database/index';
 
-export const exerciseSelect = {
-  id: true,
-  slug: true,
-  name: true,
-  description: true,
-  instructions: true,
-  source: true,
-  visibility: true,
-  exerciseType: true,
-  createdById: true,
-  isArchived: true,
-  copiedFromExerciseId: true,
-
-  muscleGroups: {
-    select: {
-      role: true,
-      muscleGroup: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-        },
-      },
-    },
-  },
-
-  equipment: {
-    select: {
-      equipment: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-        },
-      },
-    },
-  },
-
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.ExerciseSelect;
-
-export type FindManyExercisesParams = {
-  where?: Prisma.ExerciseWhereInput;
-  skip: number;
-  take: number;
-  orderBy?: Prisma.ExerciseOrderByWithRelationInput[];
-};
+import {
+  archivedExerciseSelect,
+  equipmentLookupSelect,
+  exerciseSelect,
+  muscleGroupLookupSelect,
+  workoutExerciseReferenceSelect,
+} from '../selects/exercise.select.js';
+import type { FindManyExercisesParams } from '../types/exercise.types.js';
 
 @Injectable()
 export class ExercisesRepository {
@@ -121,11 +81,7 @@ export class ExercisesRepository {
       data: {
         isArchived: true,
       },
-      select: {
-        id: true,
-        isArchived: true,
-        updatedAt: true,
-      },
+      select: archivedExerciseSelect,
     });
   }
 
@@ -134,11 +90,7 @@ export class ExercisesRepository {
       where: {
         slug: { in: slugs },
       },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-      },
+      select: muscleGroupLookupSelect,
     });
   }
 
@@ -147,11 +99,7 @@ export class ExercisesRepository {
       where: {
         slug: { in: slugs },
       },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-      },
+      select: equipmentLookupSelect,
     });
   }
 
@@ -163,11 +111,7 @@ export class ExercisesRepository {
       where: {
         AND: [{ id: { in: ids } }, where],
       },
-      select: {
-        id: true,
-        name: true,
-        exerciseType: true,
-      },
+      select: workoutExerciseReferenceSelect,
     });
   }
 }

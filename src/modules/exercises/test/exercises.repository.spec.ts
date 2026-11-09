@@ -1,10 +1,8 @@
 import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
 
-import {
-  ExercisesRepository,
-  exerciseSelect,
-} from '../exercises.repository.js';
+import { ExercisesRepository } from '../repositories/exercises.repository.js';
+import { exerciseSelect } from '../selects/exercise.select.js';
 
 describe('ExercisesRepository', () => {
   let repository: ExercisesRepository;
