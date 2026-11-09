@@ -161,6 +161,24 @@ export const workoutResponseSchema = objectSchema({
 });
 export const workoutListResponseSchema = paginatedSchema(workoutResponseSchema);
 
+/** Explicit summary list response: no nested exercises, sets, or notes. */
+export const workoutSummaryResponseSchema = objectSchema({
+  id: uuidSchema,
+  title: stringSchema,
+  athleteId: uuidSchema,
+  createdById: uuidSchema,
+  status: enumSchema(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  scheduledAt: nullable(dateTimeSchema),
+  startedAt: nullable(dateTimeSchema),
+  completedAt: nullable(dateTimeSchema),
+  programAssignmentId: nullable(uuidSchema),
+  programWorkoutId: nullable(uuidSchema),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+  exerciseCount: integerSchema,
+});
+export const workoutSummaryListResponseSchema = paginatedSchema(workoutSummaryResponseSchema);
+
 const identityWithEmailSchema = objectSchema({
   id: uuidSchema,
   email: stringSchema,
