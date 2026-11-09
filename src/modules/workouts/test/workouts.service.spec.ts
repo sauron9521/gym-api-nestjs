@@ -25,6 +25,7 @@ describe('WorkoutsService', () => {
     create: vi.fn(),
     createFromProgram: vi.fn(),
     findMany: vi.fn(),
+    findManySummary: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
     updateSet: vi.fn(),
@@ -345,6 +346,28 @@ describe('WorkoutsService', () => {
         skip: 0,
         take: 10,
       });
+    });
+
+    it('should use the summary repository only when explicitly requested', async () => {
+      const response = {
+        data: [{ id: 'workout-1', title: 'Upper Body', exerciseCount: 1 }],
+        meta: { total: 1, skip: 0, take: 10, totalPages: 1 },
+      };
+      repository.findManySummary.mockResolvedValue(response);
+
+      const result = await service.findMany(athlete, {
+        page: 1,
+        limit: 10,
+        view: 'summary',
+      });
+
+      expect(result).toEqual(response);
+      expect(repository.findManySummary).toHaveBeenCalledWith({
+        where: { athleteId: athlete.id },
+        skip: 0,
+        take: 10,
+      });
+      expect(repository.findMany).not.toHaveBeenCalled();
     });
 
     it('should filter by status and scheduled date', async () => {

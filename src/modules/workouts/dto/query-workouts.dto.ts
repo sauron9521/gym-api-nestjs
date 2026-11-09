@@ -9,6 +9,8 @@ export const queryWorkoutsSchema = z.strictObject({
 
   status: workoutStatusSchema.optional(),
 
+  view: z.enum(['summary', 'full']).optional(),
+
   scheduledFrom: workoutDateSchema.optional(),
 
   scheduledTo: workoutDateSchema.optional(),

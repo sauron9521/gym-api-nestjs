@@ -19,9 +19,10 @@ import type {
 import { createWorkoutFromProgramSchema } from './dto/create-workout-from-program.dto.js';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
-import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags, ApiOkResponse, ApiCreatedResponse, ApiQuery } from '@nestjs/swagger';
 import {
   workoutListResponseSchema,
+  workoutSummaryListResponseSchema,
   workoutResponseSchema,
   workoutSetResponseSchema,
 } from '#src/infra/openapi/response-contracts';
@@ -71,7 +72,15 @@ export class WorkoutsController {
   }
 
   @Get()
-  @ApiOkResponse({ schema: workoutListResponseSchema })
+  @ApiQuery({
+    name: 'view',
+    required: false,
+    enum: ['full', 'summary'],
+    description: 'Optional compact view; full remains the default for compatibility.',
+  })
+  @ApiOkResponse({
+    schema: { oneOf: [workoutListResponseSchema, workoutSummaryListResponseSchema] },
+  })
   findMany(
     @CurrentUser() user: WorkoutActor,
     @Query({ schema: queryWorkoutsSchema })
