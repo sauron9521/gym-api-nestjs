@@ -2,7 +2,7 @@ import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
 
 import { WorkoutsRepository } from '../repositories/workouts.repository.js';
-import { workoutSelect } from '../selects/workout.select.js';
+import { workoutSelect, workoutSummarySelect } from '../selects/workout.select.js';
 
 describe('WorkoutsRepository', () => {
   let repository: WorkoutsRepository;
@@ -123,6 +123,51 @@ describe('WorkoutsRepository', () => {
           take: 10,
           totalPages: 0,
         },
+      });
+    });
+  });
+
+  describe('findManySummary', () => {
+    it('fetches only compact scalar fields and exercise count', async () => {
+      prisma.$transaction.mockResolvedValue([
+        [
+          {
+            id: 'workout-1',
+            title: 'Upper Body',
+            status: 'COMPLETED',
+            _count: { exercises: 3 },
+          },
+        ],
+        12,
+      ]);
+      const where = { athleteId: 'athlete-1' };
+
+      const result = await repository.findManySummary({
+        where,
+        skip: 5,
+        take: 5,
+      });
+
+      expect(workoutSummarySelect).not.toHaveProperty('exercises');
+      expect(workoutSummarySelect).not.toHaveProperty('notes');
+      expect(prisma.workout.findMany).toHaveBeenCalledWith({
+        where,
+        skip: 5,
+        take: 5,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: workoutSummarySelect,
+      });
+      expect(prisma.workout.count).toHaveBeenCalledWith({ where });
+      expect(result).toEqual({
+        data: [
+          {
+            id: 'workout-1',
+            title: 'Upper Body',
+            status: 'COMPLETED',
+            exerciseCount: 3,
+          },
+        ],
+        meta: { total: 12, skip: 5, take: 5, totalPages: 3 },
       });
     });
   });
