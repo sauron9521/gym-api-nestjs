@@ -5,8 +5,10 @@
 - GET /health/live — unauthenticated liveness check; returns HTTP 200 with
   {"status":"ok"} without querying PostgreSQL.
 - GET /health/ready — unauthenticated readiness; performs SELECT 1 through
-  Prisma's PostgreSQL connection. Returns 200 {"status":"ok"} on success,
-  otherwise HTTP 503 with a generic service-unavailable message.
+  PostgreSQL and (if REDIS_URL is configured) PING through the existing
+  Redis throttler connection. Returns 200 {"status":"ok"} only when all
+  enabled dependencies are ready; otherwise HTTP 503 with a generic
+  service-unavailable message.
 
 Both endpoints bypass the generic IP throttler. These deliberately public
 endpoints expose no sensitive internal connection details.
@@ -40,4 +42,6 @@ metrics and alerting.
 
 Never log access tokens, refresh tokens, session cookies, password hashes,
 SMTP credentials, or password-reset/email-verification links.
-\nFor operator alert suggestions, backup instructions, recovery and safe\nrollback, see [production operations runbook](production-operations-runbook.md).\n
+
+For operator alert suggestions, backup instructions, recovery and safe
+rollback, see [production operations runbook](production-operations-runbook.md).
