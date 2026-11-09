@@ -2,106 +2,14 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
-
-export const workoutSelect = {
-  id: true,
-  title: true,
-  notes: true,
-  athleteId: true,
-  createdById: true,
-  status: true,
-  scheduledAt: true,
-  startedAt: true,
-  completedAt: true,
-  programAssignmentId: true,
-  programWorkoutId: true,
-
-  exercises: {
-    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    select: {
-      id: true,
-      workoutId: true,
-      exerciseId: true,
-      exerciseNameSnapshot: true,
-      exerciseTypeSnapshot: true,
-      sortOrder: true,
-      notes: true,
-      createdAt: true,
-      updatedAt: true,
-
-      sets: {
-        orderBy: { setNumber: 'asc' },
-        select: {
-          id: true,
-          workoutExerciseId: true,
-          setNumber: true,
-          setType: true,
-          status: true,
-
-          plannedReps: true,
-          plannedWeightKg: true,
-          plannedDurationSeconds: true,
-          plannedDistanceMeters: true,
-
-          actualReps: true,
-          actualWeightKg: true,
-          actualDurationSeconds: true,
-          actualDistanceMeters: true,
-
-          restSeconds: true,
-          targetRpe: true,
-          targetRir: true,
-          rpe: true,
-          rir: true,
-
-          completedAt: true,
-          notes: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-    },
-  },
-
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.WorkoutSelect;
-
-export const workoutSetSelect = {
-  id: true,
-  workoutExerciseId: true,
-  setNumber: true,
-  setType: true,
-  status: true,
-
-  plannedReps: true,
-  plannedWeightKg: true,
-  plannedDurationSeconds: true,
-  plannedDistanceMeters: true,
-
-  actualReps: true,
-  actualWeightKg: true,
-  actualDurationSeconds: true,
-  actualDistanceMeters: true,
-
-  restSeconds: true,
-  targetRpe: true,
-  targetRir: true,
-  rpe: true,
-  rir: true,
-
-  completedAt: true,
-  notes: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.WorkoutSetSelect;
-
-export type FindManyWorkoutsParams = {
-  where?: Prisma.WorkoutWhereInput;
-  skip: number;
-  take: number;
-  orderBy?: Prisma.WorkoutOrderByWithRelationInput[];
-};
+import {
+  workoutIdempotencySelect,
+  workoutSelect,
+  workoutSetSelect,
+  workoutSetStatusSelect,
+  workoutStartReferenceSelect,
+} from '../selects/workout.select.js';
+import type { FindManyWorkoutsParams } from '../types/workout.types.js';
 
 @Injectable()
 export class WorkoutsRepository {
@@ -153,10 +61,7 @@ export class WorkoutsRepository {
       where: {
         athleteId_idempotencyKey: { athleteId, idempotencyKey: key },
       },
-      select: {
-        id: true,
-        idempotencyFingerprint: true,
-      },
+      select: workoutIdempotencySelect,
     });
   }
 
@@ -241,9 +146,7 @@ export class WorkoutsRepository {
             },
           },
         },
-        select: {
-          status: true,
-        },
+        select: workoutSetStatusSelect,
       });
 
       const hasPendingSets = sets.some((set) => set.status === 'PENDING');
@@ -431,10 +334,7 @@ export class WorkoutsRepository {
           athleteId: input.athleteId,
           status: 'PLANNED',
         },
-        select: {
-          id: true,
-          programAssignmentId: true,
-        },
+        select: workoutStartReferenceSelect,
       });
 
       if (!workout) {

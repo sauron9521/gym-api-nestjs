@@ -26,7 +26,7 @@ import {
   workoutSetResponseSchema,
 } from '#src/infra/openapi/response-contracts';
 
-import { WorkoutsService } from './workouts.service.js';
+import { WorkoutsService } from './services/workouts.service.js';
 
 import { workoutIdSchema, workoutSetIdSchema } from './dto/workout.schemas.js';
 

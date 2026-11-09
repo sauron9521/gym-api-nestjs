@@ -1,13 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '#prisma/client';
 import { ExercisesService } from '#src/modules/exercises/services/exercises.service';
-import { WorkoutsRepository } from './workouts.repository.js';
+import { WorkoutsRepository } from '../repositories/workouts.repository.js';
+import {
+  assertWorkoutAthlete,
+  validateWorkoutPagination,
+} from '../policies/workout-access.policy.js';
 import type {
   CreateWorkoutFromProgramInput,
   CreateWorkoutInput,
@@ -15,14 +18,11 @@ import type {
   UpdateWorkoutSetInput,
   WorkoutActor,
   WorkoutListQuery,
-} from './types/workout.types.js';
+  WorkoutRecord,
+} from '../types/workout.types.js';
 import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
-import { workoutIdempotency } from './workout-idempotency.js';
-import type { WorkoutIdempotency } from './workout-idempotency.js';
-
-type WorkoutResponse = NonNullable<
-  Awaited<ReturnType<WorkoutsRepository['findById']>>
->;
+import { workoutIdempotency } from '../utils/workout-idempotency.js';
+import type { WorkoutIdempotency } from '../utils/workout-idempotency.js';
 
 @Injectable()
 export class WorkoutsService {
@@ -38,7 +38,7 @@ export class WorkoutsService {
     input: CreateWorkoutInput,
     idempotencyKey?: string,
   ) {
-    this.assertAthlete(actor);
+    assertWorkoutAthlete(actor);
     const idempotency = workoutIdempotency(
       idempotencyKey,
       'manual',
@@ -148,7 +148,7 @@ export class WorkoutsService {
     input: CreateWorkoutFromProgramInput,
     idempotencyKey?: string,
   ) {
-    this.assertAthlete(actor);
+    assertWorkoutAthlete(actor);
     const idempotency = workoutIdempotency(
       idempotencyKey,
       'from-program',
@@ -176,8 +176,8 @@ export class WorkoutsService {
 
   // FIND MANY
   async findMany(actor: WorkoutActor, query: WorkoutListQuery) {
-    this.assertAthlete(actor);
-    this.validatePagination(query);
+    assertWorkoutAthlete(actor);
+    validateWorkoutPagination(query);
 
     if (
       query.scheduledFrom &&
@@ -213,7 +213,7 @@ export class WorkoutsService {
 
   // FIND ONE
   async findOne(id: string, actor: WorkoutActor) {
-    this.assertAthlete(actor);
+    assertWorkoutAthlete(actor);
 
     const workout = await this.workoutsRepository.findById(id, {
       athleteId: actor.id,
@@ -489,7 +489,7 @@ export class WorkoutsService {
   private async findIdempotentReplay(
     athleteId: string,
     idempotency: WorkoutIdempotency,
-  ): Promise<WorkoutResponse | null> {
+  ): Promise<WorkoutRecord | null> {
     const original = await this.workoutsRepository.findByIdempotencyKey(
       athleteId,
       idempotency.key,
@@ -511,8 +511,8 @@ export class WorkoutsService {
   private async createIdempotently(
     athleteId: string,
     idempotency: WorkoutIdempotency | undefined,
-    create: () => Promise<WorkoutResponse>,
-  ): Promise<WorkoutResponse> {
+    create: () => Promise<WorkoutRecord>,
+  ): Promise<WorkoutRecord> {
     if (!idempotency) return create();
 
     const replay = await this.findIdempotentReplay(athleteId, idempotency);
@@ -531,26 +531,6 @@ export class WorkoutsService {
         if (winner) return winner;
       }
       throw error;
-    }
-  }
-
-  private assertAthlete(actor: WorkoutActor): void {
-    if (actor.role !== 'ATHLETE') {
-      throw new ForbiddenException(
-        'Only athletes can manage personal workouts',
-      );
-    }
-  }
-
-  private validatePagination(query: WorkoutListQuery): void {
-    if (
-      !Number.isInteger(query.page) ||
-      query.page < 1 ||
-      !Number.isInteger(query.limit) ||
-      query.limit < 1 ||
-      query.limit > 100
-    ) {
-      throw new BadRequestException('Invalid pagination parameters');
     }
   }
 
