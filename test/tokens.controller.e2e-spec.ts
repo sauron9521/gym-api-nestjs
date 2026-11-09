@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Test, type TestingModule } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import { ValidationPipe } from '@nestjs/common';
+import { UnauthorizedException, ValidationPipe } from '@nestjs/common';
 import { TokenService } from '@nestjs/authentication';
 import request from 'supertest';
 import { CredentialsService } from '../src/modules/auth/services/index.js';
@@ -107,9 +107,7 @@ describe('TokensController (HTTP)', () => {
   it('rejects invalid refresh credentials without echoing refresh tokens', async () => {
     const secret = 'refresh-token-that-must-not-appear-in-error';
     tokenService.refresh.mockRejectedValueOnce(
-      new (await import('@nestjs/common')).UnauthorizedException(
-        'Invalid refresh token',
-      ),
+      new UnauthorizedException('Invalid refresh token'),
     );
 
     const response = await request(app.getHttpServer())
