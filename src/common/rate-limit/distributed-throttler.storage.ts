@@ -108,7 +108,9 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
           });
         }
         if (this.connectPromise) await this.connectPromise;
-        if (this.redis.status !== 'ready') {
+        // A concurrent await may transition ioredis from connecting to ready.
+        // TypeScript cannot infer that side-effect from the Promise.
+        if ((this.redis.status as string) !== 'ready') {
           throw new Error('Redis not ready');
         }
       }
