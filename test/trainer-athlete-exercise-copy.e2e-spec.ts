@@ -376,6 +376,19 @@ describe('Trainer-athlete exercise copies (HTTP + PostgreSQL)', () => {
     expect(startResponse.status).toBe(200);
     expect(startResponse.body.status).toBe('IN_PROGRESS');
 
+    // A second trainer exercise was scheduled, but not started. The
+    // athlete must not be able to start this planned workout after revocation.
+    const pendingWorkoutResponse = await request(app!.getHttpServer())
+      .post('/workouts')
+      .set('Cookie', athleteCookie)
+      .send({
+        title: 'Planned trainer workout before termination',
+        exercises: [{ exerciseId: unusedExerciseId, sets: [{ plannedReps: 8 }] }],
+      });
+    expect(pendingWorkoutResponse.status).toBe(201);
+    const pendingWorkoutId = pendingWorkoutResponse.body.id as string;
+    expect(pendingWorkoutResponse.body.status).toBe('PLANNED');
+
     // 6. End the relationship.
     const terminateResponse = await request(app!.getHttpServer())
       .post(`/trainer-athletes/${relationshipId}/terminate`)
@@ -512,6 +525,30 @@ describe('Trainer-athlete exercise copies (HTTP + PostgreSQL)', () => {
     expect(deniedWorkout.status).toBe(400);
     expect(deniedWorkout.body.message).toBe('One or more exercises are not available');
     expect(deniedWorkout.headers['cache-control']).toBe('no-store');
+
+    const deniedStart = await request(app!.getHttpServer())
+      .post(`/workouts/${pendingWorkoutId}/start`)
+      .set('Cookie', athleteCookie);
+    expect(deniedStart.status).toBe(409);
+    expect(deniedStart.body.code).toBe('CONFLICT');
+    expect(deniedStart.headers['cache-control']).toBe('no-store');
+
+    const persistedPending = await prisma.workout.findUniqueOrThrow({
+      where: { id: pendingWorkoutId },
+      select: {
+        status: true,
+        startedAt: true,
+        exercises: { select: { exerciseId: true, exerciseNameSnapshot: true } },
+      },
+    });
+    expect(persistedPending).toMatchObject({
+      status: 'PLANNED',
+      startedAt: null,
+      exercises: [{
+        exerciseId: unusedExerciseId,
+        exerciseNameSnapshot: 'E2E Trainer Exercise Unused',
+      }],
+    });
 
     // 10. Trainer exercise is no longer visible to the athlete.
     const originalExerciseResponse = await request(app!.getHttpServer())

@@ -206,6 +206,13 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     try {
       if (!prisma) return;
 
+      // Manual planned workouts are not linked to a program assignment.
+      if (cleanup.userIds.length > 0) {
+        await prisma.workout.deleteMany({
+          where: { athleteId: { in: cleanup.userIds } },
+        });
+      }
+
       if (cleanup.assignmentIds.length > 0) {
         await prisma.workout.deleteMany({
           where: {
@@ -1062,5 +1069,254 @@ describe('WorkoutsRepository.createFromProgram integration (e2e)', () => {
     expect(await prisma.workout.count({
       where: { programAssignmentId: fixture.assignmentId },
     })).toBe(0);
+  }, 20_000);
+
+  async function createManualTrainerWorkout(fixture: Awaited<ReturnType<typeof createFixture>>) {
+    const shared = await prisma.exercise.create({
+      data: {
+        name: 'Shared Trainer Exercise For Planned Start',
+        source: 'TRAINER_CUSTOM',
+        exerciseType: 'STRENGTH',
+        createdById: fixture.trainerId,
+      },
+      select: { id: true },
+    });
+    cleanup.exerciseIds.push(shared.id);
+    const workout = await prisma.workout.create({
+      data: {
+        title: 'Manual trainer workout awaiting start',
+        athleteId: fixture.athleteId,
+        createdById: fixture.athleteId,
+        exercises: {
+          create: [{
+            exerciseId: shared.id,
+            exerciseNameSnapshot: 'Shared Trainer Exercise For Planned Start',
+            exerciseTypeSnapshot: 'STRENGTH',
+            sortOrder: 0,
+            sets: {
+              create: [{ setNumber: 1, plannedReps: 8 }],
+            },
+          }],
+        },
+      },
+      select: { id: true },
+    });
+    return { workoutId: workout.id, sharedId: shared.id };
+  }
+
+  it('starts a manual planned workout using a currently ACTIVE trainer relationship', async () => {
+    const fixture = await createFixture();
+    const manual = await createManualTrainerWorkout(fixture);
+    const startedAt = new Date('2030-01-18T10:00:00Z');
+    const started = await repository.startWorkout({
+      id: manual.workoutId,
+      athleteId: fixture.athleteId,
+      startedAt,
+    });
+    expect(started).toMatchObject({
+      id: manual.workoutId,
+      status: 'IN_PROGRESS',
+      startedAt,
+    });
+    const snapshot = await prisma.workoutExercise.findFirstOrThrow({
+      where: { workoutId: manual.workoutId },
+      select: { exerciseId: true, exerciseNameSnapshot: true },
+    });
+    expect(snapshot).toEqual({
+      exerciseId: manual.sharedId,
+      exerciseNameSnapshot: 'Shared Trainer Exercise For Planned Start',
+    });
+  });
+
+  it('refuses a previously planned trainer workout after collaboration ends without deleting its history', async () => {
+    const fixture = await createFixture();
+    const manual = await createManualTrainerWorkout(fixture);
+    await prisma.trainerAthlete.update({
+      where: { id: fixture.trainerAthleteId },
+      data: { status: 'TERMINATED', endedAt: new Date(), endedById: fixture.trainerId },
+    });
+    const started = await repository.startWorkout({
+      id: manual.workoutId,
+      athleteId: fixture.athleteId,
+      startedAt: new Date(),
+    });
+    expect(started).toBeNull();
+    const persisted = await prisma.workout.findUniqueOrThrow({
+      where: { id: manual.workoutId },
+      select: {
+        status: true,
+        startedAt: true,
+        exercises: { select: { exerciseId: true, exerciseNameSnapshot: true } },
+      },
+    });
+    expect(persisted).toMatchObject({
+      status: 'PLANNED',
+      startedAt: null,
+      exercises: [{
+        exerciseId: manual.sharedId,
+        exerciseNameSnapshot: 'Shared Trainer Exercise For Planned Start',
+      }],
+    });
+
+    // Only the trainer-owned original is revoked: a global-only workout
+    // remains startable regardless of the old relationship status.
+    const ownGlobalWorkout = await prisma.workout.create({
+      data: {
+        title: 'Global-only workout after collaboration',
+        athleteId: fixture.athleteId,
+        createdById: fixture.athleteId,
+        exercises: {
+          create: [{
+            exerciseId: fixture.exerciseId,
+            exerciseNameSnapshot: 'Global Exercise',
+            exerciseTypeSnapshot: 'STRENGTH',
+            sortOrder: 0,
+            sets: { create: [{ setNumber: 1, plannedReps: 5 }] },
+          }],
+        },
+      },
+      select: { id: true },
+    });
+    const globalStarted = await repository.startWorkout({
+      id: ownGlobalWorkout.id,
+      athleteId: fixture.athleteId,
+      startedAt: new Date(),
+    });
+    expect(globalStarted?.status).toBe('IN_PROGRESS');
+  });
+
+  it('waits for the relationship row before starting a manual workout and rejects a competing termination', async () => {
+    const fixture = await createFixture();
+    const manual = await createManualTrainerWorkout(fixture);
+    let startPromise: ReturnType<WorkoutsRepository['startWorkout']> | undefined;
+    let wasBlocked = false;
+
+    await prisma.$transaction(async (tx) => {
+      const [holder] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "trainer_athletes"
+        WHERE "id" = ${fixture.trainerAthleteId}
+        FOR UPDATE
+      `;
+      expect(holder).toBeDefined();
+
+      startPromise = repository.startWorkout({
+        id: manual.workoutId,
+        athleteId: fixture.athleteId,
+        startedAt: new Date(),
+      });
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${holder!.pid} = ANY(pg_blocking_pids(activity.pid))
+          ) AS blocked
+        `;
+        if (state?.blocked) {
+          wasBlocked = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+      await tx.trainerAthlete.update({
+        where: { id: fixture.trainerAthleteId },
+        data: { status: 'TERMINATED', endedAt: new Date(), endedById: fixture.trainerId },
+      });
+    }, { timeout: 15_000 });
+
+    expect(wasBlocked).toBe(true);
+    expect(await startPromise).toBeNull();
+    const status = await prisma.workout.findUniqueOrThrow({
+      where: { id: manual.workoutId },
+      select: { status: true, startedAt: true },
+    });
+    expect(status).toEqual({ status: 'PLANNED', startedAt: null });
+  }, 20_000);
+
+  it('blocks an assigned program start when the original relationship ended but the assignment is still ACTIVE', async () => {
+    const fixture = await createFixture();
+    const workout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+    expect(workout).not.toBeNull();
+
+    await prisma.trainerAthlete.update({
+      where: { id: fixture.trainerAthleteId },
+      data: { status: 'TERMINATED', endedAt: new Date(), endedById: fixture.trainerId },
+    });
+    const result = await repository.startWorkout({
+      id: workout!.id,
+      athleteId: fixture.athleteId,
+      startedAt: new Date(),
+    });
+    expect(result).toBeNull();
+    const [assignment, persisted] = await Promise.all([
+      prisma.trainingProgramAssignment.findUniqueOrThrow({
+        where: { id: fixture.assignmentId },
+        select: { status: true, startedAt: true },
+      }),
+      prisma.workout.findUniqueOrThrow({
+        where: { id: workout!.id },
+        select: { status: true, startedAt: true },
+      }),
+    ]);
+    expect(assignment).toEqual({ status: 'ACTIVE', startedAt: null });
+    expect(persisted).toEqual({ status: 'PLANNED', startedAt: null });
+  });
+
+  it('serializes assigned program starts against relationship termination', async () => {
+    const fixture = await createFixture();
+    const workout = await repository.createFromProgram({
+      athleteId: fixture.athleteId,
+      assignmentId: fixture.assignmentId,
+      programWorkoutId: fixture.programWorkoutId,
+    });
+    expect(workout).not.toBeNull();
+
+    let startPromise: ReturnType<WorkoutsRepository['startWorkout']> | undefined;
+    let wasBlocked = false;
+    await prisma.$transaction(async (tx) => {
+      const [holder] = await tx.$queryRaw<Array<{ pid: number }>>`
+        SELECT pg_backend_pid()::integer AS pid
+        FROM "trainer_athletes"
+        WHERE "id" = ${fixture.trainerAthleteId}
+        FOR UPDATE
+      `;
+      expect(holder).toBeDefined();
+      startPromise = repository.startWorkout({
+        id: workout!.id,
+        athleteId: fixture.athleteId,
+        startedAt: new Date(),
+      });
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS activity
+            WHERE activity.datname = current_database()
+              AND ${holder!.pid} = ANY(pg_blocking_pids(activity.pid))
+          ) AS blocked
+        `;
+        if (state?.blocked) {
+          wasBlocked = true;
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+      await tx.trainerAthlete.update({
+        where: { id: fixture.trainerAthleteId },
+        data: { status: 'TERMINATED', endedAt: new Date(), endedById: fixture.trainerId },
+      });
+    }, { timeout: 15_000 });
+
+    expect(wasBlocked).toBe(true);
+    expect(await startPromise).toBeNull();
+    const persisted = await prisma.workout.findUniqueOrThrow({
+      where: { id: workout!.id },
+      select: { status: true, startedAt: true },
+    });
+    expect(persisted).toEqual({ status: 'PLANNED', startedAt: null });
   }, 20_000);
 });
