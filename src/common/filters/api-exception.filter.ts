@@ -65,6 +65,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       ...(mapped.error ? { error: mapped.error } : {}),
     };
 
+    // Never cache error bodies, even if a request was rejected before a guard,
+    // controller, or scoped resource middleware could run.
+    response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Request-ID', requestId);
     response.status(mapped.statusCode).json(body);
   }

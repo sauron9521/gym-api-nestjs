@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 
 import { AvatarService } from '../avatar/avatar.service.js';
 import { AvatarDiskStorage } from '../avatar/avatar-disk.storage.js';
@@ -48,6 +48,44 @@ describe('AvatarService', () => {
     })).rejects.toThrow('DB failed');
     expect(storage.remove).toHaveBeenCalledWith(key);
     expect(storage.remove).not.toHaveBeenCalledWith(old);
+  });
+
+  it('does not expose avatar keys, filesystem paths or exception messages when old-file cleanup fails', async () => {
+    const secret = '/srv/private/uploads/avatars/' + old;
+    const error = new Error(`EACCES unlink ${secret}: TOKEN_SECRET`);
+    const warn = vi.spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    storage.remove.mockRejectedValueOnce(error);
+
+    await expect(service.upload('user-1', {
+      buffer: bytes, size: bytes.length, mimetype: 'image/png',
+    })).resolves.toEqual({ avatarUrl: `/avatars/${key}` });
+
+    expect(warn).toHaveBeenCalledExactlyOnceWith('AVATAR_CLEANUP_FAILED');
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).not.toContain(old);
+    expect(logged).not.toContain(secret);
+    expect(logged).not.toContain('TOKEN_SECRET');
+    warn.mockRestore();
+  });
+
+  it('preserves the repository error on upload rollback and safely logs cleanup failure', async () => {
+    const dbError = new Error('database commit failed');
+    repository.replaceAvatar.mockRejectedValueOnce(dbError);
+    storage.remove.mockRejectedValueOnce(
+      new Error(`Failed unlink ${key}: token-private`),
+    );
+    const warn = vi.spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    await expect(service.upload('user-1', {
+      buffer: bytes, size: bytes.length, mimetype: 'image/png',
+    })).rejects.toBe(dbError);
+
+    expect(storage.remove).toHaveBeenCalledWith(key);
+    expect(warn).toHaveBeenCalledExactlyOnceWith('AVATAR_CLEANUP_FAILED');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(key);
+    warn.mockRestore();
   });
 
   it('returns 404 for an orphaned avatar key', async () => {

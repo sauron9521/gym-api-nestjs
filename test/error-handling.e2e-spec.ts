@@ -158,6 +158,23 @@ describe('API exception filter (HTTP contract)', () => {
     },
   );
 
+  it.each([
+    'validation',
+    'business',
+    'unique',
+    'foreign-key',
+    'missing',
+    'prisma-unknown',
+    'unexpected',
+    'service-unavailable',
+    'server-http',
+  ])('sets no-store for every API error type: %s', async (route) => {
+    const response = await request(app.getHttpServer())
+      .get('/__error-contract/' + route);
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(response.headers['cache-control']).toBe('no-store');
+  });
+
   it('returns a server-generated request ID in body and header', async () => {
     const forged = randomUUID();
     const first = await request(app.getHttpServer())
