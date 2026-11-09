@@ -28,6 +28,7 @@ import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-ath
 import { TrainingProgramsModule } from '#src/modules/training-programs/training-programs.module';
 import { UsersModule } from '#src/modules/users/users.module';
 import { WorkoutsModule } from '#src/modules/workouts/workouts.module';
+import { WorkoutAnalyticsModule } from '#src/modules/workout-analytics/workout-analytics.module';
 
 @Module({
   imports: [
