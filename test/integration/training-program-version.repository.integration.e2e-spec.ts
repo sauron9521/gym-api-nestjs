@@ -467,7 +467,7 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
               },
               {
                 setNumber: 2,
-                setType: 'DROP',
+                setType: 'DROP_SET',
                 plannedReps: 12,
                 plannedWeightKg: '57.50',
                 restSeconds: 60,
@@ -728,17 +728,16 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       programId = program.id;
 
       // Act: two concurrent requests
-      const results = await Promise.allSettled([
+      // Both calls must settle normally. The parent FOR UPDATE lock makes
+      // the second request observe the first committed draft rather than
+      // leaking a uniqueness violation from PostgreSQL.
+      const results = await Promise.all([
         repository.createDraftFromLatestPublished(programId),
         repository.createDraftFromLatestPublished(programId),
       ]);
 
-      // Exactly one request should create a draft
-      const created = results.flatMap((result) =>
-        result.status === 'fulfilled' && result.value !== null
-          ? [result.value]
-          : [],
-      );
+      const created = results.filter((result) => result !== null);
+      expect(results).toContain(null);
 
       expect(created).toHaveLength(1);
 
@@ -747,16 +746,6 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
         version: 2,
         status: 'DRAFT',
       });
-
-      // The second request can return null if it sees
-      // the existing draft or fail with a unique violation.
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          expect(result.reason).toMatchObject({
-            code: 'P2002',
-          });
-        }
-      }
 
       // Verify actual database state
       const persistedDrafts = await prisma.trainingProgramVersion.findMany({
@@ -794,6 +783,101 @@ describe('TrainingProgramVersionRepository integration (e2e)', () => {
       }
     }
   });
+
+  it('waits for a program archive and does not clone when archival commits first', async () => {
+    let trainerId: string | undefined;
+    let programId: string | undefined;
+
+    try {
+      const trainer = await prisma.user.create({
+        data: {
+          email: `archive-clone-race-${randomUUID()}@example.com`,
+          passwordHash: 'test-password-hash',
+          role: 'TRAINER',
+        },
+        select: { id: true },
+      });
+      trainerId = trainer.id;
+
+      const program = await prisma.trainingProgram.create({
+        data: {
+          trainerId,
+          status: 'PUBLISHED',
+          versions: {
+            create: {
+              version: 1,
+              title: 'Cannot clone archived program',
+              status: 'PUBLISHED',
+              publishedAt: new Date(),
+            },
+          },
+        },
+        select: { id: true },
+      });
+      programId = program.id;
+      let clonePromise: ReturnType<
+        TrainingProgramVersionRepository['createDraftFromLatestPublished']
+      > | undefined;
+      let observedBlock = false;
+
+      await prisma.$transaction(async (tx) => {
+        const [holder] = await tx.$queryRaw<Array<{ pid: number }>>`
+          SELECT pg_backend_pid()::integer AS pid
+          FROM "training_programs"
+          WHERE "id" = ${programId}
+          FOR UPDATE
+        `;
+        expect(holder).toBeDefined();
+
+        clonePromise = repository.createDraftFromLatestPublished(programId!);
+
+        // Confirm an actual DB lock wait, not a timer-based coincidence.
+        for (let attempt = 0; attempt < 60; attempt++) {
+          const [state] = await prisma.$queryRaw<Array<{ blocked: boolean }>>`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity AS activity
+              WHERE activity.datname = current_database()
+                AND ${holder!.pid} = ANY(pg_blocking_pids(activity.pid))
+            ) AS blocked
+          `;
+          if (state?.blocked) {
+            observedBlock = true;
+            break;
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        }
+
+        await tx.trainingProgram.update({
+          where: { id: programId },
+          data: { status: 'ARCHIVED' },
+        });
+      }, { timeout: 15_000 });
+
+      expect(observedBlock).toBe(true);
+      expect(await clonePromise).toBeNull();
+      expect(await prisma.trainingProgramVersion.count({
+        where: { programId, status: 'DRAFT' },
+      })).toBe(0);
+
+      const persisted = await prisma.trainingProgram.findUniqueOrThrow({
+        where: { id: programId },
+        select: { status: true },
+      });
+      expect(persisted.status).toBe('ARCHIVED');
+    } finally {
+      if (programId) {
+        await prisma.trainingProgramVersion.deleteMany({
+          where: { programId },
+        });
+        await prisma.trainingProgram.delete({
+          where: { id: programId },
+        });
+      }
+      if (trainerId) {
+        await prisma.user.delete({ where: { id: trainerId } });
+      }
+    }
+  }, 20_000);
 
   it('enforces one draft per program regardless of version number', async () => {
     let trainerId: string | undefined;
