@@ -67,6 +67,21 @@ export function paginatedSchema(items: ResponseSchema): ResponseSchema {
   });
 }
 
+/**
+ * Registration always reports account creation. SUBMITTED means the mailer
+ * accepted the send request, not that the message reached the inbox.
+ * RETRY_REQUIRED instructs the signed-in user to call /auth/email/verification.
+ */
+export const registrationResponseSchema = objectSchema({
+  id: uuidSchema,
+  email: stringSchema,
+  emailVerified: booleanSchema,
+  role: enumSchema(['ATHLETE', 'TRAINER', 'ADMIN']),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+  verificationEmailStatus: enumSchema(['SUBMITTED', 'RETRY_REQUIRED']),
+});
+
 const exerciseTypes = enumSchema(['STRENGTH', 'CARDIO', 'MOBILITY', 'PLYOMETRIC', 'OTHER']);
 const setTypes = enumSchema(['WARMUP', 'WORKING', 'DROP_SET', 'AMRAP']);
 
