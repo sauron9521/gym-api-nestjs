@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { workoutIdempotency } from '../workout-idempotency.js';
+import { workoutIdempotency } from '../utils/workout-idempotency.js';
 
 describe('workoutIdempotency', () => {
   const key = 'a382ec23-2681-4d5f-9697-c71e21636ed6';

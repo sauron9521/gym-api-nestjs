@@ -23,7 +23,7 @@ import { exerciseSelect } from '#src/modules/exercises/selects/exercise.select';
 import {
   workoutSelect,
   workoutSetSelect,
-} from '#src/modules/workouts/workouts.repository';
+} from '#src/modules/workouts/selects/workout.select';
 import {
   trainerAthleteHistoricalSelect,
   trainerAthleteSelect,
