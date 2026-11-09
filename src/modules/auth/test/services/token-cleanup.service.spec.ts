@@ -41,19 +41,43 @@ describe('TokenCleanupService', () => {
       expect(emailDate).toBe(refreshDate);
     });
 
-    it('logs an error when cleanup fails', async () => {
-      const error = new Error('Database connection failed');
+    it('logs only a safe event name, never exception text or stack data', async () => {
+      const secret = 'refresh-token-secret-do-not-log';
+      const error = new Error(`Prisma query failed WHERE token = ${secret}`);
+      error.stack = `SQL/stack trace with ${secret}`;
       const loggerErrorSpy = vi
         .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const loggerSuccessSpy = vi
+        .spyOn(Logger.prototype, 'log')
         .mockImplementation(() => undefined);
 
       tokenStore.deleteExpiredRefreshTokens.mockRejectedValueOnce(error);
 
       await expect(service.cleanupExpiredTokens()).resolves.toBeUndefined();
 
-      expect(loggerErrorSpy).toHaveBeenCalledWith(
-        'Failed to cleanup expired tokens',
-        error.stack,
+      expect(loggerErrorSpy).toHaveBeenCalledExactlyOnceWith(
+        'AUTH_TOKEN_CLEANUP_FAILED',
+      );
+      expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(secret);
+      expect(loggerSuccessSpy).not.toHaveBeenCalled();
+    });
+
+    it('never logs sensitive values when the thrown failure is not an Error', async () => {
+      const loggerErrorSpy = vi
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      tokenStore.deleteExpiredEmailTokens.mockRejectedValueOnce(
+        'password-reset-token-secret',
+      );
+
+      await expect(service.cleanupExpiredTokens()).resolves.toBeUndefined();
+
+      expect(loggerErrorSpy).toHaveBeenCalledExactlyOnceWith(
+        'AUTH_TOKEN_CLEANUP_FAILED',
+      );
+      expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(
+        'password-reset-token-secret',
       );
     });
 

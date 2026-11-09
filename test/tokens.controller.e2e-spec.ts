@@ -57,6 +57,7 @@ describe('TokensController (HTTP)', () => {
       .send({ email: 'test@example.com', password: 'StrongPassword123!' });
 
     expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.body).toEqual(pair);
     expect(tokenService.issue).toHaveBeenCalledWith('user-1', {
       method: 'password',
@@ -72,6 +73,8 @@ describe('TokensController (HTTP)', () => {
       .send({ email: 'test@example.com', password: 'WrongPassword123!' });
 
     expect(response.status).toBe(401);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(JSON.stringify(response.body)).not.toContain('WrongPassword123!');
     expect(tokenService.issue).not.toHaveBeenCalled();
   });
 
@@ -101,6 +104,24 @@ describe('TokensController (HTTP)', () => {
     expect(tokenService.refresh).not.toHaveBeenCalled();
   });
 
+  it('rejects invalid refresh credentials without echoing refresh tokens', async () => {
+    const secret = 'refresh-token-that-must-not-appear-in-error';
+    tokenService.refresh.mockRejectedValueOnce(
+      new (await import('@nestjs/common')).UnauthorizedException(
+        'Invalid refresh token',
+      ),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/token/refresh')
+      .send({ refreshToken: secret });
+
+    expect(response.status).toBe(401);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(JSON.stringify(response.body)).not.toContain(secret);
+    expect(tokenService.refresh).toHaveBeenCalledWith(secret);
+  });
+
   it('revokes a refresh token and returns 204', async () => {
     tokenService.revoke.mockResolvedValue(undefined);
 
@@ -109,6 +130,7 @@ describe('TokensController (HTTP)', () => {
       .send({ refreshToken: 'refresh-token-to-revoke' });
 
     expect(response.status).toBe(204);
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(tokenService.revoke).toHaveBeenCalledWith('refresh-token-to-revoke');
   });
 
