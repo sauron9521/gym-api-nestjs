@@ -9,6 +9,14 @@ import {
 } from '@nestjs/authentication';
 import { Prisma } from '#prisma/client';
 import { PrismaService } from '#src/infra/database/index';
+import {
+  authPendingEmailTokenCutoffSelect,
+  authRefreshTokenFamilyRevocationSelect,
+  authRefreshTokenSelect,
+  authRevokedRefreshTokenSelect,
+} from '../selects/auth-token.select.js';
+import { toEmailTokenRecord, toRefreshTokenRecord } from '../mappers/auth-token.mapper.js';
+import type { AuthConsumedEmailTokenRow } from '../types/auth-store.types.js';
 
 /** PostgreSQL-backed stores for opaque refresh tokens and email links. */
 @Injectable()
@@ -25,22 +33,10 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   async getRefreshToken(id: string): Promise<RefreshTokenRecord | undefined> {
     const row = await this.prisma.refreshToken.findUnique({
       where: { id, user: { deletedAt: null } },
+      select: authRefreshTokenSelect,
     });
-    if (!row) return undefined;
 
-    // `revoked` is persistence metadata, not part of RefreshTokenRecord.
-    return {
-      id: row.id,
-      familyId: row.familyId,
-      userId: row.userId,
-      createdAt: row.createdAt,
-      expiresAt: row.expiresAt,
-      familyExpiresAt: row.familyExpiresAt,
-      ...(row.usedAt !== null ? { usedAt: row.usedAt } : {}),
-      ...(row.claims !== null
-        ? { claims: row.claims as Record<string, unknown> }
-        : {}),
-    };
+    return row ? toRefreshTokenRecord(row) : undefined;
   }
 
   async saveRefreshToken(record: RefreshTokenRecord): Promise<void> {
@@ -101,11 +97,11 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
     const [family, revokedToken] = await Promise.all([
       this.prisma.refreshTokenFamily.findUnique({
         where: { id: familyId },
-        select: { revokedAt: true },
+        select: authRefreshTokenFamilyRevocationSelect,
       }),
       this.prisma.refreshToken.findFirst({
         where: { familyId, revoked: true },
-        select: { id: true },
+        select: authRevokedRefreshTokenSelect,
       }),
     ]);
 
@@ -150,10 +146,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
       });
 
       const cutoff = await tx.emailToken.findMany({
-        select: {
-          id: true,
-          expiresAt: true,
-        },
+        select: authPendingEmailTokenCutoffSelect,
         orderBy: [{ expiresAt: 'desc' }, { id: 'desc' }],
         skip: this.maxPending,
         take: 1,
@@ -181,34 +174,14 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
   ): Promise<EmailTokenRecord | undefined> {
     // DELETE ... RETURNING is atomic: a concurrent request cannot consume the
     // same link, and a purpose mismatch leaves the token untouched.
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        purpose: string;
-        userId: string;
-        email: string;
-        fingerprint: string | null;
-        createdAt: Date;
-        expiresAt: Date;
-      }>
-    >`DELETE FROM "email_tokens"
+    const rows = await this.prisma.$queryRaw<Array<AuthConsumedEmailTokenRow>>DELETE FROM "email_tokens"
       WHERE "id" = ${id} AND "purpose" = ${purpose}
       RETURNING "id", "purpose", "user_id" AS "userId", "email",
                 "fingerprint", "created_at" AS "createdAt",
                 "expires_at" AS "expiresAt"`;
 
     const row = rows[0];
-    if (!row) return undefined;
-
-    return {
-      id: row.id,
-      purpose: row.purpose as EmailTokenPurpose,
-      userId: row.userId,
-      email: row.email,
-      ...(row.fingerprint !== null ? { fingerprint: row.fingerprint } : {}),
-      createdAt: row.createdAt,
-      expiresAt: row.expiresAt,
-    };
+    return row ? toEmailTokenRecord(row) : undefined;
   }
 
   async deleteUserEmailTokens(
