@@ -50,7 +50,12 @@ is reachable from containers:
 
     docker compose --env-file .env.production -f compose.prod.yml config --quiet
 
-2. Back up the production database and avatar volume with the operator workflow\n   in [production operations runbook](production-operations-runbook.md):\n\n    bash scripts/backup-production.sh /srv/private/gym-backups\n\n   Supply DATABASE_URL securely and verify checksums before continuing.
+2. Back up the production database and avatar volume with the operator workflow
+   in [production operations runbook](production-operations-runbook.md):
+
+    bash scripts/backup-production.sh /srv/private/gym-backups
+
+   Supply DATABASE_URL securely and verify checksums before continuing.
 3. Apply pending migrations once, using the separate migration target:
 
     docker compose --env-file .env.production -f compose.prod.yml --profile ops run --build --rm migrate
@@ -88,8 +93,10 @@ module shutdown. Deploy behind an upstream proxy with connection drain
 settings and avoid in-flight requests during rolling replacements.
 
 GET /health/live checks process responsiveness without querying DB;
-GET /health/ready uses PostgreSQL SELECT 1. The Docker HEALTHCHECK uses
-readiness so a database outage marks the container unhealthy.
+GET /health/ready requires PostgreSQL SELECT 1 and, when REDIS_URL is
+configured, a Redis PING through the throttling client. The Docker
+HEALTHCHECK uses readiness, so a database or Redis outage marks the
+container unhealthy.
 Docker restart policies restart exited containers, not automatically
 containers that are merely unhealthy; configure monitoring/orchestration
 to act on health status. A DB outage during boot can prevent startup.
@@ -101,8 +108,9 @@ dedicated CI PostgreSQL database, starts the production runtime with
 dummy SMTP/JWT settings, probes both health endpoints and checks shutdown.
 No real external SMTP delivery or production database is contacted.
 
-Before public launch: implement secret injection and rotation, backups and
-restore tests, image registry/release pinning and signatures, monitoring,
+Before public launch: implement secret injection and rotation, schedule
+encrypted off-site backups and rehearse restores, configure monitoring,
+image registry/release pinning and signatures,
 TLS reverse proxy, and deployment rollback procedures. Revisit base image
 digest pinning regularly. The production deployment described here is
 a single-host baseline, not a multi-replica platform.
