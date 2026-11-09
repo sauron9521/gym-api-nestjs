@@ -264,6 +264,8 @@ describe('WorkoutsService', () => {
             ],
           },
         }),
+        athlete.id,
+        ['exercise-1'],
       );
     });
 

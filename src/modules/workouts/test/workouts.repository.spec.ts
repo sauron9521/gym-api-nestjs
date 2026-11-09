@@ -9,6 +9,8 @@ describe('WorkoutsRepository', () => {
 
   const prisma = {
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
+    exercise: { findMany: vi.fn() },
 
     workout: {
       findMany: vi.fn(),
@@ -164,6 +166,12 @@ describe('WorkoutsRepository', () => {
   });
 
   describe('create', () => {
+    beforeEach(() => {
+      prisma.$transaction.mockImplementation(async (cb: (tx: typeof prisma) => Promise<unknown>) => cb(prisma));
+      prisma.exercise.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'exercise-1', name: 'Bench Press', exerciseType: 'STRENGTH' }]);
+    });
     it('should create a workout with exercises and sets', async () => {
       const data = {
         title: 'Upper Body',
@@ -218,7 +226,7 @@ describe('WorkoutsRepository', () => {
 
       prisma.workout.create.mockResolvedValue(workout);
 
-      const result = await repository.create(data);
+      const result = await repository.create(data, 'athlete-1', ['exercise-1']);
 
       expect(prisma.workout.create).toHaveBeenCalledWith({
         data,
@@ -226,6 +234,40 @@ describe('WorkoutsRepository', () => {
       });
 
       expect(result).toEqual(workout);
+    });
+
+    it('locks active trainer relationships before the final access check and insert', async () => {
+      prisma.exercise.findMany.mockReset();
+      prisma.exercise.findMany
+        .mockResolvedValueOnce([{ createdById: 'trainer-1' }])
+        .mockResolvedValueOnce([{ id: 'exercise-1', name: 'Trainer Bench', exerciseType: 'STRENGTH' }]);
+      prisma.$queryRaw.mockResolvedValue([{ trainerId: 'trainer-1' }]);
+      prisma.workout.create.mockResolvedValue({ id: 'created-workout' });
+      await expect(repository.create({
+        title: 'Trainer Workout',
+        athlete: { connect: { id: 'athlete-1' } },
+        createdBy: { connect: { id: 'athlete-1' } },
+      }, 'athlete-1', ['exercise-1'])).resolves.toMatchObject({ id: 'created-workout' });
+      expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+      expect(prisma.exercise.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.workout.create).toHaveBeenCalledOnce();
+      expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.workout.create.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('rejects revoked or archived exercises after locking without persisting a workout', async () => {
+      prisma.exercise.findMany.mockReset();
+      prisma.exercise.findMany
+        .mockResolvedValueOnce([{ createdById: 'trainer-1' }])
+        .mockResolvedValueOnce([]);
+      prisma.$queryRaw.mockResolvedValue([]);
+      await expect(repository.create({
+        title: 'Forbidden Workout',
+        athlete: { connect: { id: 'athlete-1' } },
+        createdBy: { connect: { id: 'athlete-1' } },
+      }, 'athlete-1', ['exercise-1'])).rejects.toThrow('One or more exercises are not available');
+      expect(prisma.workout.create).not.toHaveBeenCalled();
     });
 
     it('should propagate database errors', async () => {
@@ -242,7 +284,7 @@ describe('WorkoutsRepository', () => {
           createdBy: {
             connect: { id: 'athlete-1' },
           },
-        }),
+        }, 'athlete-1', ['exercise-1']),
       ).rejects.toBe(error);
     });
   });

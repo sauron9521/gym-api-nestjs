@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
+import { buildExerciseVisibilityWhere } from '#src/modules/exercises/policies/exercise-access.policy';
+import { workoutExerciseReferenceSelect } from '#src/modules/exercises/selects/exercise.select';
 import {
   workoutIdempotencySelect,
   workoutSelect,
@@ -66,10 +68,68 @@ export class WorkoutsRepository {
   }
 
   // CREATE
-  async create(data: Prisma.WorkoutCreateInput) {
-    return this.prisma.workout.create({
-      data,
-      select: workoutSelect,
+  /**
+   * Serialize manual workout creation with trainer-athlete termination.
+   * Both operations use the same relationship row lock. Recheck access after
+   * acquiring it, then insert before releasing the lock at commit.
+   */
+  async create(
+    data: Prisma.WorkoutCreateInput,
+    athleteId: string,
+    exerciseIds: string[],
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const uniqueIds = [...new Set(exerciseIds)];
+      const trainerExercises = await tx.exercise.findMany({
+        where: { id: { in: uniqueIds }, source: 'TRAINER_CUSTOM' },
+        select: { createdById: true },
+      });
+      const trainerIds = [...new Set(
+        trainerExercises
+          .map((exercise) => exercise.createdById)
+          .filter((id): id is string => id !== null),
+      )];
+
+      // FOR SHARE conflicts with termination's UPDATE of the relationship.
+      // Lock only trainers whose exercises are referenced; do not block
+      // unrelated relationships or queries using global/personal exercises.
+      const activeRelationships = trainerIds.length
+        ? await tx.$queryRaw<Array<{ trainerId: string }>>`
+            SELECT "trainer_id" AS "trainerId"
+            FROM "trainer_athletes"
+            WHERE "athlete_id" = ${athleteId}
+              AND "trainer_id" IN (${Prisma.join(trainerIds)})
+              AND "status" = 'ACTIVE'
+            ORDER BY "id"
+            FOR SHARE
+          `
+        : [];
+
+      // Never trust the earlier service-side availability check: it may
+      // have run before a concurrent termination. Validate inside this
+      // transaction after the relationship locks have been acquired.
+      const accessible = await tx.exercise.findMany({
+        where: {
+          AND: [
+            { id: { in: uniqueIds } },
+            buildExerciseVisibilityWhere(
+              { id: athleteId, role: 'ATHLETE' },
+              {
+                activeTrainerIds: activeRelationships.map((r) => r.trainerId),
+                activeAthleteIds: [],
+              },
+            ),
+            { isArchived: false },
+          ],
+        },
+        select: workoutExerciseReferenceSelect,
+      });
+
+      if (accessible.length !== uniqueIds.length) {
+        throw new BadRequestException('One or more exercises are not available');
+      }
+
+      return tx.workout.create({ data, select: workoutSelect });
     });
   }
 
@@ -185,6 +245,20 @@ export class WorkoutsRepository {
     idempotency?: { key: string; fingerprint: string };
   }) {
     return this.prisma.$transaction(async (tx) => {
+      // Match the termination lock order: relationship first, assignment
+      // second. This also prevents reading ACTIVE after termination begins.
+      const activeRelationships = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT relationship."id"
+        FROM "trainer_athletes" AS relationship
+        INNER JOIN "training_program_assignments" AS assignment
+          ON assignment."trainer_athlete_id" = relationship."id"
+        WHERE assignment."id" = ${input.assignmentId}
+          AND assignment."athlete_id" = ${input.athleteId}
+          AND relationship."status" = 'ACTIVE'
+        FOR SHARE OF relationship
+      `;
+      if (activeRelationships.length !== 1) return null;
+
       // Serialize workout creation with assignment completion.
       const assignments = await tx.$queryRaw<Array<{ id: string }>>`
   SELECT "id"
