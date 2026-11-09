@@ -101,8 +101,12 @@ describe('Credentials service', () => {
       const user = {
         id: 'user-1',
         email: 'test@example.com',
+        emailVerified: false,
+        role: 'ATHLETE' as const,
+        createdAt: new Date('2026-10-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-10-01T10:00:00.000Z'),
         passwordHash: 'store-hash',
-      } as unknown as User;
+      };
 
       userRepository.findCredentials.mockResolvedValue(user);
       passwordHasher.verify.mockResolvedValue(true);
@@ -113,6 +117,10 @@ describe('Credentials service', () => {
       expect(result).toEqual({
         id: user.id,
         email: user.email,
+        emailVerified: user.emailVerified,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       });
       expect(result).not.toHaveProperty('passwordHash');
     });
@@ -135,8 +143,12 @@ describe('Credentials service', () => {
       const user = {
         id: randomUUID(),
         email: 'test@example.com',
+        emailVerified: true,
+        role: 'ATHLETE' as const,
+        createdAt: new Date('2026-10-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-10-02T10:00:00.000Z'),
         passwordHash: 'old-hash',
-      } as unknown as User;
+      };
 
       userRepository.findCredentials.mockResolvedValue(user);
       passwordHasher.verify.mockResolvedValue(true);
@@ -154,6 +166,14 @@ describe('Credentials service', () => {
         user.id,
         'new-hash',
       );
+      expect(result).toEqual({
+        id: user.id,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
       expect(result).not.toHaveProperty('passwordHash');
     });
   });
