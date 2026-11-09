@@ -12,6 +12,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiExceptionFilter } from '#src/common/filters/api-exception.filter';
 import { RolesGuard } from '#src/common/guards/roles.guard';
 import { RequestContextMiddleware } from '#src/common/request-context/request-context.middleware';
+import { AuthNoStoreMiddleware } from '#src/modules/auth/middleware/auth-no-store.middleware';
 import type { AppConfigService } from '#src/common/config/app-config.types';
 import { validateEnv } from '#src/common/config/env.validation';
 import { createMailOptions } from '#src/common/config/mail.config';
@@ -98,7 +99,7 @@ import { WorkoutsModule } from '#src/modules/workouts/workouts.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     // Express 5/path-to-regexp named wildcard, including the root route.
-    consumer.apply(RequestContextMiddleware).forRoutes({
+    consumer.apply(RequestContextMiddleware, AuthNoStoreMiddleware).forRoutes({
       path: '{*splat}',
       method: RequestMethod.ALL,
     });
