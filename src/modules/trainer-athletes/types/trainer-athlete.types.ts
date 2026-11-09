@@ -3,6 +3,10 @@ import type {
   Role,
   TrainerAthleteStatus,
 } from '#prisma/client';
+import type {
+  trainerAthleteHistoricalSelect,
+  trainerAthleteSelect,
+} from '../selects/trainer-athlete.select.js';
 
 export type TrainerAthleteActor = {
   id: string;
@@ -23,10 +27,6 @@ export type TerminateTrainerAthleteInput = {
   reason?: string | null;
 };
 
-import type {
-  trainerAthleteSelect,
-  trainerAthleteHistoricalSelect,
-} from '../selects/trainer-athlete.select.js';
 
 /** Prisma-derived selected records (not repository ReturnType aliases). */
 export type TrainerAthleteRecord = Prisma.TrainerAthleteGetPayload<{

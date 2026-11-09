@@ -30,9 +30,17 @@ describe('TrainerAthlete Prisma projections', () => {
 
   it('retains relationship status and transition/audit fields in both variants', () => {
     for (const key of [
-      'id', 'trainerId', 'athleteId', 'initiatedById', 'status',
-      'respondedAt', 'endedAt', 'endedById', 'endReason',
-      'createdAt', 'updatedAt',
+      'id',
+      'trainerId',
+      'athleteId',
+      'initiatedById',
+      'status',
+      'respondedAt',
+      'endedAt',
+      'endedById',
+      'endReason',
+      'createdAt',
+      'updatedAt',
     ] as const) {
       expect(trainerAthleteSelect[key]).toBe(true);
       expect(trainerAthleteHistoricalSelect[key]).toBe(true);
