@@ -13,14 +13,7 @@ import type {
   TrainingProgramAssignmentSummaryPayload,
 } from '../types/training-program-payload.types.js';
 import type { PaginatedResult } from '../types/paginated-result.types.js';
-
-export type FindManyTrainingProgramAssignmentsParams = {
-  where: Prisma.TrainingProgramAssignmentWhereInput;
-  skip: number;
-  take: number;
-  orderBy?: Prisma.TrainingProgramAssignmentOrderByWithRelationInput[];
-  view?: 'full' | 'summary';
-};
+import type { FindManyTrainingProgramAssignmentsParams } from '../types/training-program-repository.types.js';
 
 @Injectable()
 export class TrainingProgramAssignmentRepository {

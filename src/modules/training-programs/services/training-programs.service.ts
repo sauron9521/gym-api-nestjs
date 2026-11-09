@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type {
   AddTrainingProgramExerciseInput,
   CancelTrainingProgramAssignmentInput,
@@ -15,13 +15,13 @@ import type {
   UpdateTrainingProgramExerciseInput,
   UpdateTrainingProgramSetInput,
   UpdateTrainingProgramWorkoutInput,
-} from './types/training-program.types.js';
-import { TrainingProgramWorkoutService } from './services/training-program-workout.service.js';
-import { TrainingProgramExerciseService } from './services/training-program-exercise.service.js';
-import { TrainingProgramSetService } from './services/training-program-set.service.js';
-import { TrainingProgramCrudService } from './services/training-program-crud.service.js';
-import { TrainingProgramVersionService } from './services/training-program-version.service.js';
-import { TrainingProgramAssignmentService } from './services/training-program-assignment.service.js';
+} from '../types/training-program.types.js';
+import { TrainingProgramWorkoutService } from './training-program-workout.service.js';
+import { TrainingProgramExerciseService } from './training-program-exercise.service.js';
+import { TrainingProgramSetService } from './training-program-set.service.js';
+import { TrainingProgramCrudService } from './training-program-crud.service.js';
+import { TrainingProgramVersionService } from './training-program-version.service.js';
+import { TrainingProgramAssignmentService } from './training-program-assignment.service.js';
 
 @Injectable()
 export class TrainingProgramsService {
@@ -200,22 +200,6 @@ export class TrainingProgramsService {
     actor: TrainingProgramActor,
   ) {
     return this.versionService.publishVersion(programId, versionId, actor);
-  }
-
-  // ===========================================================================
-  // VALIDATION
-  // ===========================================================================
-
-  private validatePagination(query: TrainingProgramListQuery): void {
-    if (
-      !Number.isInteger(query.page) ||
-      query.page < 1 ||
-      !Number.isInteger(query.limit) ||
-      query.limit < 1 ||
-      query.limit > 100
-    ) {
-      throw new BadRequestException('Invalid pagination parameters');
-    }
   }
 
   async addSet(
