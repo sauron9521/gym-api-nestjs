@@ -35,7 +35,8 @@ describe('AuthAccountThrottleService', () => {
       .update(email)
       .digest('hex');
 
-    expect(increment).toHaveBeenCalledExactlyOnceWith(
+    expect(increment).toHaveBeenCalledTimes(1);
+    expect(increment).toHaveBeenCalledWith(
       `account-recovery:${hmac}`,
       3_600_000,
       5,
