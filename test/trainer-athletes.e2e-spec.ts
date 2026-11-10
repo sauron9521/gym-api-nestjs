@@ -309,6 +309,189 @@ describe('TrainerAthletes (HTTP + PostgreSQL)', () => {
     }
   }, 20_000);
 
+
+  it.each([
+    { status: 'DECLINED', action: 'decline' },
+    { status: 'CANCELLED', action: 'cancel' },
+  ])('redacts $status relationship history for its former trainer', async ({ status, action }) => {
+    const athlete = await createUser(
+      'closed-history-' + randomUUID() + '@example.com',
+      'ATHLETE',
+    );
+    const cookie = await login(athlete.email);
+    const secretName = 'PRIVATE_PROFILE_' + randomUUID();
+    let relationshipId: string | undefined;
+
+    try {
+      await prisma.profile.create({
+        data: {
+          userId: athlete.id,
+          displayName: secretName,
+          firstName: secretName,
+          timezone: 'Europe/Kyiv',
+        },
+      });
+      const relationship = await prisma.trainerAthlete.create({
+        data: {
+          trainerId: trainerOne.id,
+          athleteId: athlete.id,
+          initiatedById: trainerOne.id,
+          status: 'PENDING',
+        },
+        select: { id: true },
+      });
+      relationshipId = relationship.id;
+
+      const actorCookie = action === 'decline' ? cookie : trainerOneCookie;
+      const result = await request(app!.getHttpServer())
+        .post('/trainer-athletes/' + relationship.id + '/' + action)
+        .set('Cookie', actorCookie)
+        .send(action === 'cancel' ? { reason: 'Invitation withdrawn' } : {});
+
+      expect(result.status).toBe(200);
+      expect(result.body.status).toBe(status);
+      if (action === 'cancel') {
+        // A trainer must not receive athlete contact data in the mutation response.
+        expect(JSON.stringify(result.body)).not.toContain(athlete.email);
+      }
+
+      const [trainerDetails, trainerList, athleteDetails, outsiderDetails] =
+        await Promise.all([
+          request(app!.getHttpServer())
+            .get('/trainer-athletes/' + relationship.id)
+            .set('Cookie', trainerOneCookie),
+          request(app!.getHttpServer())
+            .get('/trainer-athletes')
+            .set('Cookie', trainerOneCookie)
+            .query({ status, page: 1, limit: 100 }),
+          request(app!.getHttpServer())
+            .get('/trainer-athletes/' + relationship.id)
+            .set('Cookie', cookie),
+          request(app!.getHttpServer())
+            .get('/trainer-athletes/' + relationship.id)
+            .set('Cookie', outsiderCookie),
+        ]);
+
+      expect(trainerDetails.status).toBe(200);
+      expect(trainerList.status).toBe(200);
+      expect(athleteDetails.status).toBe(200);
+      expect(outsiderDetails.status).toBe(404);
+
+      const historicalItem = trainerList.body.data.find(
+        (item: { id: string }) => item.id === relationship.id,
+      );
+      expect(historicalItem).toBeDefined();
+
+      for (const payload of [trainerDetails.body, historicalItem]) {
+        expect(payload).toMatchObject({
+          id: relationship.id,
+          status,
+          athlete: { id: athlete.id, role: 'ATHLETE' },
+        });
+        const json = JSON.stringify(payload);
+        expect(json).not.toContain(athlete.email);
+        expect(json).not.toContain(secretName);
+        expect(payload.athlete).not.toHaveProperty('email');
+        expect(payload.athlete).not.toHaveProperty('profile');
+        expect(payload.athlete).not.toHaveProperty('passwordHash');
+        expect(payload.athlete).not.toHaveProperty('avatarKey');
+      }
+
+      // The athlete keeps access to their own relationship history.
+      expect(athleteDetails.body.athlete.email).toBe(athlete.email);
+    } finally {
+      if (relationshipId) {
+        await prisma.trainerAthlete.deleteMany({ where: { id: relationshipId } });
+      }
+      await prisma.profile.deleteMany({ where: { userId: athlete.id } });
+    }
+  }, 30_000);
+
+  it('keeps an old terminated relationship private after a new collaboration starts', async () => {
+    const athlete = await createUser(
+      'reconnected-history-' + randomUUID() + '@example.com',
+      'ATHLETE',
+    );
+    const athleteCookie = await login(athlete.email);
+    const ids: string[] = [];
+
+    try {
+      const first = await prisma.trainerAthlete.create({
+        data: {
+          trainerId: trainerOne.id,
+          athleteId: athlete.id,
+          initiatedById: trainerOne.id,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      ids.push(first.id);
+
+      const ended = await request(app!.getHttpServer())
+        .post('/trainer-athletes/' + first.id + '/terminate')
+        .set('Cookie', trainerOneCookie)
+        .send({ reason: 'Old collaboration ended' });
+      expect(ended.status).toBe(200);
+      expect(ended.body.status).toBe('TERMINATED');
+      expect(JSON.stringify(ended.body)).not.toContain(athlete.email);
+
+      const invited = await request(app!.getHttpServer())
+        .post('/trainer-athletes')
+        .set('Cookie', trainerOneCookie)
+        .send({ userId: athlete.id });
+      expect(invited.status).toBe(201);
+      ids.push(invited.body.id);
+
+      const accepted = await request(app!.getHttpServer())
+        .post('/trainer-athletes/' + invited.body.id + '/accept')
+        .set('Cookie', athleteCookie);
+      expect(accepted.status).toBe(200);
+      expect(accepted.body.status).toBe('ACTIVE');
+
+      const [oldDetails, newDetails, trainerHistory, outsider] = await Promise.all([
+        request(app!.getHttpServer())
+          .get('/trainer-athletes/' + first.id)
+          .set('Cookie', trainerOneCookie),
+        request(app!.getHttpServer())
+          .get('/trainer-athletes/' + invited.body.id)
+          .set('Cookie', trainerOneCookie),
+        request(app!.getHttpServer())
+          .get('/trainer-athletes')
+          .set('Cookie', trainerOneCookie)
+          .query({ page: 1, limit: 100 }),
+        request(app!.getHttpServer())
+          .get('/trainer-athletes/' + first.id)
+          .set('Cookie', trainerTwoCookie),
+      ]);
+
+      expect(oldDetails.status).toBe(200);
+      expect(newDetails.status).toBe(200);
+      expect(trainerHistory.status).toBe(200);
+      expect(outsider.status).toBe(404);
+
+      const oldItem = trainerHistory.body.data.find(
+        (item: { id: string }) => item.id === first.id,
+      );
+      const newItem = trainerHistory.body.data.find(
+        (item: { id: string }) => item.id === invited.body.id,
+      );
+      expect(oldItem).toBeDefined();
+      expect(newItem).toBeDefined();
+      for (const payload of [oldDetails.body, oldItem]) {
+        expect(payload.status).toBe('TERMINATED');
+        expect(JSON.stringify(payload)).not.toContain(athlete.email);
+        expect(payload.athlete).not.toHaveProperty('email');
+      }
+      for (const payload of [newDetails.body, newItem]) {
+        expect(payload.status).toBe('ACTIVE');
+        expect(payload.athlete.email).toBe(athlete.email);
+        expect(payload.athlete).not.toHaveProperty('passwordHash');
+      }
+    } finally {
+      await prisma.trainerAthlete.deleteMany({ where: { id: { in: ids } } });
+    }
+  }, 30_000);
+
   describe('Authentication and validation', () => {
     it('should reject unauthenticated requests', async () => {
       const response = await request(app!.getHttpServer()).get(
