@@ -58,6 +58,21 @@ export class ExerciseTrainerAccessRepository {
       `;
 
       if (!relationships.length) {
+        // Preserve 404 for unknown, foreign, or archived exercises without
+        // taking an exercise lock in the opposite order.
+        const owned = await tx.exercise.findFirst({
+          where: {
+            id: exerciseId,
+            createdById: athleteId,
+            source: 'ATHLETE_CUSTOM',
+            isArchived: false,
+          },
+          select: { id: true, visibility: true },
+        });
+        if (!owned) return { status: 'NOT_FOUND' };
+        if (owned.visibility !== 'SELECTED_TRAINERS') {
+          return { status: 'PRIVATE' };
+        }
         return { status: 'NO_ACTIVE_RELATIONSHIP' };
       }
 
