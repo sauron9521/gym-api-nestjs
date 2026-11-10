@@ -1,9 +1,12 @@
 import { EmailVerificationService } from '@nestjs/authentication';
 import { ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EmailVerificationController } from '../../controllers/email-verification.controller.js';
+import { VerificationResendRateLimitGuard } from '../../guards/verification-resend-rate-limit.guard.js';
+import { DistributedThrottlerStorage } from '#src/common/rate-limit/distributed-throttler.storage';
 import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 describe('EmailVerificationController resend', () => {
@@ -23,8 +26,18 @@ describe('EmailVerificationController resend', () => {
     vi.resetAllMocks();
     const module = await Test.createTestingModule({
       controllers: [EmailVerificationController],
-      providers: [{ provide: EmailVerificationService, useValue: verification }],
-    }).compile();
+      providers: [
+        { provide: EmailVerificationService, useValue: verification },
+        { provide: DistributedThrottlerStorage, useValue: { increment: vi.fn() } },
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: () => 'unit-test-secret' },
+        },
+      ],
+    })
+      .overrideGuard(VerificationResendRateLimitGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
     controller = module.get(EmailVerificationController);
   });
 

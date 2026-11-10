@@ -12,11 +12,15 @@ These endpoints retain per-IP limits (60-second window) unless stated otherwise:
 | POST /auth/token/refresh | 20 |
 | POST /auth/token/revoke | 10 |
 | POST /auth/email/verify | 8 |
-| POST /auth/email/verification | 3 (existing) |
+| POST /auth/email/verification | 3 per IP, plus 5/hour per authenticated user |
 | POST /auth/password-reset/forgot | 3 per IP, plus 5/hour per normalized email |
 | POST /auth/password-reset/reset | 3 (existing) |
 
 Other endpoints retain the existing default 10 requests per minute.
+
+The verification-resend quota is keyed by HMAC of the authenticated user ID.
+It shares the Redis/memory backend with the IP guard; see
+[verification resend protection](auth-verification-resend-account-throttling.md).
 
 The built-in in-memory throttler is **per process**, not shared across replicas.
 Its client tracker also requires a carefully configured trusted reverse proxy
