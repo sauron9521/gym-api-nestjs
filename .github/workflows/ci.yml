@@ -96,10 +96,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Enforce feature architecture and native ESM import conventions
+      - name: Enforce feature architecture, native ESM and cross-feature dependencies
         run: |
           npm run architecture:check
           npm run test:architecture
+          npm run architecture:deps
+          npm run test:architecture:deps
 
       - name: Validate backup tooling without production credentials
         run: |
