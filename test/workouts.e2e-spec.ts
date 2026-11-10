@@ -3213,6 +3213,94 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
       expect(first.body).not.toHaveProperty('idempotencyFingerprint');
     });
 
+    it('serializes competing payloads for the same manual creation key', async () => {
+      const key = randomUUID();
+      const titles = ['Race Winner A', 'Race Winner B'];
+
+      const [first, second] = await Promise.all(titles.map((title) =>
+        request(app!.getHttpServer())
+          .post('/workouts')
+          .set('Cookie', ownerCookie)
+          .set('Idempotency-Key', key)
+          .send(workoutPayload(title)),
+      ));
+
+      expect([first.status, second.status].sort()).toEqual([201, 409]);
+      const winner = first.status === 201 ? first : second;
+      expect(titles).toContain(winner.body.title);
+
+      const persisted = await prisma.workout.findMany({
+        where: { athleteId: ownerId, idempotencyKey: key },
+        select: { id: true, title: true },
+      });
+      expect(persisted).toEqual([{ id: winner.body.id, title: winner.body.title }]);
+
+      const conflict = first.status === 409 ? first : second;
+      expect(conflict.body.id).toBeUndefined();
+    });
+
+    it('replays the original workout with its current state after an edit', async () => {
+      const key = randomUUID();
+      const payload = workoutPayload('Original idempotent workout');
+      const first = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send(payload);
+      expect(first.status).toBe(201);
+
+      const updated = await request(app!.getHttpServer())
+        .patch(`/workouts/${first.body.id}`)
+        .set('Cookie', ownerCookie)
+        .send({ title: 'Edited after creation' });
+      expect(updated.status).toBe(200);
+
+      // The fingerprint belongs to the ORIGINAL creation request, but
+      // replay returns the current persisted representation.
+      const replay = await request(app!.getHttpServer())
+        .post('/workouts')
+        .set('Cookie', ownerCookie)
+        .set('Idempotency-Key', key)
+        .send(payload);
+      expect(replay.status).toBe(201);
+      expect(replay.body).toMatchObject({
+        id: first.body.id,
+        title: 'Edited after creation',
+      });
+      expect(await prisma.workout.count({
+        where: { athleteId: ownerId, idempotencyKey: key },
+      })).toBe(1);
+    });
+
+    it('allows simultaneous key reuse by different athletes without sharing workouts', async () => {
+      const key = randomUUID();
+      const payload = workoutPayload('Shared key, separate users');
+      const [owner, other] = await Promise.all([
+        request(app!.getHttpServer())
+          .post('/workouts')
+          .set('Cookie', ownerCookie)
+          .set('Idempotency-Key', key)
+          .send(payload),
+        request(app!.getHttpServer())
+          .post('/workouts')
+          .set('Cookie', otherAthleteCookie)
+          .set('Idempotency-Key', key)
+          .send(payload),
+      ]);
+
+      expect([owner.status, other.status]).toEqual([201, 201]);
+      expect(other.body.id).not.toBe(owner.body.id);
+      expect(owner.body.athleteId).toBe(ownerId);
+      expect(other.body.athleteId).not.toBe(ownerId);
+
+      const persisted = await prisma.workout.findMany({
+        where: { idempotencyKey: key },
+        select: { id: true, athleteId: true },
+      });
+      expect(persisted).toHaveLength(2);
+      expect(new Set(persisted.map((item) => item.athleteId)).size).toBe(2);
+    });
+
     it('rejects reusing a manual creation key for a different body', async () => {
       const key = randomUUID();
       const first = await request(app!.getHttpServer())
