@@ -123,7 +123,14 @@ redisDescribe('Account throttle Redis outage and recovery (HTTP + PostgreSQL)', 
       .set('Cookie', cookie);
   }
 
-  async function assertPrivateResponse(status: number, response: request.Response) {
+  function assertPrivateResponse(
+    status: number,
+    response: {
+      status: number;
+      headers: Record<string, string | string[] | undefined>;
+      body: unknown;
+    },
+  ): void {
     expect(response.status).toBe(status);
     expect(response.headers['cache-control']).toBe('no-store');
     expect(JSON.stringify(response.body)).not.toContain('redis://');
