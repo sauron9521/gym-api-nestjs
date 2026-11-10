@@ -13,14 +13,14 @@ import { DistributedThrottlerStorage } from '#src/common/rate-limit/distributed-
  */
 export const AUTH_ACCOUNT_THROTTLE_POLICIES = {
   passwordRecovery: {
-    namespace: 'auth:recovery:account:v1\\0',
+    namespace: 'auth:recovery:account:v1\0',
     keyPrefix: 'account-recovery',
     throttlerName: 'account-recovery',
     limit: 5,
     ttlMs: 60 * 60 * 1_000,
   },
   verificationResend: {
-    namespace: 'auth:verification:resend:user:v1\\0',
+    namespace: 'auth:verification:resend:user:v1\0',
     keyPrefix: 'verification-resend',
     throttlerName: 'verification-resend-user',
     limit: 5,
