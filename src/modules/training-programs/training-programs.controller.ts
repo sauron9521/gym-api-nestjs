@@ -3,8 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   Patch,
   Post,
@@ -17,7 +15,6 @@ import {
   trainingProgramResponseSchema,
   trainingProgramListResponseSchema,
   trainingProgramVersionResponseSchema,
-  trainingProgramVersionListItemSchema,
 } from '#src/infra/openapi/response-contracts';
 import { TrainingProgramsService } from './services/training-programs.service.js';
 import type { TrainingProgramActor } from './types/training-program.types.js';
@@ -34,11 +31,6 @@ import {
   type CreateTrainingProgramDto,
   createTrainingProgramSchema,
 } from './dto/create-training-program.dto.js';
-
-import {
-  type UpdateTrainingProgramDraftDto,
-  updateTrainingProgramDraftSchema,
-} from './dto/update-training-program-draft.dto.js';
 
 import {
   type QueryTrainingProgramsDto,
@@ -135,80 +127,6 @@ export class TrainingProgramsController {
     @CurrentUser() actor: TrainingProgramActor,
   ) {
     return this.trainingProgramsService.archive(programId, actor);
-  }
-
-  // VERSIONS
-
-  @Get(':programId/versions')
-  @ApiOkResponse({ schema: { type: 'array', items: trainingProgramVersionListItemSchema } })
-  findVersions(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-  ) {
-    return this.trainingProgramsService.findVersions(programId, actor);
-  }
-
-  @Post(':programId/versions/drafts')
-  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
-  createNextDraft(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-  ) {
-    return this.trainingProgramsService.createNextDraft(programId, actor);
-  }
-
-  @Get(':programId/versions/:versionId')
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  findVersion(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-  ) {
-    return this.trainingProgramsService.findVersion(
-      programId,
-      versionId,
-      actor,
-    );
-  }
-
-  @Patch(':programId/versions/:versionId')
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  updateDraftVersion(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-    @Body({ schema: updateTrainingProgramDraftSchema })
-    body: UpdateTrainingProgramDraftDto,
-  ) {
-    return this.trainingProgramsService.updateDraftVersion(
-      programId,
-      versionId,
-      actor,
-      body,
-    );
-  }
-
-  @Post(':programId/versions/:versionId/publish')
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  @HttpCode(HttpStatus.OK)
-  publishVersion(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-  ) {
-    return this.trainingProgramsService.publishVersion(
-      programId,
-      versionId,
-      actor,
-    );
   }
 
   // WORKOUTS INSIDE PROGRAM VERSION
