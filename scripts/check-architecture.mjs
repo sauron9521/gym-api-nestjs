@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 function filesUnder(directory) {
@@ -23,7 +23,7 @@ function importsIn(source) {
 
 function isOutside(directory, target) {
   const path = relative(directory, target);
-  return path === '..' || path.startsWith('../') || isAbsolute(path);
+  return path === '..' || path.startsWith('..' + sep) || isAbsolute(path);
 }
 
 /**
