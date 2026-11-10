@@ -24,7 +24,8 @@ describe('WorkoutAnalyticsController', () => {
     service.summary.mockResolvedValue(response);
 
     await expect(controller.summary(athlete, query)).resolves.toBe(response);
-    expect(service.summary).toHaveBeenCalledExactlyOnceWith(athlete, query);
+    expect(service.summary).toHaveBeenCalledTimes(1);
+    expect(service.summary).toHaveBeenCalledWith(athlete, query);
     expect(service.exercise).not.toHaveBeenCalled();
   });
 
@@ -36,8 +37,9 @@ describe('WorkoutAnalyticsController', () => {
 
     await expect(controller.exercise(athlete, exerciseId, query))
       .resolves.toBe(response);
+    expect(service.exercise).toHaveBeenCalledTimes(1);
     expect(service.exercise)
-      .toHaveBeenCalledExactlyOnceWith(athlete, exerciseId, query);
+      .toHaveBeenCalledWith(athlete, exerciseId, query);
     expect(service.summary).not.toHaveBeenCalled();
   });
 
@@ -47,6 +49,7 @@ describe('WorkoutAnalyticsController', () => {
     service.summary.mockRejectedValue(error);
 
     await expect(controller.summary(athlete, query)).rejects.toBe(error);
-    expect(service.summary).toHaveBeenCalledExactlyOnceWith(athlete, query);
+    expect(service.summary).toHaveBeenCalledTimes(1);
+    expect(service.summary).toHaveBeenCalledWith(athlete, query);
   });
 });
