@@ -208,4 +208,102 @@ describe('PrismaSessionStore integration (e2e)', () => {
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(results.filter((result) => !result)).toHaveLength(1);
   });
+  it('deletes sessions expired before or exactly at the cutoff but retains later expiry', async () => {
+    const cutoff = new Date('2026-11-10T12:00:00.000Z');
+    const createdAt = new Date(cutoff.getTime() - 120_000);
+
+    const before = await createSession({
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt: new Date(cutoff.getTime() - 1),
+    });
+    const exactly = await createSession({
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt: cutoff,
+    });
+    const after = await createSession({
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt: new Date(cutoff.getTime() + 1),
+    });
+
+    await store.deleteExpiredSessions(cutoff);
+
+    const remaining = await prisma.session.findMany({
+      where: { id: { in: [before.id, exactly.id, after.id] } },
+      select: { id: true, expiresAt: true },
+    });
+
+    expect(remaining).toEqual([
+      { id: after.id, expiresAt: after.expiresAt },
+    ]);
+
+    // Daily cleanup can be retried safely without removing a live session.
+    await store.deleteExpiredSessions(cutoff);
+    expect(
+      await prisma.session.count({ where: { id: after.id } }),
+    ).toBe(1);
+  });
+
+  it('removes expired sessions across owners without touching active sessions or users', async () => {
+    const otherUser = await prisma.user.create({
+      data: {
+        email: `session-expiration-other-${randomUUID()}@example.test`,
+        passwordHash: 'test-password-hash',
+      },
+      select: { id: true },
+    });
+
+    const cutoff = new Date('2026-11-10T12:00:00.000Z');
+    const createdAt = new Date(cutoff.getTime() - 120_000);
+    const ownExpired = await createSession({
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt: new Date(cutoff.getTime() - 1),
+    });
+    const ownLive = await createSession({
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt: new Date(cutoff.getTime() + 60_000),
+    });
+    const otherExpired: SessionRecord = {
+      id: randomUUID().replaceAll('-', '').repeat(2),
+      userId: otherUser.id,
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt: cutoff,
+    };
+    const otherLive: SessionRecord = {
+      ...otherExpired,
+      id: randomUUID().replaceAll('-', '').repeat(2),
+      expiresAt: new Date(cutoff.getTime() + 60_000),
+    };
+
+    try {
+      await store.createSession(otherExpired);
+      await store.createSession(otherLive);
+      await store.deleteExpiredSessions(cutoff);
+
+      const sessions = await prisma.session.findMany({
+        where: {
+          id: {
+            in: [ownExpired.id, ownLive.id, otherExpired.id, otherLive.id],
+          },
+        },
+        select: { id: true },
+      });
+      expect(sessions.map((session) => session.id).sort()).toEqual(
+        [ownLive.id, otherLive.id].sort(),
+      );
+      expect(
+        await prisma.user.count({
+          where: { id: { in: [userId, otherUser.id] } },
+        }),
+      ).toBe(2);
+    } finally {
+      await prisma.user.delete({ where: { id: otherUser.id } });
+    }
+  });
+
 });
