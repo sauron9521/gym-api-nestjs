@@ -72,31 +72,6 @@ describe('TrainingProgramsController', () => {
     expect(service.findMany).toHaveBeenCalledWith(actor, query);
   });
 
-  it('should add an exercise', async () => {
-    const body = {
-      exerciseId: 'exercise-1',
-      notes: 'Keep controlled tempo',
-    };
-
-    service.addExercise.mockResolvedValue({ id: 'program-exercise-1' });
-
-    await controller.addExercise(
-      'program-1',
-      'version-1',
-      'workout-1',
-      actor,
-      body,
-    );
-
-    expect(service.addExercise).toHaveBeenCalledWith(
-      actor,
-      'program-1',
-      'version-1',
-      'workout-1',
-      body,
-    );
-  });
-
   it('should add a set', async () => {
     const body = {
       setType: 'WORKING' as const,
