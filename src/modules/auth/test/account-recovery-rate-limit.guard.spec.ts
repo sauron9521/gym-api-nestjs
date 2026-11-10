@@ -58,6 +58,18 @@ describe('AccountRecoveryRateLimitGuard', () => {
     expect(RECOVERY_ACCOUNT_TTL_MS).toBe(3_600_000);
   });
 
+  it('counts heavily whitespace-padded valid emails rather than bypassing the quota', async () => {
+    const padded = `${' '.repeat(350)}member@example.test${' '.repeat(350)}`;
+    await expect(guard.canActivate(context(padded))).resolves.toBe(true);
+
+    expect(increment).toHaveBeenCalledTimes(1);
+    const key = increment.mock.calls[0]?.[0] as string;
+    expect(key).toMatch(/^account-recovery:[a-f0-9]{64}$/);
+    const dto = plainToInstance(EmailDto, { email: padded });
+    expect(dto.email).toBe('member@example.test');
+    expect(validateSync(dto)).toHaveLength(0);
+  });
+
   it('rejects a blocked identity with a standard 429 before calling the controller', async () => {
     increment.mockResolvedValue({ isBlocked: true });
 
