@@ -8,7 +8,7 @@
 - `types/` provides request/actor/input types and Prisma-derived public response types independent of repository method signatures.
 - `policies/` contains pure role/pagination guards without infrastructure dependencies.
 - `utils/` contains canonical Idempotency-Key hashing/validation, preserving byte-for-byte behavior.
-- `dto/` retains Zod validation and `test/` covers the compatibility contract.
+- `dto/` retains Zod validation; `controllers/` owns HTTP contracts; `test/controllers/` covers route metadata and service delegation; `test/` covers domain, repository and schema regressions.
 
 ## Invariants
 
@@ -22,3 +22,11 @@
 ## CI verification
 
 Prisma validate/generate, lint, TS build, native ESM aliases, OpenAPI generation/schema contracts, unit tests, PostgreSQL integration/E2E (especially concurrent set completion, program assignments, idempotency), coverage, dependency audit and production Docker smoke all must pass before merge.
+
+## Controller organization (PR #99)
+
+- `controllers/workouts.controller.ts` retains all nine existing HTTP endpoints, Zod request contracts, authentication, throttling, the optional Idempotency-Key and OpenAPI schemas.
+- `workouts.module.ts` registers this controller from `controllers/` without changing its providers or exports.
+- `test/controllers/` contains regression coverage of the nine method/path pairs, three explicit lifecycle HTTP 200 overrides, delegation and idempotency key forwarding.
+- The endpoint throttling policy test imports the new native `#src` location; imports within this feature module remain relative with `.js` suffixes.
+- API paths, service behavior, concurrency/transaction policies, database schema and dependency versions are unchanged.

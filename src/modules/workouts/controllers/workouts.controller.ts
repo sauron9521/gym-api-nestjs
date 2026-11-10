@@ -15,9 +15,9 @@ import {
 import type {
   CreateWorkoutFromProgramInput,
   WorkoutActor,
-} from './types/workout.types.js';
+} from '../types/workout.types.js';
 
-import { createWorkoutFromProgramSchema } from './dto/create-workout-from-program.dto.js';
+import { createWorkoutFromProgramSchema } from '../dto/create-workout-from-program.dto.js';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags, ApiOkResponse, ApiCreatedResponse, ApiQuery } from '@nestjs/swagger';
@@ -28,29 +28,29 @@ import {
   workoutSetResponseSchema,
 } from '#src/infra/openapi/response-contracts';
 
-import { WorkoutsService } from './services/workouts.service.js';
+import { WorkoutsService } from '../services/workouts.service.js';
 
-import { workoutIdSchema, workoutSetIdSchema } from './dto/workout.schemas.js';
+import { workoutIdSchema, workoutSetIdSchema } from '../dto/workout.schemas.js';
 
 import {
   type CreateWorkoutDto,
   createWorkoutSchema,
-} from './dto/create-workout.dto.js';
+} from '../dto/create-workout.dto.js';
 
 import {
   type UpdateWorkoutDto,
   updateWorkoutSchema,
-} from './dto/update-workout.dto.js';
+} from '../dto/update-workout.dto.js';
 
 import {
   type QueryWorkoutsDto,
   queryWorkoutsSchema,
-} from './dto/query-workouts.dto.js';
+} from '../dto/query-workouts.dto.js';
 
 import {
   type UpdateWorkoutSetDto,
   updateWorkoutSetSchema,
-} from './dto/update-workout-set.dto.js';
+} from '../dto/update-workout-set.dto.js';
 
 @ApiTags('Workouts')
 @ApiCookieAuth('sessionCookie')
