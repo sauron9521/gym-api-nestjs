@@ -1,0 +1,171 @@
+# Executed by promtool test rules in CI. No real monitoring backend required.
+rule_files:
+  - alerts.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "missing snapshot is not immediate, but fires after five minutes"
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GymApiMonitoringSnapshotMissing
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: GymApiMonitoringSnapshotMissing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Gym API monitoring snapshot is missing"
+
+  - name: "stale last successful publication triggers after fifteen minutes"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "0+0x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GymApiMonitoringSnapshotStale
+        exp_alerts: []
+      - eval_time: 22m
+        alertname: GymApiMonitoringSnapshotStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Gym API monitoring snapshot has not updated for 15 minutes"
+      - eval_time: 22m
+        alertname: GymApiMonitoringSnapshotMissing
+        exp_alerts: []
+
+  - name: "429 503 and readiness alerts require sustained errors"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "2000+0x10"
+      - series: gym_api_monitor_http_requests_window_5m
+        values: "20+0x10"
+      - series: gym_api_monitor_http_429_window_5m
+        values: "4+0x10"
+      - series: gym_api_monitor_http_503_window_5m
+        values: "1+0x10"
+      - series: gym_api_monitor_live_probe_success
+        values: "1+0x10"
+      - series: gym_api_monitor_ready_probe_success
+        values: "0+0x10"
+      - series: gym_api_monitor_redis_outages_window_5m
+        values: "1+0x10"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: GymApiReadinessFailed
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: GymApiReadinessFailed
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API readiness probe failed"
+      - eval_time: 4m
+        alertname: GymApiHttp503Elevated
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API HTTP 503 share exceeds 5 percent"
+      - eval_time: 4m
+        alertname: GymApiHttp429Elevated
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API HTTP 429 share exceeds 20 percent"
+      - eval_time: 4m
+        alertname: GymApiRedisOutageObserved
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API observed a Redis outage in the last report window"
+
+  - name: "small traffic sample never trips HTTP ratio alerts"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "2000+0x8"
+      - series: gym_api_monitor_http_requests_window_5m
+        values: "19+0x8"
+      - series: gym_api_monitor_http_429_window_5m
+        values: "10+0x8"
+      - series: gym_api_monitor_http_503_window_5m
+        values: "9+0x8"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: GymApiHttp429Elevated
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: GymApiHttp503Elevated
+        exp_alerts: []
+
+  - name: "healthy signals do not trigger false alarms"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "2000+0x8"
+      - series: gym_api_monitor_live_probe_success
+        values: "1+0x8"
+      - series: gym_api_monitor_ready_probe_success
+        values: "1+0x8"
+      - series: gym_api_monitor_http_requests_window_5m
+        values: "40+0x8"
+      - series: gym_api_monitor_http_429_window_5m
+        values: "0+0x8"
+      - series: gym_api_monitor_http_503_window_5m
+        values: "0+0x8"
+      - series: gym_api_monitor_redis_outages_window_5m
+        values: "0+0x8"
+      - series: node_textfile_scrape_error
+        values: "0+0x8"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: GymApiMonitoringSnapshotMissing
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: GymApiReadinessFailed
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: GymApiLivenessFailed
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: GymApiHttp503Elevated
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: GymApiHttp429Elevated
+        exp_alerts: []
+
+  - name: "unconfigured health check differs from failed probe"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "3000+0x25"
+      - series: gym_api_monitor_ready_probe_success
+        values: "-1+0x25"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: GymApiHealthProbeNotConfigured
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API active readiness check is not configured"
+      - eval_time: 18m
+        alertname: GymApiReadinessFailed
+        exp_alerts: []
+
+  - name: "node exporter textfile parsing errors trigger alert"
+    interval: 1m
+    input_series:
+      - series: node_textfile_scrape_error
+        values: "1+0x8"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GymApiMonitoringTextfileReadError
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Node exporter cannot read one or more textfile snapshots"
