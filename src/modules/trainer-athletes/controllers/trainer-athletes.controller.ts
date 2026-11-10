@@ -17,26 +17,26 @@ import {
   trainerAthleteListResponseSchema,
 } from '#src/infra/openapi/response-contracts';
 
-import { TrainerAthletesService } from './services/trainer-athletes.service.js';
+import { TrainerAthletesService } from '../services/trainer-athletes.service.js';
 
-import type { TrainerAthleteActor } from './types/trainer-athlete.types.js';
+import type { TrainerAthleteActor } from '../types/trainer-athlete.types.js';
 
-import { trainerAthleteIdSchema } from './dto/trainer-athlete.schemas.js';
+import { trainerAthleteIdSchema } from '../dto/trainer-athlete.schemas.js';
 
 import {
   type CreateTrainerAthleteDto,
   createTrainerAthleteSchema,
-} from './dto/create-trainer-athlete.dto.js';
+} from '../dto/create-trainer-athlete.dto.js';
 
 import {
   type QueryTrainerAthletesDto,
   queryTrainerAthletesSchema,
-} from './dto/query-trainer-athletes.dto.js';
+} from '../dto/query-trainer-athletes.dto.js';
 
 import {
   type TerminateTrainerAthleteDto,
   terminateTrainerAthleteSchema,
-} from './dto/terminate-trainer-athlete.dto.js';
+} from '../dto/terminate-trainer-athlete.dto.js';
 
 @ApiTags('Trainer & Athlete Relationships')
 @ApiCookieAuth('sessionCookie')
