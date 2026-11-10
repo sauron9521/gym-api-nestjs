@@ -30,7 +30,7 @@ export class SessionsController {
   @Get('sessions')
   async list(
     @CurrentUser('id') userId: string,
-    @CurrentSession() current: SessionRecord,
+    @CurrentSession() current: SessionRecord | undefined,
   ) {
     const sessions = await this.sessionService.list(userId);
 
@@ -39,7 +39,7 @@ export class SessionsController {
       createdAt,
       lastActiveAt,
       userAgent: metadata?.userAgent ?? null,
-      current: id === current.id,
+      current: id === current?.id,
     }));
   }
 

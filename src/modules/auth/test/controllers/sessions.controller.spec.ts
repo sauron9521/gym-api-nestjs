@@ -60,6 +60,34 @@ describe('SessionsController', () => {
     expect(sessionService.list).toHaveBeenCalledWith('user-1');
   });
 
+  it('marks every session as non-current for JWT-only authentication', async () => {
+    const { controller, sessionService } = makeController();
+    const record = {
+      id: 'session-one',
+      userId: 'user-1',
+      createdAt: new Date('2026-11-10T10:00:00.000Z'),
+      expiresAt: new Date('2026-11-17T10:00:00.000Z'),
+      lastActiveAt: new Date('2026-11-10T10:10:00.000Z'),
+      metadata: {
+        userAgent: 'Browser A',
+        ip: '192.0.2.2',
+        authSecret: 'must-not-leak',
+      },
+    } as SessionRecord;
+    sessionService.list.mockResolvedValue([record]);
+
+    await expect(controller.list('user-1', undefined)).resolves.toEqual([
+      {
+        id: record.id,
+        createdAt: record.createdAt,
+        lastActiveAt: record.lastActiveAt,
+        userAgent: 'Browser A',
+        current: false,
+      },
+    ]);
+    expect(sessionService.list).toHaveBeenCalledExactlyOnceWith('user-1');
+  });
+
   it('revokes a session scoped to the authenticated user', async () => {
     const { controller, sessionService } = makeController();
     sessionService.revoke.mockResolvedValue(true);
