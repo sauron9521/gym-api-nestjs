@@ -3,19 +3,17 @@ name: CI
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
     branches:
       - main
-      - master
   workflow_dispatch:
 
 # Jobs only require repository read access. No privileged PR token.
 permissions:
   contents: read
 
-# Isolate push and pull_request concurrency groups. Otherwise the PR event
-# cancels its branch push and the aggregate gate correctly reports a failure.
+# Keep main-push and PR runs in separate concurrency groups.
 # Preserve every main-branch push as a release-verification baseline.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
