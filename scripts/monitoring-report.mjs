@@ -170,7 +170,12 @@ async function main() {
   try {
     const { baseUrl } = parseArgs(process.argv.slice(2));
     const summary = emptySummary();
-    for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
+    // Permit a probe-only one-shot run from an interactive terminal.
+    // When stdin is piped, consume only that caller-selected log window.
+    const lines = process.stdin.isTTY
+      ? []
+      : createInterface({ input: process.stdin, crlfDelay: Infinity });
+    for await (const line of lines) {
       addLogLine(summary, line);
     }
     const health = baseUrl ? await probeHealth(baseUrl) : null;
