@@ -6,20 +6,20 @@ import {
   trainingProgramResponseSchema,
   trainingProgramListResponseSchema,
 } from '#src/infra/openapi/response-contracts';
-import { TrainingProgramsService } from './services/training-programs.service.js';
-import type { TrainingProgramActor } from './types/training-program.types.js';
+import { TrainingProgramsService } from '../services/training-programs.service.js';
+import type { TrainingProgramActor } from '../types/training-program.types.js';
 
-import { trainingProgramIdSchema } from './dto/training-program.schemas.js';
+import { trainingProgramIdSchema } from '../dto/training-program.schemas.js';
 
 import {
   type CreateTrainingProgramDto,
   createTrainingProgramSchema,
-} from './dto/create-training-program.dto.js';
+} from '../dto/create-training-program.dto.js';
 
 import {
   type QueryTrainingProgramsDto,
   queryTrainingProgramsSchema,
-} from './dto/query-training-programs.dto.js';
+} from '../dto/query-training-programs.dto.js';
 
 @ApiTags('Training Programs')
 @ApiCookieAuth('sessionCookie')
