@@ -312,4 +312,71 @@ describe('Password reset security (HTTP + PostgreSQL)', () => {
       }),
     ).toBe(0);
   });
+  it('allows only one of two concurrent HTTP requests to reset with the same token', async () => {
+    const token = await requestResetLink();
+    const attempts = await Promise.all([
+      request(app.getHttpServer())
+        .post('/auth/password-reset/reset')
+        .send({ token, password: newPassword }),
+      request(app.getHttpServer())
+        .post('/auth/password-reset/reset')
+        .send({ token, password: newPassword }),
+    ]);
+
+    expect(attempts.map((response) => response.status).sort()).toEqual([
+      200,
+      400,
+    ]);
+    for (const response of attempts) {
+      expect(response.headers['cache-control']).toBe('no-store');
+    }
+    expect(attempts.find((response) => response.status === 200)?.body).toEqual({
+      mfaRequired: false,
+    });
+    expect(
+      JSON.stringify(attempts.find((response) => response.status === 400)?.body),
+    ).not.toContain(token);
+    expect(
+      await prisma.emailToken.count({
+        where: { userId, purpose: 'password-reset' },
+      }),
+    ).toBe(0);
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password: oldPassword })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password: newPassword })
+      .expect(200);
+  });
+
+  it('rejects a reset link issued before account soft-delete without changing its password', async () => {
+    const token = await requestResetLink();
+    const original = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date() },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/password-reset/reset')
+      .send({ token, password: newPassword });
+
+    expect([400, 404]).toContain(response.status);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(
+      await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { passwordHash: true },
+      }),
+    ).toEqual(original);
+    expect(await prisma.session.count({ where: { userId } })).toBe(0);
+  });
+
 });

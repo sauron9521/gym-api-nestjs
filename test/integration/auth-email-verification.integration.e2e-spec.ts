@@ -293,4 +293,128 @@ describe('Email verification security (HTTP + PostgreSQL)', () => {
       emailVerified: false,
     });
   });
+  it('allows only one of two concurrent HTTP requests to consume a verification token', async () => {
+    const account = await register();
+
+    const attempts = await Promise.all([
+      request(app.getHttpServer())
+        .post('/auth/email/verify')
+        .send({ token: account.token }),
+      request(app.getHttpServer())
+        .post('/auth/email/verify')
+        .send({ token: account.token }),
+    ]);
+
+    expect(attempts.map((response) => response.status).sort()).toEqual([
+      200,
+      400,
+    ]);
+    for (const response of attempts) {
+      expect(response.headers['cache-control']).toBe('no-store');
+    }
+    expect(attempts.find((response) => response.status === 200)?.body).toEqual({
+      email: account.email,
+      emailVerified: true,
+    });
+    expect(
+      JSON.stringify(attempts.find((response) => response.status === 400)?.body),
+    ).not.toContain(account.token);
+
+    expect(
+      await prisma.user.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { emailVerified: true },
+      }),
+    ).toEqual({ emailVerified: true });
+    expect(
+      await prisma.emailToken.count({ where: { userId: account.id } }),
+    ).toBe(0);
+  });
+
+  it('keeps reset and verification tokens isolated by purpose without consuming the wrong link', async () => {
+    const account = await register();
+    const priorDeliveries = deliveries.filter(
+      (delivery) => delivery.to === account.email,
+    ).length;
+    await request(app.getHttpServer())
+      .post('/auth/password-reset/forgot')
+      .send({ email: account.email })
+      .expect(202);
+    const resetToken = await deliveredToken(account.email, priorDeliveries);
+    expect(resetToken).not.toBe(account.token);
+
+    const before = await prisma.emailToken.findMany({
+      where: { userId: account.id },
+      select: { id: true, purpose: true },
+      orderBy: { id: 'asc' },
+    });
+    expect(before).toHaveLength(2);
+    expect(new Set(before.map((token) => token.purpose)).size).toBe(2);
+
+    const wrongVerification = await request(app.getHttpServer())
+      .post('/auth/email/verify')
+      .send({ token: resetToken })
+      .expect(400);
+    const wrongReset = await request(app.getHttpServer())
+      .post('/auth/password-reset/reset')
+      .send({ token: account.token, password: 'UpdatedPassword456!' })
+      .expect(400);
+    expect(wrongVerification.headers['cache-control']).toBe('no-store');
+    expect(wrongReset.headers['cache-control']).toBe('no-store');
+
+    expect(
+      await prisma.emailToken.findMany({
+        where: { userId: account.id },
+        select: { id: true, purpose: true },
+        orderBy: { id: 'asc' },
+      }),
+    ).toEqual(before);
+
+    expect(
+      await prisma.user.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { emailVerified: true },
+      }),
+    ).toEqual({ emailVerified: false });
+
+    // The failed cross-purpose attempts must leave both links usable.
+    await request(app.getHttpServer())
+      .post('/auth/email/verify')
+      .send({ token: account.token })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/auth/password-reset/reset')
+      .send({ token: resetToken, password: 'UpdatedPassword456!' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: account.email, password })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: account.email, password: 'UpdatedPassword456!' })
+      .expect(200);
+  });
+
+  it('never verifies a soft-deleted account with a previously issued link', async () => {
+    const account = await register();
+    await prisma.user.update({
+      where: { id: account.id },
+      data: { deletedAt: new Date() },
+    });
+
+    const denied = await request(app.getHttpServer())
+      .post('/auth/email/verify')
+      .send({ token: account.token });
+    expect([400, 404]).toContain(denied.status);
+    expect(denied.headers['cache-control']).toBe('no-store');
+    expect(
+      await prisma.user.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { emailVerified: true },
+      }),
+    ).toEqual({ emailVerified: false });
+  });
+
 });
