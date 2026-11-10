@@ -49,6 +49,20 @@ describe('TrainingProgramsController', () => {
 
     expect(service.findMany).toHaveBeenCalledWith(actor, query);
   });
+  it('should return the requested program for the current actor', async () => {
+    const result = { id: 'program-1', title: 'Program 1' };
+    service.findOne.mockResolvedValue(result);
 
+    await expect(controller.findOne('program-1', actor)).resolves.toBe(result);
+    expect(service.findOne).toHaveBeenCalledWith('program-1', actor);
+  });
+
+  it('should archive a program using the current actor', async () => {
+    const result = { id: 'program-1', status: 'ARCHIVED' };
+    service.archive.mockResolvedValue(result);
+
+    await expect(controller.archive('program-1', actor)).resolves.toBe(result);
+    expect(service.archive).toHaveBeenCalledWith('program-1', actor);
+  });
 
 });
