@@ -104,6 +104,9 @@ jobs:
           npm run test:architecture:deps
           npm run test:architecture:imports
 
+      - name: Test production monitoring reports without external services
+        run: npm run test:monitoring
+
       - name: Validate backup tooling without production credentials
         run: |
           bash -n scripts/backup-production.sh scripts/test-backup-production.sh

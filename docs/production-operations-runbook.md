@@ -140,9 +140,16 @@ duration and safe error codes. Forward stdout/stderr to a central system
 with retention and redaction. Do not add raw cookies, JWTs, request bodies,
 client IPs, PostgreSQL/Redis URLs, or email verification links.
 
+**One-shot report (PR #125):** `npm run monitoring:report` reads a
+caller-supplied, time-bounded JSON-lines log batch, computes 429/503 and
+Redis transition counts, and optionally probes both health endpoints.
+See [production monitoring starter](production-monitoring-alerts.md) for
+CLI usage, initial thresholds, the exit-code contract and privacy rules.
+This is not a scheduled task or externally configured alert.
+
 **No Prometheus endpoint, OpenTelemetry collector or external alerting
-service is provisioned by this PR.** The table defines the operational
-signals to configure at your hosting/monitoring provider.
+service is provisioned.** Operators still need to configure periodic
+execution, centralized log ingestion, external health probes and paging.
 
 ## 5. Incident/rollback decision tree
 
