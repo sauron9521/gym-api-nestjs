@@ -8,6 +8,7 @@ import {
   UseGuards,
   type INestApplication,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -37,13 +38,18 @@ redisDescribe('Account recovery throttle (two Redis-backed HTTP apps)', () => {
       get: (name: string) => name === 'REDIS_URL' ? redisUrl : undefined,
     } as never);
     storages.push(storage);
-    const guard = new AccountRecoveryRateLimitGuard(
-      storage,
-      { getOrThrow: () => 'shared-recovery-HMAC-key-for-Redis-integration' } as never,
-    );
     const moduleRef = await Test.createTestingModule({
       controllers: [RecoveryTestController],
-      providers: [{ provide: AccountRecoveryRateLimitGuard, useValue: guard }],
+      providers: [
+        { provide: DistributedThrottlerStorage, useValue: storage },
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: () => 'shared-recovery-HMAC-key-for-Redis-integration',
+          },
+        },
+        AccountRecoveryRateLimitGuard,
+      ],
     }).compile();
     const app = moduleRef.createNestApplication();
     await app.init();
