@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseModuleImports } from './import-parser.mjs';
+
 function filesUnder(directory) {
   if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true })
@@ -10,15 +12,6 @@ function filesUnder(directory) {
       return entry.isDirectory() ? filesUnder(path) : entry.isFile() ? [path] : [];
     })
     .sort();
-}
-
-function importsIn(source) {
-  const imports = [];
-  const importPattern = /\b(?:from\s*|import\s*\(\s*|import\s*)['"]([^'"]+)['"]/g;
-  for (const match of source.matchAll(importPattern)) {
-    imports.push(match[1]);
-  }
-  return imports;
 }
 
 function isOutside(directory, target) {
@@ -135,7 +128,8 @@ export function checkArchitecture(repositoryRoot) {
         errors.push(`${display(moduleFile)}: ${className} not registered`);
       }
 
-      if (!importsIn(moduleSource).includes(expectedImport)) {
+      if (!parseModuleImports(moduleSource, moduleFile).some((entry) =>
+        entry.path === expectedImport && !entry.typeOnly)) {
         errors.push(`${display(moduleFile)}: import controller directly from '${expectedImport}'`);
       }
 
@@ -170,7 +164,12 @@ export function checkArchitecture(repositoryRoot) {
       const sourceLayer = domainLayers.find(
         (layer) => dirname(file) === join(directory, layer),
       );
-      for (const specifier of importsIn(readFileSync(file, 'utf8'))) {
+      for (const imported of parseModuleImports(readFileSync(file, 'utf8'), file)) {
+        if (imported.path === null) {
+          errors.push(`${display(file)}:${imported.line}: computed dynamic import cannot be checked statically; use a string literal`);
+          continue;
+        }
+        const specifier = imported.path;
         if (specifier.startsWith('@src/') || specifier.startsWith('@prisma/')) {
           errors.push(`${display(file)}: use native #src/#prisma instead of '${specifier}'`);
         } else if (specifier.startsWith('#src/') || specifier.startsWith('#prisma/')) {
