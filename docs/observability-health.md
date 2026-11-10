@@ -62,6 +62,15 @@ recovery event plus successful readiness before considering the backend
 healthy again. Logs are not a substitute for metrics or a monitoring
 backend; no new metrics endpoint is added by this PR.
 
+## Operator monitoring report (PR #125)
+
+The optional `npm run monitoring:report` CLI aggregates safe HTTP 429/503
+and Redis outage/recovery events from a caller-filtered JSON-lines log
+batch, and can probe `/health/live` plus `/health/ready`. It emits only
+fixed alert codes and low-cardinality counters; it never prints raw log
+lines or probe URLs. It is one-shot and does not schedule checks or send
+notifications. Details: [monitoring and alert rules](production-monitoring-alerts.md).
+
 The implementation adds no packages. Future multi-instance observability
 can integrate Pino/OpenTelemetry, trace propagation, central log shipping,
 metrics and alerting.
