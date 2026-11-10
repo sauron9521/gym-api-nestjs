@@ -4,6 +4,7 @@ import { ExercisesModule } from '#src/modules/exercises/exercises.module';
 import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-athletes.module';
 
 import { TrainingProgramsController } from './training-programs.controller.js';
+import { TrainingProgramAssignmentsController } from './training-program-assignments.controller.js';
 import { TrainingProgramsService } from './services/training-programs.service.js';
 
 import { TrainingProgramCrudRepository } from './repositories/training-program-crud.repository.js';
@@ -24,7 +25,8 @@ import { TrainingProgramAssignmentService } from './services/training-program-as
 @Module({
   imports: [ExercisesModule, TrainerAthletesModule],
   exports: [TrainingProgramsService],
-  controllers: [TrainingProgramsController],
+  // Register literal /assignments routes before /:programId.
+  controllers: [TrainingProgramAssignmentsController, TrainingProgramsController],
   providers: [
     TrainingProgramsService,
 
