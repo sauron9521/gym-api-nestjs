@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ExercisesController } from '#src/modules/exercises/exercises.controller';
+import { ExercisesController } from '#src/modules/exercises/controllers/exercises.controller';
 import { WorkoutsController } from '#src/modules/workouts/workouts.controller';
 import { WorkoutAnalyticsController } from '#src/modules/workout-analytics/workout-analytics.controller';
 import { AuthController } from '#src/modules/auth/controllers/auth.controller';
