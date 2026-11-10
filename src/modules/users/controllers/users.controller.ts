@@ -5,16 +5,16 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiCookieAuth, ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AvatarService } from './avatar/avatar.service.js';
-import type { AvatarUploadFile } from './avatar/avatar-validation.js';
-import { MAX_AVATAR_SIZE } from './avatar/avatar-validation.js';
+import { AvatarService } from '../avatar/avatar.service.js';
+import type { AvatarUploadFile } from '../avatar/avatar-validation.js';
+import { MAX_AVATAR_SIZE } from '../avatar/avatar-validation.js';
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 
-import { UsersService } from './services/users.service.js';
+import { UsersService } from '../services/users.service.js';
 import {
   type UpdateMyProfileDto,
   updateMyProfileSchema,
-} from './dto/update-my-profile.dto.js';
+} from '../dto/update-my-profile.dto.js';
 
 type UserActor = { id: string };
 
