@@ -70,3 +70,12 @@ No Prisma schema or migration changes, no new packages, and no changes
 to login, password reset, session revocation, token validation or
 verification confirmation. The only intentional API behavior change
 is 429 after five accepted resends for the same user within one hour.
+
+## Shared implementation (PR #122)
+
+The resend guard validates the authenticated user and preserves 401/409
+handling. `AuthAccountThrottleService` handles opaque HMAC-SHA256 keys,
+fixed-window policy values and the same Redis/memory counter. The
+`verificationResend` policy retains the exact pre-refactor namespace,
+TTL, request limit and storage tracker. Existing IP throttling and
+202/429/503 response behavior are unchanged.
