@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EmailVerificationController } from '../../controllers/email-verification.controller.js';
 import { VerificationResendRateLimitGuard } from '../../guards/verification-resend-rate-limit.guard.js';
+import { AuthAccountThrottleService } from '../../services/auth-account-throttle.service.js';
 import { DistributedThrottlerStorage } from '#src/common/rate-limit/distributed-throttler.storage';
 import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
@@ -29,6 +30,7 @@ describe('EmailVerificationController resend', () => {
       providers: [
         { provide: EmailVerificationService, useValue: verification },
         { provide: DistributedThrottlerStorage, useValue: { increment: vi.fn() } },
+        AuthAccountThrottleService,
         {
           provide: ConfigService,
           useValue: { getOrThrow: () => 'unit-test-secret' },
