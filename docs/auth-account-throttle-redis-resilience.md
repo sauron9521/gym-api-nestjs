@@ -9,9 +9,12 @@ test deliberately interrupted the **real Redis transport** during an
 authenticated auth workflow and checked its recovery.
 
 This test uses a dedicated **TCP fault-injection proxy** in front of the
-existing `TEST_REDIS_URL` Redis service. Only one test Nest application
-connects to that proxy: the shared CI Redis container remains running,
-and other Redis test suites are not affected.
+existing `TEST_REDIS_URL` Redis service. It injects an actual
+`DistributedThrottlerStorage` configured with the proxy URL into both
+account guards, rather than relying on mutable process environment
+variables or a fake storage. Only this Nest test application connects to
+the proxy: the shared CI Redis container remains running, and other
+Redis test suites are not affected.
 
 ## Scenario
 
