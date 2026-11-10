@@ -223,6 +223,103 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
       .expect(200);
   });
 
+  it('revoking one login family does not invalidate another login for the same user', async () => {
+    const first = await issueTokenPair();
+    const second = await issueTokenPair();
+
+    const familiesBefore = await prisma.refreshTokenFamily.findMany({
+      where: { userId },
+      select: { revokedAt: true },
+    });
+    expect(familiesBefore).toHaveLength(2);
+    expect(familiesBefore.every((family) => family.revokedAt === null)).toBe(
+      true,
+    );
+
+    await request(app.getHttpServer())
+      .post('/auth/token/revoke')
+      .send({ refreshToken: first.refreshToken })
+      .expect(204);
+
+    await expectRefreshUnauthorized(first.refreshToken);
+
+    const otherLogin = await request(app.getHttpServer())
+      .post('/auth/token/refresh')
+      .send({ refreshToken: second.refreshToken })
+      .expect(200);
+
+    expect(otherLogin.body.refreshToken).not.toBe(second.refreshToken);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${otherLogin.body.accessToken}`)
+      .expect(200);
+
+    const familiesAfter = await prisma.refreshTokenFamily.findMany({
+      where: { userId },
+      select: { revokedAt: true },
+    });
+    expect(familiesAfter.filter((family) => family.revokedAt !== null)).toHaveLength(1);
+    expect(familiesAfter.filter((family) => family.revokedAt === null)).toHaveLength(1);
+  });
+
+  it('replaying one rotated token never revokes an unrelated login family', async () => {
+    const compromised = await issueTokenPair();
+    const independent = await issueTokenPair();
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/token/refresh')
+      .send({ refreshToken: compromised.refreshToken })
+      .expect(200);
+
+    const rotated = response.body as TokenPair;
+    expect(rotated.refreshToken).not.toBe(compromised.refreshToken);
+
+    // Reuse must quarantine only the compromised token family.
+    await expectRefreshUnauthorized(compromised.refreshToken);
+    await expectRefreshUnauthorized(rotated.refreshToken);
+
+    const otherLogin = await request(app.getHttpServer())
+      .post('/auth/token/refresh')
+      .send({ refreshToken: independent.refreshToken })
+      .expect(200);
+
+    expect(otherLogin.body.refreshToken).not.toBe(independent.refreshToken);
+
+    const families = await prisma.refreshTokenFamily.findMany({
+      where: { userId },
+      select: { revokedAt: true },
+    });
+    expect(families).toHaveLength(2);
+    expect(families.filter((family) => family.revokedAt !== null)).toHaveLength(1);
+    expect(families.filter((family) => family.revokedAt === null)).toHaveLength(1);
+  });
+
+  it('rejects token issuance, refresh and bearer access after the owner is soft-deleted', async () => {
+    const tokens = await issueTokenPair();
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date() },
+      select: { id: true },
+    });
+
+    await request(app.getHttpServer())
+      .post('/auth/token')
+      .send({ email, password })
+      .expect(401);
+
+    await expectRefreshUnauthorized(tokens.refreshToken);
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${tokens.accessToken}`)
+      .expect(401);
+
+    // Soft deletion denies authentication without silently deleting audit rows.
+    expect(await prisma.refreshToken.count({ where: { userId } })).toBe(1);
+    expect(await prisma.refreshTokenFamily.count({ where: { userId } })).toBe(1);
+  });
+
   it('should reject an empty password when issuing tokens', async () => {
     await request(app.getHttpServer())
       .post('/auth/token')
