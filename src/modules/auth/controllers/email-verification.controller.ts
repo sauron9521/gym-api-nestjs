@@ -12,11 +12,13 @@ import {
   Logger,
   Post,
   ServiceUnavailableException,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { AuthNoStoreInterceptor } from '../interceptors/auth-no-store.interceptor.js';
 import { Throttle } from '@nestjs/throttler';
 import { VerificationTokenDto } from '../dto/auth.dto.js';
+import { VerificationResendRateLimitGuard } from '../guards/verification-resend-rate-limit.guard.js';
 import type { UserResponse } from '#src/modules/users/types/user-payload.types';
 
 @UseInterceptors(AuthNoStoreInterceptor)
@@ -41,6 +43,7 @@ export class EmailVerificationController {
   }
 
   @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @UseGuards(VerificationResendRateLimitGuard)
   @Post('verification')
   @HttpCode(202)
   async resend(@CurrentUser() user: UserResponse): Promise<void> {
