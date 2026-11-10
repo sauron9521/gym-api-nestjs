@@ -35,9 +35,9 @@ export class ExerciseTrainerAccessRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Lock the exercise and active relationship before writing. The exercise
-   * row lock serializes concurrent visibility changes and archiving; the
-   * relationship row lock serializes termination and grant creation.
+   * Lock the active relationship before the exercise, matching termination.
+   * The relationship lock serializes termination and grant creation; the
+   * exercise lock serializes concurrent visibility changes and archiving.
    */
   async grant(
     exerciseId: string,
@@ -45,6 +45,22 @@ export class ExerciseTrainerAccessRepository {
     trainerId: string,
   ): Promise<GrantTrainerAccessResult> {
     return this.prisma.$transaction(async (tx) => {
+      // Always lock the relationship first, matching termination's lock order.
+      // Taking the exercise lock first can deadlock with termination, which
+      // locks the relationship before revoking exercise grants.
+      const relationships = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM trainer_athletes
+        WHERE athlete_id = ${athleteId}
+          AND trainer_id = ${trainerId}
+          AND status = 'ACTIVE'
+        FOR UPDATE
+      `;
+
+      if (!relationships.length) {
+        return { status: 'NO_ACTIVE_RELATIONSHIP' };
+      }
+
       const exercises = await tx.$queryRaw<ExerciseLockRow[]>`
         SELECT id, visibility::text AS visibility
         FROM exercises
@@ -62,20 +78,6 @@ export class ExerciseTrainerAccessRepository {
 
       if (exercise.visibility !== 'SELECTED_TRAINERS') {
         return { status: 'PRIVATE' };
-      }
-
-      // Termination transitions this same relationship row first.
-      const relationships = await tx.$queryRaw<{ id: string }[]>`
-        SELECT id
-        FROM trainer_athletes
-        WHERE athlete_id = ${athleteId}
-          AND trainer_id = ${trainerId}
-          AND status = 'ACTIVE'
-        FOR UPDATE
-      `;
-
-      if (!relationships.length) {
-        return { status: 'NO_ACTIVE_RELATIONSHIP' };
       }
 
       const grant = await tx.exerciseTrainerAccess.upsert({
