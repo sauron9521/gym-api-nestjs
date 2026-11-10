@@ -520,6 +520,7 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
 
     let athleteId: string | undefined;
     let relationshipId: string | undefined;
+    let renewedRelationshipId: string | undefined;
     let assignmentId: string | undefined;
 
     try {
@@ -795,11 +796,55 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
 
       // Individual workout data must not be exposed.
       expect(after.body).not.toHaveProperty('workouts');
+
+      // Starting a new relationship with the same trainer must NOT restore
+      // access to the terminated assignment's historical private fields.
+      const renewed = await prisma.trainerAthlete.create({
+        data: {
+          trainerId,
+          athleteId: athlete.id,
+          initiatedById: trainerId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      renewedRelationshipId = renewed.id;
+
+      const [renewedDetails, renewedList] = await Promise.all([
+        request(app!.getHttpServer())
+          .get(detailsUrl)
+          .set('Cookie', trainerCookie),
+        request(app!.getHttpServer())
+          .get('/training-programs/assignments')
+          .set('Cookie', trainerCookie)
+          .query({ page: 1, limit: 100 }),
+      ]);
+
+      expect(renewedDetails.status).toBe(200);
+      expect(renewedList.status).toBe(200);
+      const previousAssignment = (renewedList.body.data as AssignmentListItem[])
+        .find((item) => item.id === assignment.id);
+      expect(previousAssignment).toBeDefined();
+
+      for (const historical of [renewedDetails.body, previousAssignment]) {
+        expect(historical).toMatchObject({
+          id: assignment.id,
+          status: 'TERMINATED',
+          trainerAthlete: { status: 'TERMINATED' },
+        });
+        expect(historical).not.toHaveProperty('workouts');
+        expect(historical.athlete).not.toHaveProperty('email');
+        expect(JSON.stringify(historical)).not.toContain(athlete.email);
+      }
     } finally {
       if (assignmentId) {
         await prisma.trainingProgramAssignment.deleteMany({
           where: { id: assignmentId },
         });
+      }
+
+      if (renewedRelationshipId) {
+        await prisma.trainerAthlete.deleteMany({ where: { id: renewedRelationshipId } });
       }
 
       if (relationshipId) {
