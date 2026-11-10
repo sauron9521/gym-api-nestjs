@@ -73,6 +73,12 @@ export class PrismaSessionStore implements SessionStore {
     return sessions.map(toSessionRecord);
   }
 
+  async deleteExpiredSessions(now: Date): Promise<void> {
+    await this.prisma.session.deleteMany({
+      where: { expiresAt: { lte: now } },
+    });
+  }
+
   async deleteUserSessions(userId: string): Promise<void> {
     await this.prisma.session.deleteMany({
       where: { userId },

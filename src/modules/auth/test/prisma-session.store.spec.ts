@@ -143,6 +143,16 @@ describe('PrismaSessionStore', () => {
     expect(result[0].id).toBe(session.id);
   });
 
+  it('deletes only sessions expired at or before the cutoff', async () => {
+    const now = new Date('2026-11-10T03:00:00.000Z');
+
+    await store.deleteExpiredSessions(now);
+
+    expect(prisma.session.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { expiresAt: { lte: now } },
+    });
+  });
+
   it('deletes all sessions for the requested user', async () => {
     await store.deleteUserSessions(session.userId);
 
