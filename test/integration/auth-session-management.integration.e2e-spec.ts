@@ -313,4 +313,117 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
       .expect(200);
     expect(await listWithCookie(activeCookie)).toHaveLength(1);
   });
+
+  it('rejects a cookie after 24 hours of inactivity without affecting another login', async () => {
+    const idleCookie = await login(firstEmail);
+    const activeCookie = await login(firstEmail);
+    const sessions = await listWithCookie(idleCookie);
+    const idleId = sessions.find((session) => session.current)?.id;
+    if (!idleId) {
+      throw new Error('Could not identify the idle session');
+    }
+
+    const lastActiveAt = new Date(Date.now() - 24 * 60 * 60 * 1000 - 120_000);
+    await prisma.session.update({
+      where: { id: idleId },
+      data: { lastActiveAt },
+    });
+
+    // Absolute expiry is still in the future. Idle TTL alone must reject it.
+    const persisted = await prisma.session.findUniqueOrThrow({
+      where: { id: idleId },
+      select: { expiresAt: true },
+    });
+    expect(persisted.expiresAt.getTime()).toBeGreaterThan(Date.now());
+
+    const denied = await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', idleCookie)
+      .expect(401);
+    expect(denied.headers['cache-control']).toBe('no-store');
+
+    await request(app.getHttpServer())
+      .get('/auth/sessions')
+      .set('Cookie', idleCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', activeCookie)
+      .expect(200);
+  });
+
+  it('touches a recently active session and keeps its absolute expiry unchanged', async () => {
+    const cookie = await login(firstEmail);
+    const sessions = await listWithCookie(cookie);
+    const id = sessions.find((session) => session.current)?.id;
+    if (!id) {
+      throw new Error('Could not identify the active session');
+    }
+
+    const absoluteBefore = await prisma.session.findUniqueOrThrow({
+      where: { id },
+      select: { expiresAt: true },
+    });
+    const priorActivity = new Date(Date.now() - 20 * 60 * 1000);
+    await prisma.session.update({
+      where: { id },
+      data: { lastActiveAt: priorActivity },
+    });
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    const refreshed = await prisma.session.findUniqueOrThrow({
+      where: { id },
+      select: { lastActiveAt: true, expiresAt: true },
+    });
+    // Activity should move the idle clock, not the seven-day absolute clock.
+    expect(refreshed.lastActiveAt.getTime()).toBeGreaterThan(
+      priorActivity.getTime(),
+    );
+    expect(refreshed.expiresAt).toEqual(absoluteBefore.expiresAt);
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', cookie)
+      .expect(200);
+  });
+
+  it('sets a seven-day absolute lifetime and rejects an expired session despite recent activity', async () => {
+    const cookie = await login(firstEmail);
+    const sessions = await listWithCookie(cookie);
+    const id = sessions.find((session) => session.current)?.id;
+    if (!id) {
+      throw new Error('Could not identify the session');
+    }
+
+    const stored = await prisma.session.findUniqueOrThrow({
+      where: { id },
+      select: { createdAt: true, expiresAt: true },
+    });
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    expect(
+      Math.abs(
+        stored.expiresAt.getTime() - stored.createdAt.getTime() - sevenDays,
+      ),
+    ).toBeLessThan(5_000);
+
+    // Even a fresh lastActiveAt must not extend an elapsed absolute expiry.
+    await prisma.session.update({
+      where: { id },
+      data: {
+        lastActiveAt: new Date(),
+        expiresAt: new Date(Date.now() - 60_000),
+      },
+    });
+
+    const denied = await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', cookie)
+      .expect(401);
+    expect(denied.headers['cache-control']).toBe('no-store');
+  });
+
 });
