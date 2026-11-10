@@ -2,7 +2,7 @@
 # One-shot, five-minute report for node_exporter's textfile collector.
 # Does NOT install a timer, expose an endpoint, or send notifications.
 set -Eeuo pipefail
-umask 077
+umask 027
 
 : "${API_CONTAINER:?Set API_CONTAINER to the exact Docker container name}"
 : "${MONITOR_API_ORIGIN:?Set MONITOR_API_ORIGIN to an HTTP(S) origin}"
