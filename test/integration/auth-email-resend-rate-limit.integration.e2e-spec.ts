@@ -24,7 +24,7 @@ describe('Email verification resend throttling (HTTP + PostgreSQL)', () => {
   let userId = '';
   let cookie = '';
 
-  const email = \`resend-throttle-\${randomUUID()}@example.test\`;
+  const email = `resend-throttle-${randomUUID()}@example.test`;
   const mailer = { send: vi.fn().mockResolvedValue(undefined) };
 
   beforeAll(async () => {
