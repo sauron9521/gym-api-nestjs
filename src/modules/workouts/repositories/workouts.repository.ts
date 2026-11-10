@@ -1,3 +1,7 @@
+import { Injectable } from '@nestjs/common';
+
+import { Prisma } from '#prisma/client';
+import { PrismaService } from '#src/infra/database/index';
 import { workoutSelect } from '../selects/workout.select.js';
 import { WorkoutQueriesRepository } from './workout-queries.repository.js';
 import { WorkoutCreationRepository } from './workout-creation.repository.js';
