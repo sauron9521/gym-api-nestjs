@@ -13,6 +13,7 @@ import { TokensController } from '../src/modules/auth/controllers/tokens.control
 import { CredentialsService } from '../src/modules/auth/services/credentials.service.js';
 import { AuthNoStoreMiddleware } from '../src/modules/auth/middleware/auth-no-store.middleware.js';
 import { VerificationResendRateLimitGuard } from '../src/modules/auth/guards/verification-resend-rate-limit.guard.js';
+import { AuthAccountThrottleService } from '../src/modules/auth/services/auth-account-throttle.service.js';
 import { DistributedThrottlerStorage } from '../src/common/rate-limit/distributed-throttler.storage.js';
 
 describe('Auth endpoint throttling (HTTP)', () => {
@@ -45,6 +46,7 @@ describe('Auth endpoint throttling (HTTP)', () => {
         { provide: SignInService, useValue: signIn },
         { provide: EmailVerificationService, useValue: verification },
         { provide: DistributedThrottlerStorage, useValue: { increment: vi.fn() } },
+        AuthAccountThrottleService,
         { provide: ConfigService, useValue: { getOrThrow: () => 'test-only' } },
         { provide: TokenService, useValue: tokens },
         { provide: APP_GUARD, useClass: ThrottlerGuard },

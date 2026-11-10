@@ -3,6 +3,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DistributedThrottlerStorage } from '#src/common/rate-limit/distributed-throttler.storage';
+import { AuthAccountThrottleService } from '../services/auth-account-throttle.service.js';
 import {
   VerificationResendRateLimitGuard,
   VERIFICATION_RESEND_USER_LIMIT,
@@ -15,8 +16,10 @@ describe('VerificationResendRateLimitGuard', () => {
     getOrThrow: vi.fn().mockReturnValue('shared-test-secret-32-bytes-or-longer'),
   };
   const guard = new VerificationResendRateLimitGuard(
-    { increment } as unknown as DistributedThrottlerStorage,
-    config as never,
+    new AuthAccountThrottleService(
+      { increment } as unknown as DistributedThrottlerStorage,
+      config as never,
+    ),
   );
 
   function context(id?: string, emailVerified = false): ExecutionContext {

@@ -15,6 +15,7 @@ import { JwtAuth, SessionAuth } from './providers/index.js';
 import { AccountRecoveryRateLimitGuard } from './guards/account-recovery-rate-limit.guard.js';
 import { VerificationResendRateLimitGuard } from './guards/verification-resend-rate-limit.guard.js';
 import { CredentialsService, TokenCleanupService } from './services/index.js';
+import { AuthAccountThrottleService } from './services/auth-account-throttle.service.js';
 import { PrismaSessionStore, PrismaTokenStore } from './stores/index.js';
 
 @Module({
@@ -27,6 +28,7 @@ import { PrismaSessionStore, PrismaTokenStore } from './stores/index.js';
     SessionsController,
   ],
   providers: [
+    AuthAccountThrottleService,
     AccountRecoveryRateLimitGuard,
     VerificationResendRateLimitGuard,
     SessionAuth,

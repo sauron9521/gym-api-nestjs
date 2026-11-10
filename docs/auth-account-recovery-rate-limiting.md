@@ -81,3 +81,12 @@ The new **429** after five hourly requests for one mailbox is intentional
 and applies equally to known and unknown addresses.
 
 Require green CI on the final PR head and review before merging.
+
+## Shared implementation (PR #122)
+
+The recovery guard validates and normalizes the email, while
+`AuthAccountThrottleService` applies the HMAC-SHA256 identity key, the
+fixed-window policy, and the atomic Redis/memory increment. The
+`passwordRecovery` policy retains the exact pre-refactor namespace,
+TTL, request limit and storage tracker. IP throttling and the 202/429
+anti-enumeration behavior are unchanged.
