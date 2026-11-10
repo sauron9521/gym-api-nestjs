@@ -36,12 +36,14 @@ export class AccountRecoveryRateLimitGuard implements CanActivate {
 
     // Invalid requests are handled by DTO validation and the global IP limit.
     // Do not allocate arbitrary keys for malformed or oversized input.
-    if (typeof rawEmail !== 'string' || rawEmail.length > 254) {
+    if (typeof rawEmail !== 'string') {
       return true;
     }
 
+    // Normalize first: a padded but otherwise valid address must not bypass
+    // the quota simply because its raw input exceeds 254 characters.
     const email = normalizeRecoveryEmail(rawEmail);
-    if (!isEmail(email)) {
+    if (email.length > 254 || !isEmail(email)) {
       return true;
     }
 
