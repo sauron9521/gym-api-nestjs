@@ -160,6 +160,35 @@ window boundaries and scheduling delays can overlap or omit events.
 Validate the baseline and alert thresholds in staging before using
 them for operational paging.
 
+## CI validation and alert regression tests (PR #127)
+
+The required CI pipeline validates the optional templates before any operator
+installs them. It runs:
+
+- `npm run test:monitoring` including `monitoring-config.test.mjs`: checks
+  Prometheus alert metric names against actual label-free exporter output,
+  service/timer security properties, five-minute window and unchanged
+  last-run timestamp semantics, and rejects accidental credential fields;
+- `systemd-analyze verify` for both service and timer and
+  `systemd-analyze calendar '*:0/5'` for schedule syntax;
+- the official immutable Prometheus `promtool` image with
+  `check rules` and `test rules`, using
+  `ops/monitoring/alerts.test.yml`.
+
+Rule fixtures cover a missing snapshot after the grace period, a stale
+timestamp even if the old textfile remains available, healthy samples,
+small-sample threshold exclusions, sustained HTTP 429/503, failed and
+unconfigured readiness, Redis outage and node_exporter textfile errors.
+A malformed PromQL expression or a rule that stops firing as expected
+now blocks the PR in CI. No Redis, Prometheus server, alert receiver or
+production credentials are required for these **config tests**.
+
+These tests do **not** validate your target host's actual systemd user,
+permissions, Docker socket access, network reachability or notification
+routing. After installing, repeat the host-side verification and a
+controlled alert drill. Do not enable the optional timer automatically
+as part of CI.
+
 ## 4. Verification and rollback
 
 Check that node_exporter can read the textfile, and that Prometheus
