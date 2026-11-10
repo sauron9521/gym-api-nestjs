@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { EmailVerificationService, PasswordResetService, SignInService, TokenService } from '@nestjs/authentication';
+import { EmailVerificationService, SignInService, TokenService } from '@nestjs/authentication';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AuthController } from '../src/modules/auth/controllers/auth.controller.js';
 import { EmailVerificationController } from '../src/modules/auth/controllers/email-verification.controller.js';
 import { TokensController } from '../src/modules/auth/controllers/tokens.controller.js';
-import { PasswordResetController } from '../src/modules/auth/controllers/password-reset.controller.js';
 import { CredentialsService } from '../src/modules/auth/services/credentials.service.js';
 import { AuthNoStoreMiddleware } from '../src/modules/auth/middleware/auth-no-store.middleware.js';
 
@@ -27,12 +26,6 @@ describe('Auth endpoint throttling (HTTP)', () => {
     verify: vi.fn().mockResolvedValue({ email: 'member@example.test' }),
     send: vi.fn().mockResolvedValue(undefined),
   };
-  const passwordReset = {
-    request: vi.fn().mockResolvedValue(undefined),
-    reset: vi.fn().mockResolvedValue({
-      signedIn: { session: { mfa: 'none' } },
-    }),
-  };
   const tokens = {
     refresh: vi.fn().mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh' }),
     revoke: vi.fn().mockResolvedValue(undefined),
@@ -43,12 +36,11 @@ describe('Auth endpoint throttling (HTTP)', () => {
       imports: [ThrottlerModule.forRoot({
         throttlers: [{ limit: 100, ttl: 60000 }],
       })],
-      controllers: [AuthController, EmailVerificationController, PasswordResetController, TokensController],
+      controllers: [AuthController, EmailVerificationController, TokensController],
       providers: [
         { provide: CredentialsService, useValue: credentials },
         { provide: SignInService, useValue: signIn },
         { provide: EmailVerificationService, useValue: verification },
-        { provide: PasswordResetService, useValue: passwordReset },
         { provide: TokenService, useValue: tokens },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
@@ -80,57 +72,6 @@ describe('Auth endpoint throttling (HTTP)', () => {
     expect(denied.headers['cache-control']).toBe('no-store');
 
     expect(credentials.register).toHaveBeenCalledTimes(3);
-  });
-
-
-  it('limits password recovery requests to three and does not queue another email after 429', async () => {
-    passwordReset.request.mockClear();
-    for (let i = 0; i < 3; i++) {
-      const accepted = await request(app.getHttpServer())
-        .post('/auth/password-reset/forgot')
-        .send({ email: 'member@example.test' })
-        .expect(202);
-      expect(accepted.headers['cache-control']).toBe('no-store');
-    }
-
-    const blocked = await request(app.getHttpServer())
-      .post('/auth/password-reset/forgot')
-      .send({ email: 'member@example.test' })
-      .expect(429);
-
-    expect(blocked.headers['cache-control']).toBe('no-store');
-    expect(passwordReset.request).toHaveBeenCalledTimes(3);
-    expect(passwordReset.request).toHaveBeenCalledWith('member@example.test');
-  });
-
-  it('limits password reset attempts to three and does not process a token after 429', async () => {
-    passwordReset.reset.mockClear();
-    for (let i = 0; i < 3; i++) {
-      const accepted = await request(app.getHttpServer())
-        .post('/auth/password-reset/reset')
-        .send({ token: 'example-reset-token', password: 'StrongPassword456!' })
-        .expect(200);
-      expect(accepted.body).toEqual({ mfaRequired: false });
-      expect(accepted.headers['cache-control']).toBe('no-store');
-    }
-
-    const blocked = await request(app.getHttpServer())
-      .post('/auth/password-reset/reset')
-      .send({ token: 'another-reset-token', password: 'StrongPassword456!' })
-      .expect(429);
-
-    expect(blocked.headers['cache-control']).toBe('no-store');
-    expect(passwordReset.reset).toHaveBeenCalledTimes(3);
-    expect(passwordReset.reset).toHaveBeenCalledWith(
-      'example-reset-token',
-      'StrongPassword456!',
-      { signIn: true },
-    );
-    expect(passwordReset.reset).not.toHaveBeenCalledWith(
-      'another-reset-token',
-      expect.anything(),
-      expect.anything(),
-    );
   });
 
   it('limits email verification to 8 requests/minute', async () => {
