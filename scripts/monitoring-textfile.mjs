@@ -91,7 +91,7 @@ export async function writeMetricsFile(outputPath, text) {
     '.' + randomUUID() + '.tmp');
   let handle;
   try {
-    handle = await open(tmpPath, 'wx', 0o600);
+    handle = await open(tmpPath, 'wx', 0o640);
     await handle.writeFile(text, { encoding: 'utf8' });
     await handle.sync();
     await handle.close();
