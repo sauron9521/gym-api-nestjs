@@ -5,12 +5,20 @@ import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-ath
 
 import { WorkoutsRepository } from './repositories/workouts.repository.js';
 import { WorkoutCreationRepository } from './repositories/workout-creation.repository.js';
+import { WorkoutLifecycleRepository } from './repositories/workout-lifecycle.repository.js';
+import { WorkoutSetsRepository } from './repositories/workout-sets.repository.js';
 import { WorkoutsService } from './services/workouts.service.js';
 import { WorkoutsController } from './workouts.controller.js';
 
 @Module({
   imports: [ExercisesModule, TrainerAthletesModule],
-  providers: [WorkoutCreationRepository, WorkoutsRepository, WorkoutsService],
+  providers: [
+    WorkoutCreationRepository,
+    WorkoutLifecycleRepository,
+    WorkoutSetsRepository,
+    WorkoutsRepository,
+    WorkoutsService,
+  ],
   controllers: [WorkoutsController],
   exports: [WorkoutsService],
 })
