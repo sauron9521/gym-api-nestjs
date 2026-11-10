@@ -208,6 +208,7 @@ describe('PrismaSessionStore integration (e2e)', () => {
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(results.filter((result) => !result)).toHaveLength(1);
   });
+
   it('deletes sessions expired before or exactly at the cutoff but retains later expiry', async () => {
     const cutoff = new Date('2026-11-10T12:00:00.000Z');
     const createdAt = new Date(cutoff.getTime() - 120_000);
@@ -305,5 +306,4 @@ describe('PrismaSessionStore integration (e2e)', () => {
       await prisma.user.delete({ where: { id: otherUser.id } });
     }
   });
-
 });
