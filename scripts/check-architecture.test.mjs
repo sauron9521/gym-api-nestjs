@@ -113,3 +113,84 @@ test('fails clearly when feature modules are missing', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+test('accepts optional domain layers, barrels, helpers and nested subfeatures', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/services/example.service.ts',
+      "import type { Item } from '../types/example.types.js'; export class ExampleService {}");
+    write('src/modules/example/services/index.ts',
+      "export { ExampleService } from './example.service.js';");
+    write('src/modules/example/repositories/example.repository.ts',
+      "import { selectItem } from '../selects/example.select.js'; export class ExampleRepository {}");
+    write('src/modules/example/repositories/workout-locks.ts',
+      'export const withLock = () => undefined;');
+    write('src/modules/example/selects/example.select.ts',
+      'export const selectItem = { id: true };');
+    write('src/modules/example/types/example.types.ts',
+      'export type Item = { id: string };');
+    write('src/modules/example/avatar/avatar.service.ts',
+      'export class AvatarService {}');
+    assert.deepEqual(check(), []);
+  });
+});
+
+test('requires domain role files to live in their matching folders', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/wrong.service.ts', 'export class WrongService {}');
+    write('src/modules/example/services/wrong.repository.ts', 'export class WrongRepository {}');
+    write('src/modules/example/types/wrong.select.ts', 'export const select = {};');
+    write('src/modules/example/repositories/wrong.types.ts', 'export type Wrong = string;');
+
+    const errors = check().join('\n');
+    assert.match(errors, /wrong.service.ts: \.service\.ts file must live in services\//);
+    assert.match(errors, /wrong.repository.ts: \.repository\.ts file must live in repositories\//);
+    assert.match(errors, /wrong.select.ts: \.select\.ts file must live in selects\//);
+    assert.match(errors, /wrong.types.ts: \.types\.ts file must live in types\//);
+  });
+});
+
+test('checks native ESM imports in domain files including barrel exports', () => {
+  fixture(({ write, check }) => {
+    const badAlias = '@' + 'src/common/example';
+    write('src/modules/example/services/example.service.ts',
+      "import { Bad } from '" + badAlias +
+      "';\nimport { Broken } from '../types/example.types';\nexport class ExampleService {}");
+    write('src/modules/example/repositories/index.ts',
+      "export { ExampleRepository } from './example.repository';");
+    write('src/modules/example/types/example.types.ts',
+      "import { Prisma } from '" + '#prisma' + "/client.js'; export type Item = string;");
+
+    const errors = check().join('\n');
+    assert.match(errors, /use native #src\/#prisma/);
+    assert.match(errors, /relative ESM import needs \.js/);
+    assert.match(errors, /native alias must omit \.js\/\.ts/);
+  });
+});
+
+test('disallows domain-to-controller and persistence-to-service dependencies', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/services/example.service.ts',
+      "import { ExampleController } from '../controllers/example.controller.js';");
+    write('src/modules/example/repositories/example.repository.ts',
+      "import { ExampleService } from '../services/example.service.js';");
+    write('src/modules/example/selects/example.select.ts',
+      "import { ExampleService } from '#src/modules/example/services/example.service';");
+    write('src/modules/example/types/example.types.ts',
+      "import type { ExampleController } from '../controllers/example.controller.js';");
+
+    const errors = check().join('\n');
+    assert.match(errors, /services\/ must not import controllers\//);
+    assert.match(errors, /repositories\/ must not import services\//);
+    assert.match(errors, /selects\/ must not import services\//);
+    assert.match(errors, /types\/ must not import controllers\//);
+  });
+});
+
+test('rejects cross-feature relative imports from repositories', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/repositories/example.repository.ts',
+      "import { Other } from '../../other/repositories/other.repository.js';");
+    assert.match(check().join('\n'), /cross-feature relative import/);
+  });
+});
