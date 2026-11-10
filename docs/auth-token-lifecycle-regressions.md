@@ -24,13 +24,24 @@ against the real `PrismaTokenStore` and PostgreSQL. Fixture users are deleted
 after each API test or at the end of the store suite; foreign-key cascades
 remove their token data.
 
+## Runtime bug revealed by the new cleanup test
+
+The cleanup regression initially failed with `PrismaClientValidationError`.
+`PrismaTokenStore.deleteExpiredRefreshTokens()` filtered
+`RefreshTokenFamily` using `refreshTokens: { none: {} }`, but the actual
+relation in `prisma/schemas/auth-token.prisma` is named `tokens`.
+The filter now uses `tokens: { none: {} }`.
+
+This is a one-property production bug fix; the cleanup transaction still
+deletes expired token rows first and only deletes expired, empty families.
+
 ## Compatibility and risk
 
-Tests and documentation only. No production behavior, API routes, token
-lifetimes, auth-provider priority, Prisma schema, migrations, dependency
-versions or CI gates are changed. Do not weaken the refresh-token family
-revocation semantics in response to a failing regression test: investigate
-the application behavior first.
+Only one Prisma relation-filter property is corrected in production code.
+No API routes, token lifetimes, auth-provider priority, Prisma schema,
+migrations, dependency versions or CI gates are changed. Do not weaken the
+refresh-token family revocation semantics in response to a failing regression
+test: investigate the application behavior first.
 
 ## Verification
 
