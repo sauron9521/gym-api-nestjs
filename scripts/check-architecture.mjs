@@ -56,6 +56,13 @@ export function checkArchitecture(repositoryRoot) {
     const testDir = join(directory, 'test', 'controllers');
     const moduleSource = readFileSync(moduleFile, 'utf8');
     const featureFiles = filesUnder(directory);
+    // Helper files and index barrels are legitimate members of domain layers.
+    const domainLayers = ['services', 'repositories', 'selects', 'types'];
+    const domainFiles = domainLayers.flatMap((layer) =>
+      filesUnder(join(directory, layer)).filter(
+        (file) => dirname(file) === join(directory, layer) && file.endsWith('.ts'),
+      ),
+    );
     const controllers = filesUnder(controllerDir)
       .filter((path) => dirname(path) === controllerDir && path.endsWith('.controller.ts'));
     const controllerNames = new Set(controllers.map((path) => basename(path)));
@@ -63,6 +70,28 @@ export function checkArchitecture(repositoryRoot) {
       .filter((path) => dirname(path) === testDir && path.endsWith('.spec.ts'));
 
     const display = (file) => relative(root, file).split('\\').join('/');
+
+    // Enforce role suffix locations at the feature root and in managed
+    // domain directories only; nested subfeatures such as users/avatar/
+    // deliberately manage their own implementation layout.
+    const roleFolders = [
+      ['.service.ts', 'services'],
+      ['.repository.ts', 'repositories'],
+      ['.select.ts', 'selects'],
+      ['.types.ts', 'types'],
+    ];
+    for (const file of featureFiles) {
+      const parent = dirname(file);
+      if (parent !== directory && !domainLayers.some(
+        (layer) => parent === join(directory, layer),
+      )) continue;
+
+      for (const [suffix, folder] of roleFolders) {
+        if (basename(file).endsWith(suffix) && parent !== join(directory, folder)) {
+          errors.push(`${display(file)}: ${suffix} file must live in ${folder}/`);
+        }
+      }
+    }
 
     if (controllers.length === 0) {
       errors.push(`${name}: expected controllers/*.controller.ts`);
@@ -136,9 +165,11 @@ export function checkArchitecture(repositoryRoot) {
       }
     }
 
-    // Restrict import rules to module registration, HTTP boundaries, and
-    // their focused tests. Other domain folders can be adopted separately.
-    for (const file of [moduleFile, ...controllers, ...testFiles]) {
+    // Validate imports in domain layers as well as HTTP/controller boundaries.
+    for (const file of [moduleFile, ...controllers, ...testFiles, ...domainFiles]) {
+      const sourceLayer = domainLayers.find(
+        (layer) => dirname(file) === join(directory, layer),
+      );
       for (const specifier of importsIn(readFileSync(file, 'utf8'))) {
         if (specifier.startsWith('@src/') || specifier.startsWith('@prisma/')) {
           errors.push(`${display(file)}: use native #src/#prisma instead of '${specifier}'`);
@@ -152,6 +183,27 @@ export function checkArchitecture(repositoryRoot) {
           }
           if (isOutside(directory, resolve(dirname(file), specifier))) {
             errors.push(`${display(file)}: cross-feature relative import '${specifier}'; use #src/*`);
+          }
+        }
+
+        if (sourceLayer) {
+          let targetLayer;
+          if (specifier.startsWith('./') || specifier.startsWith('../')) {
+            const target = resolve(dirname(file), specifier);
+            if (!isOutside(directory, target)) {
+              targetLayer = relative(directory, target).split(sep)[0];
+            }
+          } else {
+            const sameFeatureAlias = `#src/modules/${name}/`;
+            if (specifier.startsWith(sameFeatureAlias)) {
+              targetLayer = specifier.slice(sameFeatureAlias.length).split('/')[0];
+            }
+          }
+
+          const forbidden = targetLayer === 'controllers' ||
+            (sourceLayer !== 'services' && targetLayer === 'services');
+          if (forbidden) {
+            errors.push(`${display(file)}: ${sourceLayer}/ must not import ${targetLayer}/: '${specifier}'`);
           }
         }
       }
