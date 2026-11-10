@@ -13,7 +13,7 @@ These endpoints have route-specific limits per IP (60-second window):
 | POST /auth/token/revoke | 10 |
 | POST /auth/email/verify | 8 |
 | POST /auth/email/verification | 3 (existing) |
-| POST /auth/password-reset/forgot | 3 (existing) |
+| POST /auth/password-reset/forgot | 3 per IP, plus 5/hour per normalized email |
 | POST /auth/password-reset/reset | 3 (existing) |
 
 Other endpoints retain the existing default 10 requests per minute.
