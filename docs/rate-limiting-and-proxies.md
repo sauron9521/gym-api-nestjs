@@ -53,8 +53,12 @@ scaling**; otherwise each replica maintains independent limits.
   addresses, route names and credentials are never stored as Redis key text.
 - A single atomic Lua script updates a fixed-window counter and, if configured,
   a separate block-duration key. Redis TTLs release keys automatically.
-- The Redis URL is never printed in logs. Connection and script errors log
-  only stable event names.
+- Redis error handling logs one sanitized structured
+  `RATE_LIMIT_REDIS_UNAVAILABLE` warning per outage and one
+  `RATE_LIMIT_REDIS_RECOVERED` informational event upon a successful
+  post-outage PING or counter update. Repeated failures are suppressed;
+  no Redis URL, error details, user identifiers or counter keys are logged.
+  See [observability and health](observability-health.md).
 - **Fail closed:** if `REDIS_URL` is configured but Redis is unreachable,
   the rate-limiting storage returns `503 Service Unavailable` instead of
   silently falling back to process-local memory.

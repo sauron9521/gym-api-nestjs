@@ -36,6 +36,32 @@ Production uses Nest 12 ConsoleLogger with JSON output. Development
 uses readable text. Prisma lifecycle and bootstrap logs use Nest Logger
 rather than console.log.
 
+## Redis rate-limiting health transitions (PR #124)
+
+The distributed throttler logs structured **state transitions** only when
+`REDIS_URL` is configured:
+
+- `RATE_LIMIT_REDIS_UNAVAILABLE` (warning) when Redis first becomes
+  unavailable through a client error, failed health probe or failed counter
+  operation. Subsequent failures in the same outage do **not** log again.
+- `RATE_LIMIT_REDIS_RECOVERED` (informational) on the first successful
+  PING or atomic counter operation **after** an outage. Normal initial
+  connection and repeated healthy calls do not generate transition logs.
+
+Each event has only fixed `event`, `component: "rate_limiting"` and
+`backend: "redis"` fields. Raw errors, Redis URLs, hostnames, credentials,
+identifiers, throttle keys and request content are excluded. No transition
+events are emitted in memory-only mode. This avoids a log flood during
+prolonged Redis failures and permits alerting on recovery.
+
+`GET /health/ready` continues to validate Redis with a real PING and to
+return a generic `503` when unhealthy, without revealing backend details.
+The existing **fail-closed** policy for Redis-backed throttles is unchanged.
+For runbooks, alert on unavailability plus failed readiness, and check for a
+recovery event plus successful readiness before considering the backend
+healthy again. Logs are not a substitute for metrics or a monitoring
+backend; no new metrics endpoint is added by this PR.
+
 The implementation adds no packages. Future multi-instance observability
 can integrate Pino/OpenTelemetry, trace propagation, central log shipping,
 metrics and alerting.
