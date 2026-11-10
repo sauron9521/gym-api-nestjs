@@ -165,6 +165,54 @@ describe('PrismaTokenStore integration (e2e)', () => {
     });
   });
 
+  it('cleans expired refresh families at the cutoff while retaining live families', async () => {
+    const userId = `refresh-cleanup-${randomUUID()}`;
+    const email = `${createHash('sha256').update(userId).digest('hex')}@refresh-cleanup.invalid`;
+    await prisma.user.create({
+      data: { id: userId, email, passwordHash: 'test-password-hash' },
+      select: { id: true },
+    });
+    testUserIds.add(userId);
+
+    const now = new Date('2026-11-10T12:00:00.000Z');
+    const expiredFamilyId = randomUUID().replaceAll('-', '');
+    const liveFamilyId = randomUUID().replaceAll('-', '');
+
+    const expired: RefreshTokenRecord = {
+      id: createHash('sha256').update(randomUUID()).digest('hex'),
+      familyId: expiredFamilyId,
+      userId,
+      createdAt: new Date(now.getTime() - 120_000),
+      expiresAt: new Date(now.getTime() - 60_000),
+      familyExpiresAt: now,
+    };
+    const live: RefreshTokenRecord = {
+      ...expired,
+      id: createHash('sha256').update(randomUUID()).digest('hex'),
+      familyId: liveFamilyId,
+      // Individual token expiry is not the family-retention cutoff.
+      familyExpiresAt: new Date(now.getTime() + 60_000),
+    };
+
+    await store.saveRefreshToken(expired);
+    await store.saveRefreshToken(live);
+    await store.deleteExpiredRefreshTokens(now);
+
+    await expect(
+      prisma.refreshToken.findUnique({ where: { id: expired.id } }),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.refreshTokenFamily.findUnique({ where: { id: expiredFamilyId } }),
+    ).resolves.toBeNull();
+
+    await expect(
+      prisma.refreshToken.findUnique({ where: { id: live.id } }),
+    ).resolves.toMatchObject({ familyId: liveFamilyId, userId });
+    await expect(
+      prisma.refreshTokenFamily.findUnique({ where: { id: liveFamilyId } }),
+    ).resolves.toMatchObject({ userId, revokedAt: null });
+  });
+
   it('deletes expired email tokens during cleanup', async () => {
     const userId = `email-cleanup-${randomUUID()}`;
     const email = `${createHash('sha256').update(userId).digest('hex')}@email-cleanup.invalid`;
