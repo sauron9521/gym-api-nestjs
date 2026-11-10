@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { BodyMeasurementsController } from './body-measurements.controller.js';
+import { BodyMeasurementsController } from './controllers/body-measurements.controller.js';
 import { BodyMeasurementsRepository } from './repositories/body-measurements.repository.js';
 import { BodyMeasurementsService } from './services/body-measurements.service.js';
 import { BodyMeasurementStatisticsService } from './services/body-measurement-statistics.service.js';

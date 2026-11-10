@@ -14,7 +14,9 @@
 - `mappers/` — pure input conversion, explicit Decimal-to-number
   serialization, UTC timestamps, points and percentage calculations.
 - `dto/` — Zod schemas and request validation.
-- `test/` — focused mapper and existing module tests.
+- `controllers/` — HTTP request validation, authorization and OpenAPI metadata.
+- `test/controllers/` — HTTP route and controller delegation contract tests.
+- `test/` — mapper, service, repository and schema regression tests.
 
 ## Compatibility and invariants
 
@@ -36,3 +38,10 @@ Full CI must pass lint, TypeScript build, OpenAPI, unit tests,
 PostgreSQL integration/E2E, coverage thresholds, the production Docker
 smoke test and security audit. The new mapper tests cover the legacy
 number/date/null API behavior independently of repository internals.
+
+## Controller layout (PR #101)
+
+- `BodyMeasurementsController` is located at `controllers/body-measurements.controller.ts`, registered by `body-measurements.module.ts`, with same-feature NodeNext relative `.js` imports.
+- The `statistics` GET handler must remain declared **before** the dynamic `:id` handler, so `/body-measurements/statistics` is never interpreted as a measurement ID.
+- The `test/controllers/` contract suite verifies all six route method/path pairs, route declaration order, the existing `204 No Content` delete status and delegation with authenticated user ID.
+- No HTTP route, Zod schema, actor ownership, Decimal serialization, PostgreSQL query, Prisma model, OpenAPI contract or business semantics change.
