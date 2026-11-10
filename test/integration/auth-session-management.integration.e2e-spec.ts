@@ -426,4 +426,102 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
     expect(denied.headers['cache-control']).toBe('no-store');
   });
 
+  it('signs out only the presented cookie session without revoking other logins', async () => {
+    const firstCookie = await login(firstEmail);
+    const secondCookie = await login(firstEmail);
+    const otherCookie = await login(secondEmail);
+
+    expect(await listWithCookie(firstCookie)).toHaveLength(2);
+
+    const signedOut = await request(app.getHttpServer())
+      .post('/auth/sign-out')
+      .set('Cookie', firstCookie)
+      .expect(204);
+    expect(signedOut.headers['cache-control']).toBe('no-store');
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', firstCookie)
+      .expect(401);
+
+    // Replaying a signed-out cookie must not sign out any other session.
+    await request(app.getHttpServer())
+      .post('/auth/sign-out')
+      .set('Cookie', firstCookie)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', secondCookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', otherCookie)
+      .expect(200);
+
+    expect(await prisma.session.count({ where: { userId: firstUserId } })).toBe(
+      1,
+    );
+    expect(await prisma.session.count({ where: { userId: secondUserId } })).toBe(
+      1,
+    );
+  });
+
+  it('signs out all of the current user sessions without affecting another user', async () => {
+    const firstCookie = await login(firstEmail);
+    const secondCookie = await login(firstEmail);
+    const otherCookie = await login(secondEmail);
+
+    expect(await listWithCookie(firstCookie)).toHaveLength(2);
+    expect(await listWithCookie(otherCookie)).toHaveLength(1);
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/sign-out-everywhere')
+      .set('Cookie', firstCookie)
+      .expect(204);
+    expect(response.headers['cache-control']).toBe('no-store');
+
+    for (const cookie of [firstCookie, secondCookie]) {
+      await request(app.getHttpServer())
+        .get('/users/me')
+        .set('Cookie', cookie)
+        .expect(401);
+    }
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', otherCookie)
+      .expect(200);
+
+    expect(await prisma.session.count({ where: { userId: firstUserId } })).toBe(
+      0,
+    );
+    expect(await prisma.session.count({ where: { userId: secondUserId } })).toBe(
+      1,
+    );
+    expect(await listWithCookie(otherCookie)).toHaveLength(1);
+  });
+
+  it('rejects sign-out without a valid session cookie and preserves existing sessions', async () => {
+    const cookie = await login(firstEmail);
+
+    const missing = await request(app.getHttpServer())
+      .post('/auth/sign-out')
+      .expect(401);
+    expect(missing.headers['cache-control']).toBe('no-store');
+
+    await request(app.getHttpServer())
+      .post('/auth/sign-out')
+      .set('Cookie', '__Host-sid=invalid-session-cookie')
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(await prisma.session.count({ where: { userId: firstUserId } })).toBe(
+      1,
+    );
+  });
+
 });
