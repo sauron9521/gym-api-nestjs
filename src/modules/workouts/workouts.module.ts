@@ -8,7 +8,7 @@ import { WorkoutCreationRepository } from './repositories/workout-creation.repos
 import { WorkoutLifecycleRepository } from './repositories/workout-lifecycle.repository.js';
 import { WorkoutSetsRepository } from './repositories/workout-sets.repository.js';
 import { WorkoutsService } from './services/workouts.service.js';
-import { WorkoutsController } from './workouts.controller.js';
+import { WorkoutsController } from './controllers/workouts.controller.js';
 
 @Module({
   imports: [ExercisesModule, TrainerAthletesModule],
