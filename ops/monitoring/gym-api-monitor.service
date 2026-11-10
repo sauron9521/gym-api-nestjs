@@ -8,7 +8,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 User=gym-monitor
-Group=gym-monitor
+Group=node_exporter
 # CAUTION: membership in docker group effectively grants root privileges.
 SupplementaryGroups=docker
 WorkingDirectory=/opt/gym-api
