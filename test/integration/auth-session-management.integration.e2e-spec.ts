@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 
 import { PrismaService } from '../../src/infra/database/index.js';
+import { PrismaSessionStore } from '../../src/modules/auth/stores/index.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 type VisibleSession = {
@@ -258,5 +259,58 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
 
     const remaining = await listWithCookie(firstCookie);
     expect(remaining.map((session) => session.id)).toEqual([firstId]);
+  });
+
+  it('rejects an expired cookie before cleanup and preserves a second active login', async () => {
+    const expiredCookie = await login(firstEmail);
+    const activeCookie = await login(firstEmail);
+    const sessions = await listWithCookie(expiredCookie);
+    const expiredId = sessions.find((session) => session.current)?.id;
+
+    if (!expiredId) {
+      throw new Error('The first cookie session was not found');
+    }
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', expiredCookie)
+      .expect(200);
+
+    // Simulate reaching the absolute expiry deadline without running cron.
+    await prisma.session.update({
+      where: { id: expiredId },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    // It is still persisted before the first access (cron has not run).
+    expect(
+      await prisma.session.count({ where: { id: expiredId } }),
+    ).toBe(1);
+
+    const expiredAccess = await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', expiredCookie)
+      .expect(401);
+    expect(expiredAccess.headers['cache-control']).toBe('no-store');
+
+    await request(app.getHttpServer())
+      .get('/auth/sessions')
+      .set('Cookie', expiredCookie)
+      .expect(401);
+
+    // Expiration denies access immediately, without relying on nightly GC.
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', activeCookie)
+      .expect(200);
+
+    await app.get(PrismaSessionStore).deleteExpiredSessions(new Date());
+
+    expect(
+      await prisma.session.count({ where: { id: expiredId } }),
+    ).toBe(0);
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Cookie', activeCookie)
+      .expect(200);
+    expect(await listWithCookie(activeCookie)).toHaveLength(1);
   });
 });
