@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -71,6 +72,7 @@ export class WorkoutsController {
     return this.workoutsService.create(user, body, idempotencyKey);
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get()
   @ApiQuery({
     name: 'view',
@@ -89,6 +91,7 @@ export class WorkoutsController {
     return this.workoutsService.findMany(user, query);
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get(':id')
   @ApiOkResponse({ schema: workoutResponseSchema })
   findOne(
