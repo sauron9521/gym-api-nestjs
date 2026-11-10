@@ -248,18 +248,23 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
       .send({ refreshToken: second.refreshToken })
       .expect(200);
 
-    expect(otherLogin.body.refreshToken).not.toBe(second.refreshToken);
+    const survivingTokens = otherLogin.body as TokenPair;
+    expect(survivingTokens.refreshToken).not.toBe(second.refreshToken);
     await request(app.getHttpServer())
       .get('/users/me')
-      .set('Authorization', `Bearer ${otherLogin.body.accessToken}`)
+      .set('Authorization', `Bearer ${survivingTokens.accessToken}`)
       .expect(200);
 
     const familiesAfter = await prisma.refreshTokenFamily.findMany({
       where: { userId },
       select: { revokedAt: true },
     });
-    expect(familiesAfter.filter((family) => family.revokedAt !== null)).toHaveLength(1);
-    expect(familiesAfter.filter((family) => family.revokedAt === null)).toHaveLength(1);
+    expect(
+      familiesAfter.filter((family) => family.revokedAt !== null),
+    ).toHaveLength(1);
+    expect(
+      familiesAfter.filter((family) => family.revokedAt === null),
+    ).toHaveLength(1);
   });
 
   it('replaying one rotated token never revokes an unrelated login family', async () => {
@@ -283,15 +288,20 @@ describe('Auth token flow (HTTP + PostgreSQL)', () => {
       .send({ refreshToken: independent.refreshToken })
       .expect(200);
 
-    expect(otherLogin.body.refreshToken).not.toBe(independent.refreshToken);
+    const independentTokens = otherLogin.body as TokenPair;
+    expect(independentTokens.refreshToken).not.toBe(independent.refreshToken);
 
     const families = await prisma.refreshTokenFamily.findMany({
       where: { userId },
       select: { revokedAt: true },
     });
     expect(families).toHaveLength(2);
-    expect(families.filter((family) => family.revokedAt !== null)).toHaveLength(1);
-    expect(families.filter((family) => family.revokedAt === null)).toHaveLength(1);
+    expect(
+      families.filter((family) => family.revokedAt !== null),
+    ).toHaveLength(1);
+    expect(
+      families.filter((family) => family.revokedAt === null),
+    ).toHaveLength(1);
   });
 
   it('rejects token issuance, refresh and bearer access after the owner is soft-deleted', async () => {
