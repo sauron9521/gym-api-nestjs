@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
 import { UsersModule } from '#src/modules/users/users.module';
-import {
-  AuthController,
-  EmailVerificationController,
-  PasswordResetController,
-  SessionsController,
-  TokensController,
-} from './controllers/index.js';
+import { AuthController } from './controllers/auth.controller.js';
+import { EmailVerificationController } from './controllers/email-verification.controller.js';
+import { PasswordResetController } from './controllers/password-reset.controller.js';
+import { SessionsController } from './controllers/sessions.controller.js';
+import { TokensController } from './controllers/tokens.controller.js';
 
 import {
   EmailVerificationMailer,
