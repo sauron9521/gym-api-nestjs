@@ -76,3 +76,18 @@ crossing untrusted networks, suitable monitoring and persistence.
 Rollout: set `REDIS_URL` for each API replica, verify Redis health and
 permissions, set `TRUSTED_PROXY_CIDRS` to controlled proxy source networks,
 then deploy. Keep Redis access private; monitor 429 and 503 rates.
+
+## Endpoint-aware limits
+
+| Endpoint | Requests per 60 seconds per client |
+| --- | ---: |
+| `GET /exercises`, `GET /exercises/:id` | 60 |
+| `GET /workouts`, `GET /workouts/:id` | 60 |
+| `GET /workout-analytics/summary`, `GET /workout-analytics/exercises/:exerciseId` | 20 |
+| Other endpoints without overrides (including writes) | 10 |
+| `POST /auth/login`, `POST /auth/register` | 3 |
+
+These limits retain the existing IP/proxy tracker and distributed Redis storage.
+Higher read limits reduce unnecessary 429 responses during normal browsing;
+write and authentication limits remain conservative. These are operational
+starting points: tune them using observed 429 rates and load testing.
