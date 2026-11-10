@@ -1,3 +1,7 @@
+import { RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA, MODULE_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { TrainingProgramsController } from '../training-programs.controller.js';
+import { TrainingProgramsModule } from '../training-programs.module.js';
 import { TrainingProgramAssignmentsController } from '../training-program-assignments.controller.js';
 import { TrainingProgramsService } from '../services/training-programs.service.js';
 import type { TrainingProgramActor } from '../types/training-program.types.js';
@@ -127,4 +131,27 @@ describe('TrainingProgramAssignmentsController', () => {
       body,
     );
   });
+  it('registers literal assignment routes before dynamic program routes', () => {
+    const controllers: unknown[] = Reflect.getMetadata(
+      MODULE_METADATA.CONTROLLERS,
+      TrainingProgramsModule,
+    );
+    expect(controllers.indexOf(TrainingProgramAssignmentsController))
+      .toBeLessThan(controllers.indexOf(TrainingProgramsController));
+    expect(Reflect.getMetadata(PATH_METADATA, TrainingProgramAssignmentsController))
+      .toBe('training-programs');
+  });
+
+  it.each([
+    ['findManyAssignments', 'assignments', RequestMethod.GET],
+    ['findOneAssignment', 'assignments/:assignmentId', RequestMethod.GET],
+    ['completeAssignment', 'assignments/:assignmentId/complete', RequestMethod.POST],
+    ['cancelAssignment', 'assignments/:assignmentId/cancel', RequestMethod.POST],
+    ['assignVersionToAthlete', ':programId/versions/:versionId/assignments', RequestMethod.POST],
+  ] as const)('preserves the HTTP route for %s', (handler, path, method) => {
+    const action = TrainingProgramAssignmentsController.prototype[handler];
+    expect(Reflect.getMetadata(PATH_METADATA, action)).toBe(path);
+    expect(Reflect.getMetadata(METHOD_METADATA, action)).toBe(method);
+  });
+
 });
