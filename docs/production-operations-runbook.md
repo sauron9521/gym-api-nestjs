@@ -147,9 +147,14 @@ See [production monitoring starter](production-monitoring-alerts.md) for
 CLI usage, initial thresholds, the exit-code contract and privacy rules.
 This is not a scheduled task or externally configured alert.
 
-**No Prometheus endpoint, OpenTelemetry collector or external alerting
-service is provisioned.** Operators still need to configure periodic
-execution, centralized log ingestion, external health probes and paging.
+An optional host-side systemd timer and Prometheus textfile example are
+available in [monitoring integration](production-monitoring-integration.md).
+These templates are **not installed or activated automatically**; an
+operator must provision node_exporter, permissions, a secure scrape target
+and notification routing. Docker socket access is equivalent to root.
+
+**No Nest /metrics endpoint, OpenTelemetry collector or external alerting
+service is provisioned.**
 
 ## 5. Incident/rollback decision tree
 

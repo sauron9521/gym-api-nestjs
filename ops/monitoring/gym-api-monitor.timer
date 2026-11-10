@@ -1,0 +1,12 @@
+# Optional host scheduling, not enabled by repository checkout.
+[Unit]
+Description=Schedule Gym API monitoring snapshot every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+AccuracySec=30s
+Unit=gym-api-monitor.service
+
+[Install]
+WantedBy=timers.target
