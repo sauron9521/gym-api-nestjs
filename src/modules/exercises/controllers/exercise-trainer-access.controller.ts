@@ -20,14 +20,14 @@ import {
   exerciseTrainerAccessListResponseSchema,
   exerciseTrainerAccessResponseSchema,
 } from '#src/infra/openapi/response-contracts';
-import { exerciseIdSchema } from './dto/exercise.schemas.js';
+import { exerciseIdSchema } from '../dto/exercise.schemas.js';
 import {
   exerciseTrainerAccessIdSchema,
   grantExerciseTrainerAccessSchema,
   type GrantExerciseTrainerAccessDto,
-} from './dto/exercise-trainer-access.dto.js';
-import { ExerciseTrainerAccessService } from './services/exercise-trainer-access.service.js';
-import type { ExerciseActor } from './types/exercise.types.js';
+} from '../dto/exercise-trainer-access.dto.js';
+import { ExerciseTrainerAccessService } from '../services/exercise-trainer-access.service.js';
+import type { ExerciseActor } from '../types/exercise.types.js';
 
 @ApiTags('Exercises')
 @ApiCookieAuth('sessionCookie')
