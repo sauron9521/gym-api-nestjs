@@ -8,6 +8,7 @@ import { TrainingProgramAssignmentsController } from './training-program-assignm
 import { TrainingProgramVersionsController } from './training-program-versions.controller.js';
 import { TrainingProgramWorkoutsController } from './training-program-workouts.controller.js';
 import { TrainingProgramExercisesController } from './training-program-exercises.controller.js';
+import { TrainingProgramSetsController } from './training-program-sets.controller.js';
 import { TrainingProgramsService } from './services/training-programs.service.js';
 
 import { TrainingProgramCrudRepository } from './repositories/training-program-crud.repository.js';
@@ -34,6 +35,7 @@ import { TrainingProgramAssignmentService } from './services/training-program-as
     TrainingProgramVersionsController,
     TrainingProgramWorkoutsController,
     TrainingProgramExercisesController,
+    TrainingProgramSetsController,
     TrainingProgramsController,
   ],
   providers: [

@@ -8,28 +8,6 @@ describe('TrainingProgramsController', () => {
     findMany: vi.fn(),
     findOne: vi.fn(),
     archive: vi.fn(),
-    findVersions: vi.fn(),
-    findVersion: vi.fn(),
-    createNextDraft: vi.fn(),
-    updateDraftVersion: vi.fn(),
-    publishVersion: vi.fn(),
-    createWorkout: vi.fn(),
-    updateWorkout: vi.fn(),
-    deleteWorkout: vi.fn(),
-    addExercise: vi.fn(),
-    updateExercise: vi.fn(),
-    removeExercise: vi.fn(),
-    reorderExercises: vi.fn(),
-    addSet: vi.fn(),
-    updateSet: vi.fn(),
-    removeSet: vi.fn(),
-    reorderSets: vi.fn(),
-    assignVersionToAthlete: vi.fn(),
-    findManyAssignments: vi.fn(),
-    findOneAssignment: vi.fn(),
-    completeAssignment: vi.fn(),
-    cancelAssignment: vi.fn(),
-    findOneAssignmentDetails: vi.fn(),
   };
 
   let controller: TrainingProgramsController;
@@ -71,32 +49,20 @@ describe('TrainingProgramsController', () => {
 
     expect(service.findMany).toHaveBeenCalledWith(actor, query);
   });
+  it('should return the requested program for the current actor', async () => {
+    const result = { id: 'program-1', title: 'Program 1' };
+    service.findOne.mockResolvedValue(result);
 
-  it('should add a set', async () => {
-    const body = {
-      setType: 'WORKING' as const,
-      plannedReps: 10,
-      plannedWeightKg: 60,
-    };
-
-    service.addSet.mockResolvedValue({ id: 'set-1' });
-
-    await controller.addSet(
-      'program-1',
-      'version-1',
-      'workout-1',
-      'exercise-1',
-      actor,
-      body,
-    );
-
-    expect(service.addSet).toHaveBeenCalledWith(
-      actor,
-      'program-1',
-      'version-1',
-      'workout-1',
-      'exercise-1',
-      body,
-    );
+    await expect(controller.findOne('program-1', actor)).resolves.toBe(result);
+    expect(service.findOne).toHaveBeenCalledWith('program-1', actor);
   });
+
+  it('should archive a program using the current actor', async () => {
+    const result = { id: 'program-1', status: 'ARCHIVED' };
+    service.archive.mockResolvedValue(result);
+
+    await expect(controller.archive('program-1', actor)).resolves.toBe(result);
+    expect(service.archive).toHaveBeenCalledWith('program-1', actor);
+  });
+
 });

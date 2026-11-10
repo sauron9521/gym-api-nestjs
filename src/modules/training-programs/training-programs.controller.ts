@@ -1,31 +1,15 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 import { ApiBearerAuth, ApiCookieAuth, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
 import {
   trainingProgramResponseSchema,
   trainingProgramListResponseSchema,
-  trainingProgramVersionResponseSchema,
 } from '#src/infra/openapi/response-contracts';
 import { TrainingProgramsService } from './services/training-programs.service.js';
 import type { TrainingProgramActor } from './types/training-program.types.js';
 
-import {
-  trainingProgramExerciseIdSchema,
-  trainingProgramIdSchema,
-  trainingProgramSetIdSchema,
-  trainingProgramVersionIdSchema,
-  trainingProgramWorkoutIdSchema,
-} from './dto/training-program.schemas.js';
+import { trainingProgramIdSchema } from './dto/training-program.schemas.js';
 
 import {
   type CreateTrainingProgramDto,
@@ -36,21 +20,6 @@ import {
   type QueryTrainingProgramsDto,
   queryTrainingProgramsSchema,
 } from './dto/query-training-programs.dto.js';
-
-import {
-  type CreateTrainingProgramSetDto,
-  createTrainingProgramSetSchema,
-} from './dto/create-training-program-set.dto.js';
-
-import {
-  type UpdateTrainingProgramSetDto,
-  updateTrainingProgramSetSchema,
-} from './dto/update-training-program-set.dto.js';
-
-import {
-  type ReorderTrainingProgramSetsDto,
-  reorderTrainingProgramSetsSchema,
-} from './dto/reorder-training-program-sets.dto.js';
 
 @ApiTags('Training Programs')
 @ApiCookieAuth('sessionCookie')
@@ -102,118 +71,5 @@ export class TrainingProgramsController {
     @CurrentUser() actor: TrainingProgramActor,
   ) {
     return this.trainingProgramsService.archive(programId, actor);
-  }
-
-  // SETS INSIDE PROGRAM EXERCISE
-
-  @Post(
-    ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets',
-  )
-  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
-  addSet(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @Param('workoutId', { schema: trainingProgramWorkoutIdSchema })
-    workoutId: string,
-    @Param('exerciseId', { schema: trainingProgramExerciseIdSchema })
-    exerciseId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-    @Body({ schema: createTrainingProgramSetSchema })
-    body: CreateTrainingProgramSetDto,
-  ) {
-    return this.trainingProgramsService.addSet(
-      actor,
-      programId,
-      versionId,
-      workoutId,
-      exerciseId,
-      body,
-    );
-  }
-
-  @Patch(
-    ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets/reorder',
-  )
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  reorderSets(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @Param('workoutId', { schema: trainingProgramWorkoutIdSchema })
-    workoutId: string,
-    @Param('exerciseId', { schema: trainingProgramExerciseIdSchema })
-    exerciseId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-    @Body({ schema: reorderTrainingProgramSetsSchema })
-    body: ReorderTrainingProgramSetsDto,
-  ) {
-    return this.trainingProgramsService.reorderSets(
-      actor,
-      programId,
-      versionId,
-      workoutId,
-      exerciseId,
-      body,
-    );
-  }
-
-  @Patch(
-    ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets/:setId',
-  )
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  updateSet(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @Param('workoutId', { schema: trainingProgramWorkoutIdSchema })
-    workoutId: string,
-    @Param('exerciseId', { schema: trainingProgramExerciseIdSchema })
-    exerciseId: string,
-    @Param('setId', { schema: trainingProgramSetIdSchema })
-    setId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-    @Body({ schema: updateTrainingProgramSetSchema })
-    body: UpdateTrainingProgramSetDto,
-  ) {
-    return this.trainingProgramsService.updateSet(
-      actor,
-      programId,
-      versionId,
-      workoutId,
-      exerciseId,
-      setId,
-      body,
-    );
-  }
-
-  @Delete(
-    ':programId/versions/:versionId/workouts/:workoutId/exercises/:exerciseId/sets/:setId',
-  )
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  removeSet(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @Param('workoutId', { schema: trainingProgramWorkoutIdSchema })
-    workoutId: string,
-    @Param('exerciseId', { schema: trainingProgramExerciseIdSchema })
-    exerciseId: string,
-    @Param('setId', { schema: trainingProgramSetIdSchema })
-    setId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-  ) {
-    return this.trainingProgramsService.removeSet(
-      actor,
-      programId,
-      versionId,
-      workoutId,
-      exerciseId,
-      setId,
-    );
   }
 }
