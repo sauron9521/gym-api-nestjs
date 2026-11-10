@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 
 import { Authenticate, CurrentUser } from '@nestjs/authentication';
 import { ApiBearerAuth, ApiCookieAuth, ApiTags, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
@@ -17,9 +9,7 @@ import {
 import { TrainingProgramsService } from './services/training-programs.service.js';
 import type { TrainingProgramActor } from './types/training-program.types.js';
 
-import {
-  trainingProgramIdSchema,
-} from './dto/training-program.schemas.js';
+import { trainingProgramIdSchema } from './dto/training-program.schemas.js';
 
 import {
   type CreateTrainingProgramDto,
@@ -82,5 +72,4 @@ export class TrainingProgramsController {
   ) {
     return this.trainingProgramsService.archive(programId, actor);
   }
-
 }
