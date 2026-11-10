@@ -194,3 +194,34 @@ test('rejects cross-feature relative imports from repositories', () => {
     assert.match(check().join('\n'), /cross-feature relative import/);
   });
 });
+
+
+test('type-only controller import does not satisfy required runtime registration', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/example.module.ts',
+      "import type { ExampleController } from './controllers/example.controller.js';\n" +
+      '@Module({ controllers: [ExampleController] }) export class ExampleModule {}');
+    assert.match(check().join('\n'), /import controller directly/);
+  });
+});
+
+test('rejects wrong ESM extensions in re-exports from domain barrels', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/services/index.ts',
+      "export * from './example.service';");
+    assert.match(check().join('\n'), /relative ESM import needs \.js/);
+  });
+});
+
+test('rejects computed dynamic imports and ignores commented-out imports', () => {
+  fixture(({ write, check }) => {
+    write('src/modules/example/services/example.service.ts',
+      "const note = 'import(\\'../controllers/example.controller\\')';\n" +
+      "// import { X } from '../controllers/missing.controller';\n" +
+      'export const load = (name) => import(name);');
+    const violations = check().join('\n');
+    assert.match(violations, /computed dynamic import cannot be checked statically/);
+    assert.doesNotMatch(violations, /missing.controller/);
+    assert.doesNotMatch(violations, /relative ESM import needs \.js/);
+  });
+});
