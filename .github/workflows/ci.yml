@@ -104,10 +104,28 @@ jobs:
           npm run test:architecture:deps
           npm run test:architecture:imports
 
-      - name: Test production monitoring reports without external services
+      - name: Test production monitoring reports and configuration invariants
         run: |
           bash -n scripts/monitoring-collect.sh
           npm run test:monitoring
+
+      - name: Validate systemd units and five-minute schedule
+        run: |
+          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer
+          systemd-analyze calendar '*:0/5'
+
+      # Immutable official Prometheus image; no Prometheus server is started.
+      # Validate both PromQL syntax and expected alert firing/resolution.
+      - name: Validate and unit-test Prometheus alert rules
+        run: |
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            check rules /rules/alerts.rules.yml
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            test rules /rules/alerts.test.yml
 
       - name: Validate backup tooling without production credentials
         run: |
