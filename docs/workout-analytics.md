@@ -109,3 +109,11 @@ muscle-group allocation, weekly trainer dashboards, exercise-copy lineage
 grouping, pace/cardio statistics, custom user-timezone grouping or cached
 time-series materializations. Define their distinct semantics in future PRs
 rather than making misleading assumptions now.
+
+## Controller structure (PR #100)
+
+The read-only HTTP controller lives in `src/modules/workout-analytics/controllers/workout-analytics.controller.ts`, consistent with the other feature modules. Its same-feature DTO, response-schema, and service imports stay relative with NodeNext `.js` suffixes; cross-feature actor type imports use the native `#src/*` alias.
+
+`test/controllers/` contains controller delegation and metadata regression suites for both GET endpoints, their exact paths, the registered controller, and their existing 20-request/minute throttling. The shared rate-limit policy unit test points to the controller's new location.
+
+This is an organizational change only: authentication, athlete ownership, Zod validation, OpenAPI responses, PostgreSQL queries, aggregation semantics, existing HTTP paths, dependencies, and database schema remain unchanged.

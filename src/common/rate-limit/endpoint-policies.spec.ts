@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ExercisesController } from '#src/modules/exercises/controllers/exercises.controller';
 import { WorkoutsController } from '#src/modules/workouts/controllers/workouts.controller';
-import { WorkoutAnalyticsController } from '#src/modules/workout-analytics/workout-analytics.controller';
+import { WorkoutAnalyticsController } from '#src/modules/workout-analytics/controllers/workout-analytics.controller';
 import { AuthController } from '#src/modules/auth/controllers/auth.controller';
 
 describe('Endpoint-aware throttling policies', () => {

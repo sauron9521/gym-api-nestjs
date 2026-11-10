@@ -14,12 +14,12 @@ import {
   analyticsExerciseIdSchema,
   workoutAnalyticsQuerySchema,
   type WorkoutAnalyticsQuery,
-} from './dto/workout-analytics.schemas.js';
+} from '../dto/workout-analytics.schemas.js';
 import {
   workoutAnalyticsExerciseResponseSchema,
   workoutAnalyticsSummaryResponseSchema,
-} from './workout-analytics.responses.js';
-import { WorkoutAnalyticsService } from './services/workout-analytics.service.js';
+} from '../workout-analytics.responses.js';
+import { WorkoutAnalyticsService } from '../services/workout-analytics.service.js';
 
 @Authenticate()
 @ApiTags('Workout Analytics')
