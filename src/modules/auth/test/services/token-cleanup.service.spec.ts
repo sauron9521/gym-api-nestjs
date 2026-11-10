@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TokenCleanupService } from '../../services/index.js';
-import { PrismaTokenStore } from '../../stores/index.js';
+import { PrismaSessionStore, PrismaTokenStore } from '../../stores/index.js';
 
 describe('TokenCleanupService', () => {
   let service: TokenCleanupService;
@@ -10,14 +10,23 @@ describe('TokenCleanupService', () => {
     deleteExpiredEmailTokens: ReturnType<typeof vi.fn>;
   };
 
+  let sessionStore: {
+    deleteExpiredSessions: ReturnType<typeof vi.fn>;
+  };
+
   beforeEach(() => {
     tokenStore = {
       deleteExpiredRefreshTokens: vi.fn().mockResolvedValue(undefined),
       deleteExpiredEmailTokens: vi.fn().mockResolvedValue(undefined),
     };
 
+    sessionStore = {
+      deleteExpiredSessions: vi.fn().mockResolvedValue(undefined),
+    };
+
     service = new TokenCleanupService(
       tokenStore as unknown as PrismaTokenStore,
+      sessionStore as unknown as PrismaSessionStore,
     );
   });
 
@@ -31,6 +40,7 @@ describe('TokenCleanupService', () => {
 
       expect(tokenStore.deleteExpiredRefreshTokens).toHaveBeenCalledOnce();
       expect(tokenStore.deleteExpiredEmailTokens).toHaveBeenCalledOnce();
+      expect(sessionStore.deleteExpiredSessions).toHaveBeenCalledOnce();
 
       const refreshDate =
         tokenStore.deleteExpiredRefreshTokens.mock.calls[0][0];
@@ -39,6 +49,7 @@ describe('TokenCleanupService', () => {
 
       expect(refreshDate).toBeInstanceOf(Date);
       expect(emailDate).toBe(refreshDate);
+      expect(sessionStore.deleteExpiredSessions).toHaveBeenCalledWith(refreshDate);
     });
 
     it('logs only a safe event name, never exception text or stack data', async () => {
@@ -81,6 +92,24 @@ describe('TokenCleanupService', () => {
       );
     });
 
+    it('reports a safe failure when session cleanup fails', async () => {
+      const loggerErrorSpy = vi
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const loggerSuccessSpy = vi
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => undefined);
+      sessionStore.deleteExpiredSessions.mockRejectedValueOnce(
+        new Error('sensitive database connection information'),
+      );
+
+      await expect(service.cleanupExpiredTokens()).resolves.toBeUndefined();
+      expect(loggerErrorSpy).toHaveBeenCalledExactlyOnceWith(
+        'AUTH_TOKEN_CLEANUP_FAILED',
+      );
+      expect(loggerSuccessSpy).not.toHaveBeenCalled();
+    });
+
     it('logs successful cleanup', async () => {
       const loggerLogSpy = vi
         .spyOn(Logger.prototype, 'log')
@@ -89,7 +118,7 @@ describe('TokenCleanupService', () => {
       await service.cleanupExpiredTokens();
 
       expect(loggerLogSpy).toHaveBeenCalledWith(
-        'Expired tokens cleanup completed',
+        'Expired auth tokens and sessions cleanup completed',
       );
     });
   });
