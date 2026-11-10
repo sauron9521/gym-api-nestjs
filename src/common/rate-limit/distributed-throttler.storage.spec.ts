@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DistributedThrottlerStorage } from './distributed-throttler.storage.js';
 
@@ -23,6 +23,57 @@ describe('DistributedThrottlerStorage', () => {
     const storage = withRedis('redis://127.0.0.1:1');
     try {
       await expect(storage.checkReadiness()).resolves.toBe(false);
+    } finally {
+      await storage.onApplicationShutdown();
+    }
+  });
+
+  it('logs one structured outage event and never logs Redis errors or account identifiers', async () => {
+    const redisUrl = 'redis://:private-password@127.0.0.1:1';
+    const email = 'sensitive-member@example.test';
+    const token = 'secret-reset-token';
+    const storage = withRedis(redisUrl);
+    const logger = { warn: vi.fn(), log: vi.fn() };
+    (storage as unknown as { logger: typeof logger }).logger = logger;
+    try {
+      const redis = (storage as unknown as {
+        redis: { emit(event: string, error: Error): void };
+      }).redis;
+
+      // The raw Error deliberately includes secrets. Only fixed event fields
+      // may reach the logger; repeated failures must not flood production logs.
+      redis.emit('error', new Error(`${redisUrl} ${email} ${token}`));
+      redis.emit('error', new Error(`another failure: ${email}`));
+      await expect(storage.checkReadiness()).resolves.toBe(false);
+      await expect(storage.increment(email + token, 60_000, 5, 0, 'account-recovery'))
+        .rejects.toThrow(ServiceUnavailableException);
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith({
+        event: 'RATE_LIMIT_REDIS_UNAVAILABLE',
+        component: 'rate_limiting',
+        backend: 'redis',
+      });
+      expect(logger.log).not.toHaveBeenCalled();
+      const serialized = JSON.stringify(logger.warn.mock.calls);
+      expect(serialized).not.toContain(redisUrl);
+      expect(serialized).not.toContain(email);
+      expect(serialized).not.toContain(token);
+      expect(serialized).not.toContain('private-password');
+    } finally {
+      await storage.onApplicationShutdown();
+    }
+  });
+
+  it('does not emit Redis state events in local in-memory mode', async () => {
+    const storage = withRedis();
+    const logger = { warn: vi.fn(), log: vi.fn() };
+    (storage as unknown as { logger: typeof logger }).logger = logger;
+    try {
+      expect(await storage.checkReadiness()).toBe(true);
+      await storage.increment('private-account', 60_000, 5, 0, 'account-recovery');
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.log).not.toHaveBeenCalled();
     } finally {
       await storage.onApplicationShutdown();
     }
