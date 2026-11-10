@@ -2,9 +2,9 @@
 
 ## Rate limits
 
-These endpoints have route-specific limits per IP (60-second window):
+These endpoints retain per-IP limits (60-second window) unless stated otherwise:
 
-| Endpoint | Requests per minute |
+| Endpoint | Limit |
 | --- | ---: |
 | POST /auth/register | 3 |
 | POST /auth/login | 3 (existing) |
