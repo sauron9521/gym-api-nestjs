@@ -1,3 +1,6 @@
+import { Transform } from 'class-transformer';
+import { normalizeRecoveryEmail } from '../utils/normalize-recovery-email.js';
+
 import {
   IsEmail,
   IsNotEmpty,
@@ -27,6 +30,9 @@ export class SignUpDto {
 }
 
 export class EmailDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? normalizeRecoveryEmail(value) : value,
+  )
   @IsEmail()
   email: string;
 }
