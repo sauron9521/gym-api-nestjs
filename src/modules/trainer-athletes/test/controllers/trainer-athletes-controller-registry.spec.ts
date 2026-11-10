@@ -21,8 +21,8 @@ describe('TrainerAthletesModule controller registry', () => {
   });
 
   it.each([
-    ['create', RequestMethod.POST, ''],
-    ['findMany', RequestMethod.GET, ''],
+    ['create', RequestMethod.POST, '/'],
+    ['findMany', RequestMethod.GET, '/'],
     ['findOne', RequestMethod.GET, ':id'],
     ['accept', RequestMethod.POST, ':id/accept'],
     ['decline', RequestMethod.POST, ':id/decline'],
