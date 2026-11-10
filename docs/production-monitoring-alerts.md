@@ -111,6 +111,15 @@ the fail-closed throttler merely to silence alerts.
 See [health and observability](observability-health.md) and the
 [production operations runbook](production-operations-runbook.md).
 
+## Optional recurring exporter and alert rules (PR #126)
+
+For a provider-independent host deployment, PR #126 adds an opt-in
+five-minute systemd runner and sanitized node_exporter textfile metrics,
+plus Prometheus alert templates for missing or stale collection,
+readiness/liveness, 429/503 and Redis outages. No service is deployed
+or enabled automatically. See [monitoring integration](production-monitoring-integration.md)
+for the operator setup, least-privilege limitations and rollback steps.
+
 ## Security and limitations
 
 Do not export raw logs to untrusted services or commit log files.
