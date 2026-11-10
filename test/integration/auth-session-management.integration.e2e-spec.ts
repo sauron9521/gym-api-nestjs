@@ -260,13 +260,16 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
     const remaining = await listWithCookie(firstCookie);
     expect(remaining.map((session) => session.id)).toEqual([firstId]);
   });
+
   it('rejects an expired cookie before cleanup and preserves a second active login', async () => {
     const expiredCookie = await login(firstEmail);
     const activeCookie = await login(firstEmail);
     const sessions = await listWithCookie(expiredCookie);
     const expiredId = sessions.find((session) => session.current)?.id;
 
-    expect(expiredId).toEqual(expect.any(String));
+    if (!expiredId) {
+      throw new Error('The first cookie session was not found');
+    }
     await request(app.getHttpServer())
       .get('/users/me')
       .set('Cookie', expiredCookie)
@@ -277,6 +280,10 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
       where: { id: expiredId },
       data: { expiresAt: new Date(Date.now() - 60_000) },
     });
+    // It is still persisted before the first access (cron has not run).
+    expect(
+      await prisma.session.count({ where: { id: expiredId } }),
+    ).toBe(1);
 
     const expiredAccess = await request(app.getHttpServer())
       .get('/users/me')
@@ -289,10 +296,7 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
       .set('Cookie', expiredCookie)
       .expect(401);
 
-    // Expiration must deny access immediately, without relying on nightly GC.
-    expect(
-      await prisma.session.count({ where: { id: expiredId } }),
-    ).toBe(1);
+    // Expiration denies access immediately, without relying on nightly GC.
     await request(app.getHttpServer())
       .get('/users/me')
       .set('Cookie', activeCookie)
@@ -309,5 +313,4 @@ describe('Auth session management isolation (HTTP + PostgreSQL)', () => {
       .expect(200);
     expect(await listWithCookie(activeCookie)).toHaveLength(1);
   });
-
 });
