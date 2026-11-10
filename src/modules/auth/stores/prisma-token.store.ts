@@ -202,7 +202,7 @@ export class PrismaTokenStore implements RefreshTokenStore, EmailTokenStore {
       await tx.refreshTokenFamily.deleteMany({
         where: {
           familyExpiresAt: { lte: now },
-          refreshTokens: {
+          tokens: {
             none: {},
           },
         },
