@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseModuleImports } from './import-parser.mjs';
+
 // Explicitly reviewed shared implementation contracts. Other features must
 // use a module/service/type API rather than reaching into private internals.
 const APPROVED_INTERNAL_IMPORTS = new Map([
@@ -18,31 +20,6 @@ function walk(dir) {
       const path = join(dir, entry.name);
       return entry.isDirectory() ? walk(path) : entry.isFile() ? [path] : [];
     }).sort();
-}
-
-function parseImports(source) {
-  const items = [];
-  // Static imports/re-exports, including 'import type' and named type-only
-  // bindings. These declarations terminate at semicolons in this codebase.
-  const staticPattern = /\b(import|export)\s+(type\s+)?([^;]*?)\s+from\s*['"]([^'"]+)['"]/g;
-  for (const match of source.matchAll(staticPattern)) {
-    const bindings = match[3].trim();
-    const namedTypesOnly = bindings.startsWith('{') && bindings.endsWith('}') &&
-      bindings.slice(1, -1).split(',').every((part) => /^type\s+\S/.test(part.trim()));
-    items.push({
-      path: match[4],
-      typeOnly: Boolean(match[2]) || namedTypesOnly,
-    });
-  }
-
-  // Side-effect and literal dynamic imports always create runtime edges.
-  for (const match of source.matchAll(/\bimport\s*['"]([^'"]+)['"]/g)) {
-    items.push({ path: match[1], typeOnly: false });
-  }
-  for (const match of source.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-    items.push({ path: match[1], typeOnly: false });
-  }
-  return items;
 }
 
 function outside(directory, target) {
@@ -118,7 +95,12 @@ export function checkFeatureDependencies(repositoryRoot) {
 
     for (const file of files) {
       const display = relative(resolve(repositoryRoot), file).split(sep).join('/');
-      for (const imported of parseImports(readFileSync(file, 'utf8'))) {
+      for (const imported of parseModuleImports(readFileSync(file, 'utf8'), file)) {
+        if (imported.path === null) {
+          errors.push(display + ':' + imported.line +
+            ': computed dynamic import cannot be checked statically; use a string literal');
+          continue;
+        }
         let targetFeature;
         let targetPath;
         let relativeCrossFeature = false;
@@ -178,7 +160,7 @@ export function checkFeatureDependencies(repositoryRoot) {
             (targetPath.startsWith('services/') ||
              targetPath.startsWith('repositories/'));
           if (isDependencyInjected) {
-            const moduleImports = parseImports(moduleSources.get(name));
+            const moduleImports = parseModuleImports(moduleSources.get(name), name + '.module.ts');
             if (!moduleImports.some((entry) =>
               entry.path === '#src/modules/' + targetFeature + '/' + targetFeature + '.module' &&
               !entry.typeOnly)) {

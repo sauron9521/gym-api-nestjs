@@ -19,6 +19,7 @@
     "test:architecture": "node --test scripts/check-architecture.test.mjs",
     "architecture:deps": "node scripts/check-feature-dependencies.mjs",
     "test:architecture:deps": "node --test scripts/check-feature-dependencies.test.mjs",
+    "test:architecture:imports": "node --test scripts/import-parser.test.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",

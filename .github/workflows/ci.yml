@@ -102,6 +102,7 @@ jobs:
           npm run test:architecture
           npm run architecture:deps
           npm run test:architecture:deps
+          npm run test:architecture:imports
 
       - name: Validate backup tooling without production credentials
         run: |

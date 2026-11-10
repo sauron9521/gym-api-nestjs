@@ -63,3 +63,27 @@ Both existing commands (`npm run architecture:check` and
 `npm run test:architecture`) run as part of the required CI quality job.
 No changes to GitHub Actions, application runtime, Prisma or npm dependencies
 are necessary.
+
+
+## AST import parsing (PR #107)
+
+Both architecture validators now share `scripts/import-parser.mjs`, which
+uses the already-installed TypeScript compiler AST rather than regular
+expressions. This prevents false matches in comments, strings and regex
+literals and accurately handles:
+
+- Type-only imports (`import type`, `import { type T }`) without
+  introducing runtime edges, including mixed import declarations.
+- Re-exports (`export * from`, `export type * from`,
+  `export { type T } from`) as runtime or type-only edges.
+- Literal dynamic imports, side-effect imports, `require('...')`,
+  and TypeScript `typeof import('...')` type queries.
+- Nonliteral dynamic `import(variable)` expressions are reported as
+  unresolvable with a source line instead of being silently ignored. Keep
+  these imports static for verifiable feature boundaries.
+
+The parser's regression suite is run by
+`npm run test:architecture:imports` inside the existing
+required CI quality job. **No new npm dependency is added**: TypeScript is
+already a project development dependency, installed by `npm ci`.
+Run `npm ci` before the architecture commands when working locally.

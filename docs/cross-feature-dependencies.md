@@ -12,8 +12,9 @@ npm run test:architecture:deps
 ```
 
 Both are included in the existing **Lint, build and tests** required CI
-job alongside `architecture:check` and its tests. They use Node
-core modules only: no database, Prisma generation, Docker, or new dependency.
+job alongside `architecture:check` and its tests. They use Node's standard test runner and the existing TypeScript compiler
+for AST parsing: no database, Prisma generation, Docker, or new dependency.
+Install dependencies with `npm ci` before running them locally.
 
 ## What is checked
 
@@ -70,3 +71,15 @@ integration tests remain required. A source-level runtime edge may be a
 conservative approximation of actual runtime use, so value imports that
 are only for typing should be changed to `import type` rather
 than broadly excluding the dependency.
+
+
+## Parser hardening (PR #107)
+
+Dependency graphs use the shared TypeScript AST parser in
+`scripts/import-parser.mjs`. Source comments and string values no
+longer create phantom dependencies. Type-only re-exports and TypeScript
+import type queries are not runtime edges; value re-exports, static dynamic
+imports and literal `require()` contribute to runtime graphs.
+Unresolved/computed dynamic `import()` expressions are rejected
+with an actionable file:line diagnostic. The parser is covered by
+`npm run test:architecture:imports` in required CI.
