@@ -58,6 +58,7 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
   private readonly memory = new ThrottlerStorageService();
   private readonly redis: Redis | null;
   private connectPromise: Promise<void> | null = null;
+  private redisAvailability: 'unknown' | 'healthy' | 'unavailable' = 'unknown';
 
   constructor(@Inject(ConfigService) config: AppConfigService) {
     const url = config.get('REDIS_URL');
@@ -71,11 +72,9 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
         })
       : null;
 
-    // ioredis emits errors even for connection failures. Do not log URLs,
-    // network endpoints, passwords, or the untrusted request tracker.
-    this.redis?.on('error', () => {
-      this.logger.warn('RATE_LIMIT_REDIS_ERROR');
-    });
+    // ioredis errors can repeat rapidly during an outage. Mark state only;
+    // never log the raw Error (which may expose connection credentials).
+    this.redis?.on('error', () => this.markRedisUnavailable());
   }
 
   /**
@@ -88,8 +87,14 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
     if (!this.redis) return true;
     try {
       await this.ensureRedisReady(this.redis);
-      return (await this.redis.ping()) === 'PONG';
+      if ((await this.redis.ping()) !== 'PONG') {
+        this.markRedisUnavailable();
+        return false;
+      }
+      this.markRedisHealthy();
+      return true;
     } catch {
+      this.markRedisUnavailable();
       return false;
     }
   }
@@ -149,6 +154,7 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
         throw new Error('Unexpected Redis result');
       }
       const [totalHits, expireMs, blocked, blockMs] = reply as number[];
+      this.markRedisHealthy();
       return {
         totalHits: totalHits!,
         timeToExpire: Math.max(0, Math.ceil(expireMs! / 1000)),
@@ -158,8 +164,36 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
     } catch {
       // Never fall back to process-local memory after an enabled Redis fails:
       // doing so would silently bypass the distributed global rate limit.
-      this.logger.warn('RATE_LIMIT_REDIS_UNAVAILABLE');
+      this.markRedisUnavailable();
       throw new ServiceUnavailableException('Rate limiting temporarily unavailable');
+    }
+  }
+
+  /**
+   * Emit at most one safe event per state transition. Never log the Redis
+   * error, URL, raw throttle key or request data. Nest's JSON logger records
+   * the event as structured fields in production.
+   */
+  private markRedisUnavailable(): void {
+    if (this.redisAvailability === 'unavailable') return;
+    this.redisAvailability = 'unavailable';
+    this.logger.warn({
+      event: 'RATE_LIMIT_REDIS_UNAVAILABLE',
+      component: 'rate_limiting',
+      backend: 'redis',
+    });
+  }
+
+  private markRedisHealthy(): void {
+    if (this.redisAvailability === 'healthy') return;
+    const recovered = this.redisAvailability === 'unavailable';
+    this.redisAvailability = 'healthy';
+    if (recovered) {
+      this.logger.log({
+        event: 'RATE_LIMIT_REDIS_RECOVERED',
+        component: 'rate_limiting',
+        backend: 'redis',
+      });
     }
   }
 
