@@ -1,0 +1,24 @@
+# Optional self-hosted example: install separately and adjust paths/users.
+# This service does not install itself on merge.
+[Unit]
+Description=Gym API five-minute sanitized monitoring snapshot
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gym-monitor
+Group=gym-monitor
+# CAUTION: membership in docker group effectively grants root privileges.
+SupplementaryGroups=docker
+WorkingDirectory=/opt/gym-api
+EnvironmentFile=/etc/gym-api/monitoring.env
+ExecStart=/usr/bin/bash /opt/gym-api/scripts/monitoring-collect.sh
+SuccessExitStatus=2
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+TimeoutStartSec=90
