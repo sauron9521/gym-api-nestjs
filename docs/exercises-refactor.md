@@ -7,7 +7,7 @@
 - `selects/`: authoritative Prisma projections using `satisfies Prisma.ExerciseSelect`, including archive and workout references.
 - `types/`: stable actor, DTO-compatible input, query/context and Prisma-derived payload types.
 - `policies/`: pure permission filters, role/source resolution, visibility rules and ownership predicates.
-- `dto/`: existing input Zod validation; `test/`: unchanged and added regression tests.
+- `dto/`: existing input Zod validation; `controllers/`: HTTP transport, Zod decorators, authentication, throttling and OpenAPI metadata; `test/controllers/`: HTTP controller contract and delegation tests; `test/`: service/repository and other regressions.
 
 A response mapper is not used: the Prisma selected shape already matches the current JSON API contract, and sensitive visibility must be enforced *before* querying the database. Do not introduce a post-query redaction mechanism.
 
@@ -23,3 +23,11 @@ A response mapper is not used: the Prisma selected shape already matches the cur
 ## CI verification
 
 Require Prisma validation/generation, type-aware lint, build, ESM import smoke, unit/E2E, PostgreSQL integration tests, OpenAPI contract checks, coverage, Docker production smoke and security audit before merge.
+
+## Controller layout (PR #97)
+
+- `controllers/exercises.controller.ts` keeps the existing anonymous/public read endpoints and authenticated write endpoints, including throttling and trainer-athlete access-context forwarding.
+- `controllers/exercise-trainer-access.controller.ts` keeps owner-mediated grant/list/revoke operations with the existing HTTP 200 grant / 204 revoke statuses.
+- `exercises.module.ts` registers the same two controllers in the same order. All same-feature imports use relative `.js` specifiers; cross-module imports keep native `#src/*` aliases.
+- Unit suites for both controllers are grouped in `test/controllers/`. The registry test ensures exactly eight unique HTTP verb/path pairs, without replacing E2E/OpenAPI checks.
+- No API route, Zod schema, response contract, authentication, database query, or business rule changes are included.

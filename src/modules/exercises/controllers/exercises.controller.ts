@@ -18,29 +18,29 @@ import {
   exerciseResponseSchema,
 } from '#src/infra/openapi/response-contracts';
 
-import { ExercisesService } from './services/exercises.service.js';
+import { ExercisesService } from '../services/exercises.service.js';
 
 import type {
   ExerciseAccessContext,
   ExerciseActor,
-} from './types/exercise.types.js';
+} from '../types/exercise.types.js';
 
 import {
   type CreateExerciseDto,
   createExerciseSchema,
-} from './dto/create-exercise.dto.js';
+} from '../dto/create-exercise.dto.js';
 
 import {
   type UpdateExerciseDto,
   updateExerciseSchema,
-} from './dto/update-exercise.dto.js';
+} from '../dto/update-exercise.dto.js';
 
 import {
   type QueryExercisesDto,
   queryExercisesSchema,
-} from './dto/query-exercises.dto.js';
+} from '../dto/query-exercises.dto.js';
 
-import { exerciseIdSchema } from './dto/exercise.schemas.js';
+import { exerciseIdSchema } from '../dto/exercise.schemas.js';
 import { TrainerAthletesService } from '#src/modules/trainer-athletes/services/trainer-athletes.service';
 
 const EMPTY_ACCESS_CONTEXT: ExerciseAccessContext = {

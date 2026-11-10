@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { ExercisesController } from './exercises.controller.js';
-import { ExerciseTrainerAccessController } from './exercise-trainer-access.controller.js';
+import { ExercisesController } from './controllers/exercises.controller.js';
+import { ExerciseTrainerAccessController } from './controllers/exercise-trainer-access.controller.js';
 import { ExercisesRepository } from './repositories/exercises.repository.js';
 import { ExerciseTrainerAccessRepository } from './repositories/exercise-trainer-access.repository.js';
 import { ExercisesService } from './services/exercises.service.js';
