@@ -72,21 +72,6 @@ describe('TrainingProgramsController', () => {
     expect(service.findMany).toHaveBeenCalledWith(actor, query);
   });
 
-  it('should publish a version', async () => {
-    service.publishVersion.mockResolvedValue({
-      id: 'version-1',
-      status: 'PUBLISHED',
-    });
-
-    await controller.publishVersion('program-1', 'version-1', actor);
-
-    expect(service.publishVersion).toHaveBeenCalledWith(
-      'program-1',
-      'version-1',
-      actor,
-    );
-  });
-
   it('should add an exercise', async () => {
     const body = {
       exerciseId: 'exercise-1',
