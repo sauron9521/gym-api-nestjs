@@ -5,7 +5,7 @@ import {
 } from '@nestjs/authentication';
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthController } from '../../controllers/index.js';
+import { AuthController } from '../../controllers/auth.controller.js';
 import { CredentialsService } from '../../services/index.js';
 
 describe('AuthController', () => {
