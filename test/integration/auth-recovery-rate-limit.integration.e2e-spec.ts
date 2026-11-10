@@ -213,7 +213,7 @@ describe('Auth recovery route throttling (real HTTP guard + PostgreSQL)', () => 
     const cookie = sessionCookie(login.headers['set-cookie']);
     const sendSpy = vi.spyOn(emailVerification, 'send');
     const tokenCount = await prisma.emailToken.count({
-      where: { userId, purpose: 'email-verification' },
+      where: { userId, purpose: { not: 'password-reset' } },
     });
 
     for (let index = 0; index < 3; index++) {
@@ -226,7 +226,7 @@ describe('Auth recovery route throttling (real HTTP guard + PostgreSQL)', () => 
     }
 
     const afterAllowed = await prisma.emailToken.count({
-      where: { userId, purpose: 'email-verification' },
+      where: { userId, purpose: { not: 'password-reset' } },
     });
     expect(afterAllowed).toBe(tokenCount + 3);
     expect(mailer.send).toHaveBeenCalledTimes(3);
@@ -240,7 +240,7 @@ describe('Auth recovery route throttling (real HTTP guard + PostgreSQL)', () => 
     expect(mailer.send).toHaveBeenCalledTimes(3);
     expect(
       await prisma.emailToken.count({
-        where: { userId, purpose: 'email-verification' },
+        where: { userId, purpose: { not: 'password-reset' } },
       }),
     ).toBe(afterAllowed);
 
