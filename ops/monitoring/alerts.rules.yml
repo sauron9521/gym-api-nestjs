@@ -1,0 +1,81 @@
+groups:
+  - name: gym-api-operator-monitoring
+    interval: 30s
+    rules:
+      - alert: GymApiMonitoringSnapshotMissing
+        expr: absent(gym_api_monitor_last_run_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API monitoring snapshot is missing"
+
+      - alert: GymApiMonitoringSnapshotStale
+        expr: time() - gym_api_monitor_last_run_timestamp_seconds > 900
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API monitoring snapshot has not updated for 15 minutes"
+
+      - alert: GymApiLivenessFailed
+        expr: gym_api_monitor_live_probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API liveness probe failed"
+
+      - alert: GymApiReadinessFailed
+        expr: gym_api_monitor_ready_probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API readiness probe failed"
+
+      - alert: GymApiHealthProbeNotConfigured
+        expr: gym_api_monitor_ready_probe_success == -1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API active readiness check is not configured"
+
+      - alert: GymApiHttp503Elevated
+        expr: |
+          (gym_api_monitor_http_503_window_5m
+            / clamp_min(gym_api_monitor_http_requests_window_5m, 1)) >= 0.05
+          and gym_api_monitor_http_requests_window_5m >= 20
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API HTTP 503 share exceeds 5 percent"
+
+      - alert: GymApiHttp429Elevated
+        expr: |
+          (gym_api_monitor_http_429_window_5m
+            / clamp_min(gym_api_monitor_http_requests_window_5m, 1)) >= 0.20
+          and gym_api_monitor_http_requests_window_5m >= 20
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API HTTP 429 share exceeds 20 percent"
+
+      - alert: GymApiRedisOutageObserved
+        expr: gym_api_monitor_redis_outages_window_5m > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API observed a Redis outage in the last report window"
+
+      - alert: GymApiMonitoringTextfileReadError
+        expr: node_textfile_scrape_error == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node exporter cannot read one or more textfile snapshots"
