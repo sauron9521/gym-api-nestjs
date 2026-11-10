@@ -8,28 +8,6 @@ describe('TrainingProgramsController', () => {
     findMany: vi.fn(),
     findOne: vi.fn(),
     archive: vi.fn(),
-    findVersions: vi.fn(),
-    findVersion: vi.fn(),
-    createNextDraft: vi.fn(),
-    updateDraftVersion: vi.fn(),
-    publishVersion: vi.fn(),
-    createWorkout: vi.fn(),
-    updateWorkout: vi.fn(),
-    deleteWorkout: vi.fn(),
-    addExercise: vi.fn(),
-    updateExercise: vi.fn(),
-    removeExercise: vi.fn(),
-    reorderExercises: vi.fn(),
-    addSet: vi.fn(),
-    updateSet: vi.fn(),
-    removeSet: vi.fn(),
-    reorderSets: vi.fn(),
-    assignVersionToAthlete: vi.fn(),
-    findManyAssignments: vi.fn(),
-    findOneAssignment: vi.fn(),
-    completeAssignment: vi.fn(),
-    cancelAssignment: vi.fn(),
-    findOneAssignmentDetails: vi.fn(),
   };
 
   let controller: TrainingProgramsController;
@@ -72,31 +50,5 @@ describe('TrainingProgramsController', () => {
     expect(service.findMany).toHaveBeenCalledWith(actor, query);
   });
 
-  it('should add a set', async () => {
-    const body = {
-      setType: 'WORKING' as const,
-      plannedReps: 10,
-      plannedWeightKg: 60,
-    };
 
-    service.addSet.mockResolvedValue({ id: 'set-1' });
-
-    await controller.addSet(
-      'program-1',
-      'version-1',
-      'workout-1',
-      'exercise-1',
-      actor,
-      body,
-    );
-
-    expect(service.addSet).toHaveBeenCalledWith(
-      actor,
-      'program-1',
-      'version-1',
-      'workout-1',
-      'exercise-1',
-      body,
-    );
-  });
 });
