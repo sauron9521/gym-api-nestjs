@@ -4,12 +4,13 @@ import { ExercisesModule } from '#src/modules/exercises/exercises.module';
 import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-athletes.module';
 
 import { WorkoutsRepository } from './repositories/workouts.repository.js';
+import { WorkoutCreationRepository } from './repositories/workout-creation.repository.js';
 import { WorkoutsService } from './services/workouts.service.js';
 import { WorkoutsController } from './workouts.controller.js';
 
 @Module({
   imports: [ExercisesModule, TrainerAthletesModule],
-  providers: [WorkoutsRepository, WorkoutsService],
+  providers: [WorkoutCreationRepository, WorkoutsRepository, WorkoutsService],
   controllers: [WorkoutsController],
   exports: [WorkoutsService],
 })

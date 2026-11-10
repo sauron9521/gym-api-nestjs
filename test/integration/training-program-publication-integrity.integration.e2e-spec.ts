@@ -10,6 +10,7 @@ import { TrainingProgramVersionRepository } from '../../src/modules/training-pro
 import { TrainingProgramExerciseRepository } from '../../src/modules/training-programs/repositories/training-program-exercise.repository.js';
 import { TrainingProgramAssignmentRepository } from '../../src/modules/training-programs/repositories/training-program-assignment.repository.js';
 import { WorkoutsRepository } from '../../src/modules/workouts/repositories/workouts.repository.js';
+import { WorkoutCreationRepository } from '../../src/modules/workouts/repositories/workout-creation.repository.js';
 import { useTestDatabase } from '../utility/test-db-helper.js';
 
 /**
@@ -135,7 +136,7 @@ describe('Published training program integrity (PostgreSQL)', () => {
     versions = new TrainingProgramVersionRepository(prisma);
     exercises = new TrainingProgramExerciseRepository(prisma);
     assignments = new TrainingProgramAssignmentRepository(prisma);
-    workouts = new WorkoutsRepository(prisma);
+    workouts = new WorkoutsRepository(prisma, new WorkoutCreationRepository(prisma));
   }, 20_000);
 
   afterAll(async () => {

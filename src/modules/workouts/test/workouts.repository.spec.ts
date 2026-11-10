@@ -2,6 +2,7 @@ import { PrismaService } from '#src/infra/database/index';
 import { Prisma } from '#prisma/client';
 
 import { WorkoutsRepository } from '../repositories/workouts.repository.js';
+import { WorkoutCreationRepository } from '../repositories/workout-creation.repository.js';
 import { workoutSelect, workoutSummarySelect } from '../selects/workout.select.js';
 
 describe('WorkoutsRepository', () => {
@@ -25,7 +26,7 @@ describe('WorkoutsRepository', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    repository = new WorkoutsRepository(prisma as unknown as PrismaService);
+    repository = new WorkoutsRepository(prisma as unknown as PrismaService, new WorkoutCreationRepository(prisma as unknown as PrismaService));
   });
 
   it('should include program references and planned set targets', () => {
