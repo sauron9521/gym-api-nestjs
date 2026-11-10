@@ -38,16 +38,6 @@ import {
 } from './dto/query-training-programs.dto.js';
 
 import {
-  type CreateTrainingProgramWorkoutDto,
-  createTrainingProgramWorkoutSchema,
-} from './dto/create-training-program-workout.dto.js';
-
-import {
-  type UpdateTrainingProgramWorkoutDto,
-  updateTrainingProgramWorkoutSchema,
-} from './dto/update-training-program-workout.dto.js';
-
-import {
   type AddTrainingProgramExerciseDto,
   addTrainingProgramExerciseSchema,
 } from './dto/add-training-program-exercise.dto.js';
@@ -127,68 +117,6 @@ export class TrainingProgramsController {
     @CurrentUser() actor: TrainingProgramActor,
   ) {
     return this.trainingProgramsService.archive(programId, actor);
-  }
-
-  // WORKOUTS INSIDE PROGRAM VERSION
-
-  @Post(':programId/versions/:versionId/workouts')
-  @ApiCreatedResponse({ schema: trainingProgramVersionResponseSchema })
-  createWorkout(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-    @Body({ schema: createTrainingProgramWorkoutSchema })
-    body: CreateTrainingProgramWorkoutDto,
-  ) {
-    return this.trainingProgramsService.createWorkout(
-      actor,
-      programId,
-      versionId,
-      body,
-    );
-  }
-
-  @Patch(':programId/versions/:versionId/workouts/:workoutId')
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  updateWorkout(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @Param('workoutId', { schema: trainingProgramWorkoutIdSchema })
-    workoutId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-    @Body({ schema: updateTrainingProgramWorkoutSchema })
-    body: UpdateTrainingProgramWorkoutDto,
-  ) {
-    return this.trainingProgramsService.updateWorkout(
-      actor,
-      programId,
-      versionId,
-      workoutId,
-      body,
-    );
-  }
-
-  @Delete(':programId/versions/:versionId/workouts/:workoutId')
-  @ApiOkResponse({ schema: trainingProgramVersionResponseSchema })
-  deleteWorkout(
-    @Param('programId', { schema: trainingProgramIdSchema })
-    programId: string,
-    @Param('versionId', { schema: trainingProgramVersionIdSchema })
-    versionId: string,
-    @Param('workoutId', { schema: trainingProgramWorkoutIdSchema })
-    workoutId: string,
-    @CurrentUser() actor: TrainingProgramActor,
-  ) {
-    return this.trainingProgramsService.deleteWorkout(
-      actor,
-      programId,
-      versionId,
-      workoutId,
-    );
   }
 
   // EXERCISES INSIDE WORKOUT
