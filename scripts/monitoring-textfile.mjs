@@ -107,7 +107,7 @@ export async function writeMetricsFile(outputPath, text) {
 export function parseOutputArg(args) {
   if (args.length !== 2 || args[0] !== '--output' ||
       !isAbsolute(args[1] ?? '') ||
-      !/^[A-Za-z0-9][A-Za-z0-9_.-]*\\.prom$/.test(basename(args[1] ?? ''))) {
+      !/^[A-Za-z0-9][A-Za-z0-9_.-]*\.prom$/.test(basename(args[1] ?? ''))) {
     throw new Error('Expected absolute --output path');
   }
   return args[1];
