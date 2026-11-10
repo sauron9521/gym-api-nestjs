@@ -43,4 +43,58 @@ describe('workoutIdempotency', () => {
     const b = workoutIdempotency(key, 'manual', { title: 'Updated' });
     expect(a?.fingerprint).not.toBe(b?.fingerprint);
   });
+  it('treats missing and explicit undefined properties as the same request', () => {
+    const explicitUndefined = workoutIdempotency(key, 'manual', {
+      title: 'Workout',
+      notes: undefined,
+      exercises: [{ exerciseId: 'exercise-1', notes: undefined }],
+    });
+    const omitted = workoutIdempotency(key, 'manual', {
+      exercises: [{ exerciseId: 'exercise-1' }],
+      title: 'Workout',
+    });
+    expect(explicitUndefined?.fingerprint).toBe(omitted?.fingerprint);
+  });
+
+  it('treats null differently from an omitted optional field', () => {
+    const missing = workoutIdempotency(key, 'manual', { title: 'Workout' });
+    const explicitNull = workoutIdempotency(key, 'manual', {
+      title: 'Workout',
+      notes: null,
+    });
+    expect(missing?.fingerprint).not.toBe(explicitNull?.fingerprint);
+  });
+
+  it('preserves exercise and set array ordering in request identity', () => {
+    const first = workoutIdempotency(key, 'manual', {
+      exercises: [
+        { exerciseId: 'exercise-1', sets: [{ plannedReps: 8 }, { plannedReps: 10 }] },
+        { exerciseId: 'exercise-2', sets: [{ plannedReps: 12 }] },
+      ],
+    });
+    const reorderedSets = workoutIdempotency(key, 'manual', {
+      exercises: [
+        { exerciseId: 'exercise-1', sets: [{ plannedReps: 10 }, { plannedReps: 8 }] },
+        { exerciseId: 'exercise-2', sets: [{ plannedReps: 12 }] },
+      ],
+    });
+    const reorderedExercises = workoutIdempotency(key, 'manual', {
+      exercises: [
+        { exerciseId: 'exercise-2', sets: [{ plannedReps: 12 }] },
+        { exerciseId: 'exercise-1', sets: [{ plannedReps: 8 }, { plannedReps: 10 }] },
+      ],
+    });
+    expect(first?.fingerprint).not.toBe(reorderedSets?.fingerprint);
+    expect(first?.fingerprint).not.toBe(reorderedExercises?.fingerprint);
+  });
+
+  it('accepts the shortest and longest valid keys but rejects non-ASCII input', () => {
+    expect(workoutIdempotency('12345678', 'manual', {})?.key).toBe('12345678');
+    expect(workoutIdempotency('a'.repeat(128), 'manual', {})?.key).toHaveLength(128);
+    expect(() => workoutIdempotency('ключ12345678', 'manual', {}))
+      .toThrow(BadRequestException);
+    expect(() => workoutIdempotency('a'.repeat(129), 'manual', {}))
+      .toThrow(BadRequestException);
+  });
+
 });
