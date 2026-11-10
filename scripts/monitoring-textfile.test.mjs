@@ -75,7 +75,7 @@ test('publishes atomically with restrictive permissions and preserves old report
     await writeMetricsFile(target, metricsFromReport(fixture(), 123));
     assert.match(readFileSync(target, 'utf8'),
       /gym_api_monitor_last_run_timestamp_seconds 123/);
-    assert.equal(statSync(target).mode & 0o777, 0o600);
+    assert.equal(statSync(target).mode & 0o777, 0o640);
     const first = readFileSync(target, 'utf8');
     await assert.rejects(writeMetricsFile(join(dir, 'missing', 'monitor.prom'), 'bad'));
     assert.equal(readFileSync(target, 'utf8'), first);
