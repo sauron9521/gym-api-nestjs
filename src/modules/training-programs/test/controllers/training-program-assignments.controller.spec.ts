@@ -1,10 +1,10 @@
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, MODULE_METADATA, PATH_METADATA } from '@nestjs/common/constants';
-import { TrainingProgramsController } from '../training-programs.controller.js';
-import { TrainingProgramsModule } from '../training-programs.module.js';
-import { TrainingProgramAssignmentsController } from '../training-program-assignments.controller.js';
-import { TrainingProgramsService } from '../services/training-programs.service.js';
-import type { TrainingProgramActor } from '../types/training-program.types.js';
+import { TrainingProgramsController } from '../../controllers/training-programs.controller.js';
+import { TrainingProgramsModule } from '../../training-programs.module.js';
+import { TrainingProgramAssignmentsController } from '../../controllers/training-program-assignments.controller.js';
+import { TrainingProgramsService } from '../../services/training-programs.service.js';
+import type { TrainingProgramActor } from '../../types/training-program.types.js';
 
 describe('TrainingProgramAssignmentsController', () => {
   const service = {

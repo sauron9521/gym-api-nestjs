@@ -3,12 +3,12 @@ import { Module } from '@nestjs/common';
 import { ExercisesModule } from '#src/modules/exercises/exercises.module';
 import { TrainerAthletesModule } from '#src/modules/trainer-athletes/trainer-athletes.module';
 
-import { TrainingProgramsController } from './training-programs.controller.js';
-import { TrainingProgramAssignmentsController } from './training-program-assignments.controller.js';
-import { TrainingProgramVersionsController } from './training-program-versions.controller.js';
-import { TrainingProgramWorkoutsController } from './training-program-workouts.controller.js';
-import { TrainingProgramExercisesController } from './training-program-exercises.controller.js';
-import { TrainingProgramSetsController } from './training-program-sets.controller.js';
+import { TrainingProgramsController } from './controllers/training-programs.controller.js';
+import { TrainingProgramAssignmentsController } from './controllers/training-program-assignments.controller.js';
+import { TrainingProgramVersionsController } from './controllers/training-program-versions.controller.js';
+import { TrainingProgramWorkoutsController } from './controllers/training-program-workouts.controller.js';
+import { TrainingProgramExercisesController } from './controllers/training-program-exercises.controller.js';
+import { TrainingProgramSetsController } from './controllers/training-program-sets.controller.js';
 import { TrainingProgramsService } from './services/training-programs.service.js';
 
 import { TrainingProgramCrudRepository } from './repositories/training-program-crud.repository.js';

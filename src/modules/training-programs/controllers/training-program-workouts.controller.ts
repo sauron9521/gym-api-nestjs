@@ -12,18 +12,18 @@ import { trainingProgramVersionResponseSchema } from '#src/infra/openapi/respons
 import {
   type CreateTrainingProgramWorkoutDto,
   createTrainingProgramWorkoutSchema,
-} from './dto/create-training-program-workout.dto.js';
+} from '../dto/create-training-program-workout.dto.js';
 import {
   type UpdateTrainingProgramWorkoutDto,
   updateTrainingProgramWorkoutSchema,
-} from './dto/update-training-program-workout.dto.js';
+} from '../dto/update-training-program-workout.dto.js';
 import {
   trainingProgramIdSchema,
   trainingProgramVersionIdSchema,
   trainingProgramWorkoutIdSchema,
-} from './dto/training-program.schemas.js';
-import { TrainingProgramsService } from './services/training-programs.service.js';
-import type { TrainingProgramActor } from './types/training-program.types.js';
+} from '../dto/training-program.schemas.js';
+import { TrainingProgramsService } from '../services/training-programs.service.js';
+import type { TrainingProgramActor } from '../types/training-program.types.js';
 
 /** Manage workouts inside a training-program version without changing public route paths. */
 @ApiTags('Training Programs')

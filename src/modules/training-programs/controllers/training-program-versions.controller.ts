@@ -24,13 +24,13 @@ import {
 import {
   trainingProgramIdSchema,
   trainingProgramVersionIdSchema,
-} from './dto/training-program.schemas.js';
+} from '../dto/training-program.schemas.js';
 import {
   type UpdateTrainingProgramDraftDto,
   updateTrainingProgramDraftSchema,
-} from './dto/update-training-program-draft.dto.js';
-import { TrainingProgramsService } from './services/training-programs.service.js';
-import type { TrainingProgramActor } from './types/training-program.types.js';
+} from '../dto/update-training-program-draft.dto.js';
+import { TrainingProgramsService } from '../services/training-programs.service.js';
+import type { TrainingProgramActor } from '../types/training-program.types.js';
 
 @ApiTags('Training Programs')
 @ApiCookieAuth('sessionCookie')

@@ -10,22 +10,22 @@ import {
 import {
   type CreateTrainingProgramAssignmentDto,
   createTrainingProgramAssignmentSchema,
-} from './dto/create-training-program-assignment.dto.js';
+} from '../dto/create-training-program-assignment.dto.js';
 import {
   type QueryTrainingProgramAssignmentsDto,
   queryTrainingProgramAssignmentsSchema,
-} from './dto/query-training-program-assignments.dto.js';
+} from '../dto/query-training-program-assignments.dto.js';
 import {
   type CancelTrainingProgramAssignmentDto,
   cancelTrainingProgramAssignmentSchema,
-} from './dto/cancel-training-program-assignment.dto.js';
+} from '../dto/cancel-training-program-assignment.dto.js';
 import {
   trainingProgramAssignmentIdSchema,
   trainingProgramIdSchema,
   trainingProgramVersionIdSchema,
-} from './dto/training-program.schemas.js';
-import { TrainingProgramsService } from './services/training-programs.service.js';
-import type { TrainingProgramActor } from './types/training-program.types.js';
+} from '../dto/training-program.schemas.js';
+import { TrainingProgramsService } from '../services/training-programs.service.js';
+import type { TrainingProgramActor } from '../types/training-program.types.js';
 
 /**
  * Assignment endpoints must be registered ahead of the dynamic :programId
