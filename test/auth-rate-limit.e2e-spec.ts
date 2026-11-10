@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { EmailVerificationService, SignInService, TokenService } from '@nestjs/authentication';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -11,6 +12,8 @@ import { EmailVerificationController } from '../src/modules/auth/controllers/ema
 import { TokensController } from '../src/modules/auth/controllers/tokens.controller.js';
 import { CredentialsService } from '../src/modules/auth/services/credentials.service.js';
 import { AuthNoStoreMiddleware } from '../src/modules/auth/middleware/auth-no-store.middleware.js';
+import { VerificationResendRateLimitGuard } from '../src/modules/auth/guards/verification-resend-rate-limit.guard.js';
+import { DistributedThrottlerStorage } from '../src/common/rate-limit/distributed-throttler.storage.js';
 
 describe('Auth endpoint throttling (HTTP)', () => {
   let app: INestApplication;
@@ -41,10 +44,15 @@ describe('Auth endpoint throttling (HTTP)', () => {
         { provide: CredentialsService, useValue: credentials },
         { provide: SignInService, useValue: signIn },
         { provide: EmailVerificationService, useValue: verification },
+        { provide: DistributedThrottlerStorage, useValue: { increment: vi.fn() } },
+        { provide: ConfigService, useValue: { getOrThrow: () => 'test-only' } },
         { provide: TokenService, useValue: tokens },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
-    }).compile();
+    })
+      .overrideGuard(VerificationResendRateLimitGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleRef.createNestApplication();
     const authHeaders = new AuthNoStoreMiddleware();
