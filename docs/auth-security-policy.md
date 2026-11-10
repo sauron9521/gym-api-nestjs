@@ -21,9 +21,11 @@ Other endpoints retain the existing default 10 requests per minute.
 The built-in in-memory throttler is **per process**, not shared across replicas.
 Its client tracker also requires a carefully configured trusted reverse proxy
 to avoid tracking only a load balancer IP. Do not blindly trust
-X-Forwarded-For. Shared Redis counters, per-account limits, monitoring,
-and abuse response remain follow-up work. IP throttles do not prevent
-distributed guessing or account-level abuse.
+X-Forwarded-For. Configure shared Redis counters when running multiple API
+replicas. The forgot-password route now has an additional five-per-hour
+account-address quota (see [account recovery policy](auth-account-recovery-rate-limiting.md)).
+Monitoring, account limits for other routes and abuse response remain future work.
+IP throttles alone cannot prevent distributed guessing.
 
 ## Deleted account policy
 
