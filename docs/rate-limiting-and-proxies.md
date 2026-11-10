@@ -38,7 +38,11 @@ or sanitize the incoming `X-Forwarded-For`, `X-Forwarded-Host` and
 deployment, leave the option empty so client-supplied forwarding headers are
 ignored.
 
-Existing `@Throttle` decorators and HTTP contracts do not change.
+Existing `@Throttle` decorators continue to enforce the same IP limits.
+In addition, `POST /auth/password-reset/forgot` now has a second guard
+that limits each normalized email to 5 requests per hour from any IP,
+with HMAC-blinded account keys and the same Redis or memory storage.
+See [account recovery policy](auth-account-recovery-rate-limiting.md).
 The single-instance in-memory mode remains compatible for local development
 and existing installations. **For multiple replicas, configure Redis before
 scaling**; otherwise each replica maintains independent limits.

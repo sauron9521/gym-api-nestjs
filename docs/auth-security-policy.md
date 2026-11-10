@@ -2,9 +2,9 @@
 
 ## Rate limits
 
-These endpoints have route-specific limits per IP (60-second window):
+These endpoints retain per-IP limits (60-second window) unless stated otherwise:
 
-| Endpoint | Requests per minute |
+| Endpoint | Limit |
 | --- | ---: |
 | POST /auth/register | 3 |
 | POST /auth/login | 3 (existing) |
@@ -13,7 +13,7 @@ These endpoints have route-specific limits per IP (60-second window):
 | POST /auth/token/revoke | 10 |
 | POST /auth/email/verify | 8 |
 | POST /auth/email/verification | 3 (existing) |
-| POST /auth/password-reset/forgot | 3 (existing) |
+| POST /auth/password-reset/forgot | 3 per IP, plus 5/hour per normalized email |
 | POST /auth/password-reset/reset | 3 (existing) |
 
 Other endpoints retain the existing default 10 requests per minute.
@@ -21,9 +21,11 @@ Other endpoints retain the existing default 10 requests per minute.
 The built-in in-memory throttler is **per process**, not shared across replicas.
 Its client tracker also requires a carefully configured trusted reverse proxy
 to avoid tracking only a load balancer IP. Do not blindly trust
-X-Forwarded-For. Shared Redis counters, per-account limits, monitoring,
-and abuse response remain follow-up work. IP throttles do not prevent
-distributed guessing or account-level abuse.
+X-Forwarded-For. Configure shared Redis counters when running multiple API
+replicas. The forgot-password route now has an additional five-per-hour
+account-address quota (see [account recovery policy](auth-account-recovery-rate-limiting.md)).
+Monitoring, account limits for other routes and abuse response remain future work.
+IP throttles alone cannot prevent distributed guessing.
 
 ## Deleted account policy
 
