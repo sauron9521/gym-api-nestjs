@@ -30,7 +30,10 @@ describe('UsersModule controller registry', () => {
     [UsersController, 'deleteAvatar', RequestMethod.DELETE, 'me/avatar'],
     [AvatarPublicController, 'get', RequestMethod.GET, ':key'],
   ] as const)('preserves %s.%s HTTP method and route', (controller, name, method, path) => {
-    const handler = controller.prototype[name];
+    const handler = Object.getOwnPropertyDescriptor(
+      controller.prototype,
+      name,
+    )?.value as (...args: unknown[]) => unknown;
     expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(method);
     expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(path);
   });
