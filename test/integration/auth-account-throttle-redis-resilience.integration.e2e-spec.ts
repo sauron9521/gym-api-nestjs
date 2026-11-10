@@ -29,7 +29,6 @@ const originalEnv = {
   DATABASE_URL: process.env.DATABASE_URL,
   APP_URL: process.env.APP_URL,
   JWT_SECRET: process.env.JWT_SECRET,
-  REDIS_URL: process.env.REDIS_URL,
 };
 const password = 'StrongPassword123!';
 
@@ -145,12 +144,22 @@ redisDescribe('Account throttle Redis outage and recovery (HTTP + PostgreSQL)', 
       process.env.JWT_SECRET = randomUUID() + randomUUID();
     }
     const port = await makeProxy(testRedisUrl!);
-    process.env.REDIS_URL = 'redis://127.0.0.1:' + port;
+    const proxyUrl = 'redis://127.0.0.1:' + port;
+
+    // Inject one *real* Redis-backed storage through the proxy. ConfigModule
+    // may be initialized by other E2E imports before this test changes env,
+    // so relying on process.env.REDIS_URL would silently select memory.
+    // Override the shared provider rather than faking increment() calls.
+    storage = new DistributedThrottlerStorage({
+      get: (key: string) => key === 'REDIS_URL' ? proxyUrl : undefined,
+    } as never);
 
     const { AppModule } = await import('../../src/app.module.js');
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     })
+      .overrideProvider(DistributedThrottlerStorage)
+      .useValue(storage)
       .overrideProvider(Mailer)
       .useValue(mailer)
       // Isolate both account guards: otherwise the global IP limiter fails
@@ -170,7 +179,7 @@ redisDescribe('Account throttle Redis outage and recovery (HTTP + PostgreSQL)', 
     );
     await app.init();
     prisma = app.get(PrismaService);
-    storage = app.get(DistributedThrottlerStorage);
+    expect(app.get(DistributedThrottlerStorage)).toBe(storage);
     expect(await storage.checkReadiness()).toBe(true);
 
     const hasher = app.get(PasswordHasher);
@@ -200,7 +209,7 @@ redisDescribe('Account throttle Redis outage and recovery (HTTP + PostgreSQL)', 
         await new Promise<void>((resolve) => proxy!.close(() => resolve()));
       }
     } finally {
-      for (const key of ['DATABASE_URL', 'APP_URL', 'JWT_SECRET', 'REDIS_URL'] as const) {
+      for (const key of ['DATABASE_URL', 'APP_URL', 'JWT_SECRET'] as const) {
         if (originalEnv[key] === undefined) delete process.env[key];
         else process.env[key] = originalEnv[key];
       }
