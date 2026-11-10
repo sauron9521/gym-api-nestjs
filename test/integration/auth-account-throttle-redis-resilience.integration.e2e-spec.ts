@@ -163,7 +163,11 @@ redisDescribe('Account throttle Redis client outage and recovery (HTTP + Postgre
     // Simulate an unavailable Redis connection for this application only.
     // With no memory fallback, both account guards must fail closed.
     redisClient.disconnect();
-    expect(redisClient.status).toBe('end');
+    // ioredis emits the socket's close event asynchronously. Checking
+    // status immediately after disconnect() can still return "ready".
+    await vi.waitFor(() => {
+      expect(redisClient.status).toBe('end');
+    }, { timeout: 5_000, interval: 25 });
     expect(await storage.checkReadiness()).toBe(false);
 
     await assertPrivateResponse(503, await forgot());
