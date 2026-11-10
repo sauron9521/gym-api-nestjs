@@ -101,4 +101,57 @@ describe('Workout command repository transaction boundaries', () => {
       tx.workout.update.mock.invocationCallOrder[0]!,
     );
   });
+  it('refuses set updates when the parent workout row no longer exists', async () => {
+    tx.$queryRaw.mockResolvedValue([]);
+
+    await expect(setsRepository.updateSet('set-1', { status: 'COMPLETED' }))
+      .resolves.toBeNull();
+
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.workoutSet.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses completion when the workout is missing or already completed', async () => {
+    const completedAt = new Date('2030-01-01T10:00:00Z');
+
+    for (const lockedRows of [[], [{ id: 'workout-1', status: 'COMPLETED' }]]) {
+      vi.resetAllMocks();
+      tx.$queryRaw.mockResolvedValue(lockedRows);
+      prisma.$transaction.mockImplementation(
+        async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+      );
+
+      await expect(lifecycleRepository.completeWorkout({
+        id: 'workout-1',
+        athleteId: 'athlete-1',
+        completedAt,
+      })).resolves.toEqual({ status: 'NOT_IN_PROGRESS' });
+
+      expect(tx.workoutSet.findMany).not.toHaveBeenCalled();
+      expect(tx.workout.update).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([
+    { label: 'no sets', sets: [] },
+    { label: 'all sets skipped', sets: [{ status: 'SKIPPED' }] },
+    { label: 'pending sets without completion', sets: [{ status: 'PENDING' }] },
+  ])('refuses completion of $label after the parent lock', async ({ sets }) => {
+    tx.$queryRaw.mockResolvedValue([{ id: 'workout-1', status: 'IN_PROGRESS' }]);
+    tx.workoutSet.findMany.mockResolvedValue(sets);
+
+    await expect(lifecycleRepository.completeWorkout({
+      id: 'workout-1',
+      athleteId: 'athlete-1',
+      completedAt: new Date('2030-01-01T10:00:00Z'),
+    })).resolves.toEqual({ status: 'INVALID_SETS' });
+
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.workoutSet.findMany).toHaveBeenCalledOnce();
+    expect(tx.workout.update).not.toHaveBeenCalled();
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.workoutSet.findMany.mock.invocationCallOrder[0]!,
+    );
+  });
+
 });
