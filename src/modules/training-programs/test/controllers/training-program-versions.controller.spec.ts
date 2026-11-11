@@ -104,7 +104,7 @@ describe('TrainingProgramVersionsController', () => {
   it('publishes with HTTP 200 rather than default POST 201', () => {
     expect(Reflect.getMetadata(
       HTTP_CODE_METADATA,
-      TrainingProgramVersionsController.prototype.publishVersion,
+      Object.getOwnPropertyDescriptor(TrainingProgramVersionsController.prototype, 'publishVersion')?.value,
     )).toBe(200);
   });
 });
