@@ -19,6 +19,7 @@ const event = (time = now - 10) => JSON.stringify({
 const cpuStat = [
   'usage_usec 5000000', 'user_usec 3000000', 'system_usec 2000000',
   'nr_periods 100', 'nr_throttled 25', 'throttled_usec 500000',
+  'core_sched.force_idle_usec 0',
 ].join('\n') + '\n';
 
 test('strictly validate Docker identity, cgroup mapping and actual CPU counters', () => {
