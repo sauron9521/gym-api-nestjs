@@ -119,6 +119,8 @@ export function validateOperatorChecklist(input, report, nowMs = Date.now()) {
     'decision', 'confirmations',
   ]) || input.version !== 1 || input.deployment !== report.deployment ||
       input.decision !== 'REVIEWED_FOR_STAGING' ||
+      typeof input.reviewer !== 'string' ||
+      typeof input.changeRef !== 'string' ||
       !ALIAS_RE.test(input.reviewer) || !REF_RE.test(input.changeRef) ||
       !near(nowMs, validInstant(input.reviewedAt)) ||
       validInstant(input.reviewedAt) < validInstant(report.checkedAt) ||
