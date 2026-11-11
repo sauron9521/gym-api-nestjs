@@ -185,3 +185,46 @@ test('source checklist example is deliberately unapproved and cannot mint an art
   assert.ok(REQUIRED_CONFIRMATIONS.every(k => example.confirmations[k] === false));
   assert.throws(() => createEvidenceBundle(report(), example, now), EvidenceError);
 });
+
+test('CLI packages and verifies a valid freshly reviewed artifact without secret paths in stdout', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gym-api-evidence-cli-'));
+  try {
+    const cli = new URL('./monitoring-slo-rollout-evidence.mjs', import.meta.url).pathname;
+    const current = Date.now();
+    const instant = iso => new Date(iso).toISOString();
+    const currentReport = report({checkedAt: instant(current - 90_000)});
+    const currentReview = checklist({reviewedAt: instant(current - 30_000)});
+    const reportFile = join(dir, 'private.slo-preflight.json');
+    const reviewFile = join(dir, 'private.slo-review.json');
+    const outFile = join(dir, 'CHG-142.slo-evidence.json');
+    writeFileSync(reportFile, JSON.stringify(currentReport));
+    writeFileSync(reviewFile, JSON.stringify(currentReview));
+
+    const created = spawnSync(process.execPath, [
+      cli, '--report', reportFile, '--checklist', reviewFile, '--output', outFile,
+    ], {encoding: 'utf8'});
+    assert.equal(created.status, 0, created.stdout);
+    assert.equal(created.stderr, '');
+    const summary = JSON.parse(created.stdout);
+    assert.equal(summary.status, 'EVIDENCE_READY_FOR_HUMAN_REVIEW');
+    assert.equal(summary.authenticatedSignature, false);
+    assert.ok(existsSync(outFile));
+    assert.ok(!created.stdout.includes(dir));
+    assert.ok(!created.stdout.includes(currentReview.reviewer));
+
+    const verified = spawnSync(process.execPath, [cli, '--verify', outFile],
+      {encoding: 'utf8'});
+    assert.equal(verified.status, 0);
+    assert.equal(JSON.parse(verified.stdout).status, 'EVIDENCE_VALID');
+    assert.equal(JSON.parse(verified.stdout).sha256, summary.sha256);
+
+    const duplicate = spawnSync(process.execPath, [
+      cli, '--report', reportFile, '--checklist', reviewFile, '--output', outFile,
+    ], {encoding: 'utf8'});
+    assert.equal(duplicate.status, 2);
+    assert.deepEqual(JSON.parse(duplicate.stdout).reasons, ['OUTPUT_EXISTS_OR_UNSAFE']);
+    assert.ok(verifyEvidenceBundle(JSON.parse(readFileSync(outFile))).valid);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
