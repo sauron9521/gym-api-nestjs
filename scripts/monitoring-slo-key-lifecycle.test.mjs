@@ -191,8 +191,11 @@ test('revocation, scope changes, fingerprint substitution and key resurrection f
     {...policy2,keys:[{...revoked,state:'active',disabledAt:null}]},
     {...policy2,keys:[{...revoked,deployments:['staging']}]},
     {...policy2,keys:[{...revoked,fingerprintSha256:'f'.repeat(64)}]},
-    {...policy2,keys:[]},
   ];
+  assert.throws(
+    ()=>policySigningBytes({...policy2,keys:[]}),
+    /POLICY_SCHEMA_INVALID/,
+  );
   for(const candidate of corrupted) {
     const checked=verifySignedPolicy({
       ...inputs,policy:candidate,signature:f.signPolicy(candidate),
