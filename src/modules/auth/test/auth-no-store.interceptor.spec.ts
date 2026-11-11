@@ -12,10 +12,11 @@ describe('AuthNoStoreInterceptor', () => {
       switchToHttp: () => ({ getResponse: () => response }),
     } as unknown as ExecutionContext;
     const output = of({ authorized: true });
-    const next = { handle: vi.fn().mockReturnValue(output) } as unknown as CallHandler;
+    const handle = vi.fn().mockReturnValue(output);
+    const next = { handle } as unknown as CallHandler;
 
     expect(new AuthNoStoreInterceptor().intercept(context, next)).toBe(output);
     expect(setHeader).toHaveBeenCalledExactlyOnceWith('Cache-Control', 'no-store');
-    expect(next.handle).toHaveBeenCalledOnce();
+    expect(handle).toHaveBeenCalledOnce();
   });
 });
