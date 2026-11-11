@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync, truncateSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync, truncateSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -79,6 +79,7 @@ test('reads regular group-readable log file and rejects world access, symlinks a
     ].join('\n') + '\n';
     writeFileSync(source, payload);
     chmodSync(source, 0o640);
+    utimesSync(source, new Date(fixedNow), new Date(fixedNow));
 
     const output = [];
     await filterLogFile(source, (line) => output.push(line), fixedNow);
@@ -90,6 +91,7 @@ test('reads regular group-readable log file and rejects world access, symlinks a
     chmodSync(source, 0o666);
     await assert.rejects(filterLogFile(source, () => undefined, fixedNow));
     chmodSync(source, 0o640);
+    utimesSync(source, new Date(fixedNow), new Date(fixedNow));
 
     const symlink = join(dir, 'linked.jsonl');
     symlinkSync(source, symlink);
@@ -107,12 +109,33 @@ test('reads regular group-readable log file and rejects world access, symlinks a
   }
 });
 
+test('an outdated forwarder snapshot is rejected even if event timestamps look healthy', async () => {
+  const dir = makeFixture();
+  try {
+    const source = join(dir, 'events.jsonl');
+    writeFileSync(source, record(fixedNow - 1000) + '\n');
+    chmodSync(source, 0o640);
+    utimesSync(source, new Date(fixedNow - 200_000), new Date(fixedNow - 200_000));
+    await assert.rejects(filterLogFile(source, () => undefined, fixedNow), {
+      message: 'Stale log source',
+    });
+
+    utimesSync(source, new Date(fixedNow), new Date(fixedNow));
+    const collected = [];
+    await filterLogFile(source, (line) => collected.push(line), fixedNow);
+    assert.equal(collected.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a malformed line after valid records makes the entire source fail', async () => {
   const dir = makeFixture();
   try {
     const source = join(dir, 'events.jsonl');
     writeFileSync(source, record(fixedNow) + '\n' + '{ "truncated":');
     chmodSync(source, 0o640);
+    utimesSync(source, new Date(fixedNow), new Date(fixedNow));
     const emitted = [];
     await assert.rejects(filterLogFile(source, (line) => emitted.push(line), fixedNow));
     assert.equal(emitted.length, 1);

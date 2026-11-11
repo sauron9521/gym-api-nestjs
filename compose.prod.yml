@@ -25,6 +25,12 @@ services:
       target: runtime
     init: true
     restart: unless-stopped
+    # Bounded Docker stdout storage; readable via docker logs --timestamps.
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
     stop_grace_period: 30s
     read_only: true
     tmpfs:

@@ -1,0 +1,12 @@
+# OPT-IN; install and enable only after security review.
+[Unit]
+Description=Refresh gym API trusted log snapshot every minute
+
+[Timer]
+OnCalendar=*:0/1
+Persistent=true
+AccuracySec=10s
+Unit=gym-api-forwarder.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,25 @@
+# OPT-IN trusted forwarder. Docker API access is privileged.
+# This unit is separated from the unprivileged gym-api-monitor service.
+[Unit]
+Description=Gym API trusted stdout log snapshot forwarder
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=gym-api-logs
+WorkingDirectory=/opt/gym-api
+EnvironmentFile=/etc/gym-api/forwarder.env
+ExecStart=/usr/bin/bash /opt/gym-api/scripts/monitoring-forward.sh
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/gym-api
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+TimeoutStartSec=90

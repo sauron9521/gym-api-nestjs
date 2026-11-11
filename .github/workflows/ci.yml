@@ -106,13 +106,14 @@ jobs:
 
       - name: Test production monitoring reports and configuration invariants
         run: |
-          bash -n scripts/monitoring-collect.sh
+          bash -n scripts/monitoring-collect.sh scripts/monitoring-forward.sh
           npm run test:monitoring
 
       - name: Validate systemd units and five-minute schedule
         run: |
-          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer
+          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer
           systemd-analyze calendar '*:0/5'
+          systemd-analyze calendar '*:0/1'
 
       # Immutable official Prometheus image; no Prometheus server is started.
       # Validate both PromQL syntax and expected alert firing/resolution.

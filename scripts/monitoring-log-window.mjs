@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 export const WINDOW_MS = 5 * 60 * 1000;
 export const MAX_FILE_BYTES = 64 * 1024 * 1024;
 export const MAX_LINE_BYTES = 64 * 1024;
+export const MAX_SOURCE_AGE_MS = 150 * 1000;
 
 export function parseLogFileArg(args) {
   if (args.length !== 2 || args[0] !== '--file' ||
@@ -81,6 +82,12 @@ export async function filterLogFile(path, emit, nowMs = Date.now()) {
     if (!stats.isFile() || stats.size > MAX_FILE_BYTES ||
         (stats.mode & 0o027) !== 0) {
       throw new Error('Untrusted log file');
+    }
+    // The forwarder runs every minute. A stale but readable snapshot
+    // must NOT be re-reported as fresh, masking a broken upstream source.
+    if (stats.mtimeMs > nowMs + 5_000 ||
+        nowMs - stats.mtimeMs > MAX_SOURCE_AGE_MS) {
+      throw new Error('Stale log source');
     }
     const lines = createInterface({
       input: handle.createReadStream({ autoClose: false }),

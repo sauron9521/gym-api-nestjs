@@ -1,6 +1,10 @@
 # Optional production monitoring — read-only, socket-free collection (PR #128)
 
 This remains an **opt-in host-side integration**, not a deployed service.
+PR #129 adds an [optional trusted Docker log forwarder](production-trusted-log-forwarder.md)
+with atomic ten-minute JSONL snapshots refreshed every minute. The
+forwarder (and only the forwarder) has privileged Docker API access;
+`gym-monitor` retains read-only JSONL permissions.
 PR #128 removes the Docker socket requirement and replaces the privileged
 `docker logs` command with a strict reader of a **dedicated, timestamped
 JSONL file**. Application code, API behavior and Prometheus alert rules
