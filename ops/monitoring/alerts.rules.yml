@@ -161,3 +161,41 @@ groups:
           severity: critical
         annotations:
           summary: "Gym API container restarted at least three times within ten minutes"
+
+      # Opt-in trusted host collector. Deploy together with the signals timer.
+      - alert: GymApiDockerSignalsSnapshotMissing
+        expr: absent(gym_api_docker_signals_last_sample_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API Docker events and cgroup sampler has no metrics"
+
+      - alert: GymApiDockerSignalsSnapshotStale
+        expr: time() - gym_api_docker_signals_last_sample_timestamp_seconds > 180
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API Docker events and cgroup metrics are stale"
+
+      - alert: GymApiDockerRecentOomEvents
+        expr: gym_api_docker_oom_events_window_10m > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Docker reported an API container OOM event in the last ten minutes"
+
+      - alert: GymApiDockerCpuThrottling
+        expr: |
+          (
+            increase(gym_api_docker_cpu_throttled_periods_total[5m])
+            / clamp_min(increase(gym_api_docker_cpu_periods_total[5m]), 1)
+          ) >= 0.20
+          and gym_api_docker_signals_running == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API CPU cgroup is throttled in at least 20 percent of periods"
