@@ -1,0 +1,55 @@
+# Optional Prometheus recording rules for dashboard / provisional SLIs.
+# Install explicitly alongside alerts.rules.yml. These are derived views of
+# the existing five-minute gauges, NOT monotonic HTTP counters.
+groups:
+  - name: gym-api-observed-sli
+    interval: 1m
+    rules:
+      - record: gym_api:sli:monitor_snapshot_fresh
+        expr: |
+          (time() - gym_api_monitor_last_run_timestamp_seconds < bool 900)
+          and (gym_api_monitor_last_run_timestamp_seconds <= time() + 60)
+
+      # No sample is produced when the probe was not configured or the
+      # underlying monitoring snapshot is stale. Zero means an actual failure.
+      - record: gym_api:sli:readiness_observed
+        expr: |
+          (gym_api_monitor_ready_probe_success == bool 1)
+          and (gym_api_monitor_ready_probe_success >= 0)
+          and (time() - gym_api_monitor_last_run_timestamp_seconds < 900)
+          and (gym_api_monitor_last_run_timestamp_seconds <= time() + 60)
+
+      # Fraction of evaluated, valid samples that passed. Not a measured
+      # request-based availability SLO. Missing data is excluded; separately
+      # display the valid-sample coverage alongside the observed ratio.
+      - record: gym_api:sli:readiness_observed_ratio_1h
+        expr: avg_over_time(gym_api:sli:readiness_observed[1h])
+
+      - record: gym_api:sli:readiness_observed_ratio_24h
+        expr: avg_over_time(gym_api:sli:readiness_observed[24h])
+
+      - record: gym_api:sli:readiness_coverage_ratio_24h
+        expr: |
+          clamp_max(
+            count_over_time(gym_api:sli:readiness_observed[24h]) / 1440,
+            1
+          )
+
+      # Existing exporter publishes WINDOW gauges, not lifetime counters.
+      # Never rate() or increase() them, or sum repeated overlapping windows.
+      # A low-traffic (<20 requests) or stale sample is absent, not "0%".
+      - record: gym_api:sli:http_503_share_5m
+        expr: |
+          (gym_api_monitor_http_503_window_5m
+            / clamp_min(gym_api_monitor_http_requests_window_5m, 1))
+          and (gym_api_monitor_http_requests_window_5m >= 20)
+          and (time() - gym_api_monitor_last_run_timestamp_seconds < 900)
+          and (gym_api_monitor_last_run_timestamp_seconds <= time() + 60)
+
+      - record: gym_api:sli:http_429_share_5m
+        expr: |
+          (gym_api_monitor_http_429_window_5m
+            / clamp_min(gym_api_monitor_http_requests_window_5m, 1))
+          and (gym_api_monitor_http_requests_window_5m >= 20)
+          and (time() - gym_api_monitor_last_run_timestamp_seconds < 900)
+          and (gym_api_monitor_last_run_timestamp_seconds <= time() + 60)
