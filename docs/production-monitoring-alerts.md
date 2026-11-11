@@ -119,8 +119,10 @@ systemd runner, sanitized node_exporter textfile metrics and Prometheus
 alert templates for missing/stale collection, health failures, 429/503
 and Redis outages. PR #128 changes the runner to read a dedicated
 **read-only timestamped JSONL source**, without Docker socket access.
-A separately provisioned trusted log forwarder is required; no service
-is deployed or enabled automatically. See [monitoring integration](production-monitoring-integration.md)
+An [optional trusted forwarder](production-trusted-log-forwarder.md)
+from PR #129 supplies that file with bounded rotation and timestamps.
+It is independently provisioned and privileged; no service is deployed
+or enabled automatically. See [monitoring integration](production-monitoring-integration.md)
 for the operator setup, least-privilege limitations and rollback steps.
 
 ## Security and limitations
