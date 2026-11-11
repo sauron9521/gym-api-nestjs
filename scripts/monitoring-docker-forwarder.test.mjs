@@ -121,15 +121,19 @@ test('end-to-end forwarder script converts fake Docker logs without leaking raw 
     const snapshot = join(dir, 'events.jsonl');
     const events = [
       sampleLine(),
-      dockerLine({ message: { event: 'RATE_LIMIT_REDIS_RECOVERED',
-        secret: 'this-should-never-appear' } }),
       dockerStamp() + ' INFO booted application',
     ];
+    const stderrEvent = dockerLine({
+      message: { event: 'RATE_LIMIT_REDIS_RECOVERED',
+        secret: 'this-should-never-appear' },
+    });
     // Fake Docker stdout; never touches the actual Docker daemon.
     writeFileSync(mockDocker, '#!/bin/sh\n' +
       'test "$1" = "logs" || exit 9\n' +
       'cat <<\'END_DOCKER_LOGS\'\n' + events.join('\n') +
-      '\nEND_DOCKER_LOGS\n');
+      '\nEND_DOCKER_LOGS\n' +
+      "cat <<'END_DOCKER_WARNINGS' >&2\n" + stderrEvent +
+      '\nEND_DOCKER_WARNINGS\n');
     chmodSync(mockDocker, 0o755);
     const env = {
       ...process.env,
