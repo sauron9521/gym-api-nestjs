@@ -247,7 +247,7 @@ export function assertNotPreviouslyRecorded(verified, ledger) {
  * leave the lock in place: fail closed; operator must investigate before
  * manual removal. Never discard a ledger or stale lock automatically.
  */
-export function recordVerifiedApproval(file, verified, nowMs = Date.now()) {
+export function recordVerifiedApproval(file, verified, nowMs = Date.now(), expectedCheckpoint = null) {
   if (!isAbsolute(file) || !file.endsWith('.jsonl')) {
     throw new ProvenanceError('LEDGER_PATH_INVALID');
   }
@@ -261,6 +261,13 @@ export function recordVerifiedApproval(file, verified, nowMs = Date.now()) {
   }
   try {
     const prior = loadLedger(file);
+    // Validate the separately anchored head INSIDE the writer lock:
+    // a prior verification without this check is subject to TOCTOU.
+    if (expectedCheckpoint !== null &&
+        (prior.rows !== expectedCheckpoint.rows ||
+         prior.headSha256 !== expectedCheckpoint.headSha256)) {
+      throw new ProvenanceError('LEDGER_CHECKPOINT_MISMATCH');
+    }
     assertNotPreviouslyRecorded(verified, prior);
     if (prior.rows >= MAX_ROWS) throw new ProvenanceError('LEDGER_FULL');
     const row = {
@@ -276,6 +283,9 @@ export function recordVerifiedApproval(file, verified, nowMs = Date.now()) {
       previousHash: prior.headSha256,
     };
     const line = JSON.stringify({...row, entryHash: entryHash(row)}) + '\n';
+    if (existsSync(file) && !lstatSync(file).isFile()) {
+      throw new ProvenanceError('LEDGER_UNSAFE_PATH');
+    }
     const beforeBytes = existsSync(file) ? lstatSync(file).size : 0;
     if (beforeBytes + Buffer.byteLength(line) > MAX_LEDGER_BYTES) {
       throw new ProvenanceError('LEDGER_FULL');
