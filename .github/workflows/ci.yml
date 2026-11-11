@@ -108,6 +108,18 @@ jobs:
         run: |
           bash -n scripts/monitoring-collect.sh scripts/monitoring-forward.sh
           npm run test:monitoring
+          # A notification drill in CI must always stay in dry-run mode.
+          node scripts/monitoring-alert-drill.mjs | node -e '
+            const assert = require("node:assert/strict");
+            let raw = "";
+            process.stdin.on("data", chunk => raw += chunk);
+            process.stdin.on("end", () => {
+              const drill = JSON.parse(raw);
+              assert.equal(drill.submitted, false);
+              assert.equal(drill.notificationConfirmed, false);
+              assert.equal(drill.alert.labels.drill, "true");
+            });
+          '
 
       - name: Validate systemd units and five-minute schedule
         run: |
