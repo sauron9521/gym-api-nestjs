@@ -30,7 +30,8 @@ and logs restricted to a **known input time window**, e.g. five minutes:
 
 ```sh
 # Replace the example Docker name and operator-reachable URL.
-docker logs --since 5m gym-api 2>&1 \
+node scripts/monitoring-log-window.mjs \
+  --file /var/log/gym-api/events.jsonl \
   | npm run --silent monitoring:report -- \
       --base-url http://127.0.0.1:3000
 
