@@ -15,6 +15,10 @@ const timer = read('ops/monitoring/gym-api-monitor.timer');
 const alerts = read('ops/monitoring/alerts.rules.yml');
 const exampleEnv = read('ops/monitoring/monitoring.env.example');
 const runner = read('scripts/monitoring-collect.sh');
+const forwarder = read('scripts/monitoring-forward.sh');
+const forwarderService = read('ops/monitoring/gym-api-forwarder.service');
+const forwarderTimer = read('ops/monitoring/gym-api-forwarder.timer');
+const forwarderEnv = read('ops/monitoring/forwarder.env.example');
 
 test('every referenced exported monitoring gauge exists and has no labels', () => {
   const report = buildReport(emptySummary(), {
@@ -99,3 +103,33 @@ test('example environment does not include secrets or arbitrary log destination 
   assert.match(exampleEnv, /^MONITOR_LOG_FILE=\/var\/log\/gym-api\/events\.jsonl$/m);
   assert.doesNotMatch(exampleEnv, /API_CONTAINER|docker\.sock/);
 });
+
+test('trusted forwarder is isolated from the unprivileged monitor and refreshes a bounded window', () => {
+  assert.match(forwarderTimer, /^OnCalendar=\*:0\/1$/m);
+  assert.match(forwarderTimer, /^Unit=gym-api-forwarder\.service$/m);
+  assert.match(forwarderService, /^User=root$/m);
+  assert.match(forwarderService, /^Group=gym-api-logs$/m);
+  assert.match(forwarderService, /^ReadWritePaths=\/var\/log\/gym-api$/m);
+  assert.match(forwarderService, /^ProtectSystem=strict$/m);
+  assert.match(forwarderService, /^NoNewPrivileges=true$/m);
+  assert.match(forwarder, /docker logs --since 10m --timestamps/);
+  assert.match(forwarder, /monitoring-docker-forwarder\.mjs" normalize/);
+  assert.match(forwarder, /monitoring-docker-forwarder\.mjs"/);
+  assert.match(forwarder, /publish --output "\$FORWARD_LOG_FILE"/);
+  assert.match(forwarder, /PIPESTATUS\[@\]/);
+  assert.match(forwarderEnv, /^FORWARD_CONTAINER=/m);
+  assert.match(forwarderEnv, /^FORWARD_LOG_FILE=\/var\/log\/gym-api\/events\.jsonl$/m);
+
+  // The safe monitoring process must never invoke or have access to Docker.
+  assert.doesNotMatch(service + runner, /docker logs|SupplementaryGroups=docker|docker\.sock/);
+  assert.match(service, /^SupplementaryGroups=gym-api-logs$/m);
+  assert.match(runner, /monitoring-log-window\.mjs/);
+});
+
+test('production Docker stdout storage is bounded while remaining docker-logs readable', () => {
+  const compose = read('compose.prod.yml');
+  assert.match(compose, /logging:\s*\n\s+driver: local/);
+  assert.match(compose, /max-size: "10m"/);
+  assert.match(compose, /max-file: "3"/);
+});
+
