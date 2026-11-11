@@ -18,7 +18,8 @@ const MAX_AGE_MS = 10 * 60_000;
 const FUTURE_SKEW_MS = 60_000;
 const DEPLOYMENT_RE = /^[a-z][a-z0-9_-]{0,39}$/;
 const ALIAS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
-const REF_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,119}$/;
+// Change references are local ticket IDs, never URLs, paths or credentials.
+const REF_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/;
 const METRIC_KEYS = Object.freeze(PREFLIGHT_METRICS.map(x => x.split(':').at(-1)));
 const BOOLEAN_KEYS = new Set(METRIC_KEYS.filter(x =>
   !x.includes('coverage') && !x.includes('scrape_success') &&
