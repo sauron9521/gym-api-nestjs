@@ -248,10 +248,11 @@ jobs:
               const api = config.services.api;
               const assert = require("node:assert/strict");
               assert.equal(api.restart, "unless-stopped");
-              assert.equal(api.mem_limit, 1073741824);
-              assert.equal(api.memswap_limit, 1073741824);
-              assert.equal(api.cpus, 2);
-              assert.equal(api.pids_limit, 256);
+              // Compose JSON may serialize byte limits as decimal strings.
+              assert.equal(Number(api.mem_limit), 1073741824);
+              assert.equal(Number(api.memswap_limit), 1073741824);
+              assert.equal(Number(api.cpus), 2);
+              assert.equal(Number(api.pids_limit), 256);
               assert.equal(config.services.migrate.restart, "no");
             });
           '
