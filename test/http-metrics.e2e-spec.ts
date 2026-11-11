@@ -101,6 +101,12 @@ describe('HTTP metrics (real Nest middleware, controller and test DB)', () => {
   it('does not count Prometheus scrapes or create new label dimensions', async () => {
     const before = await metrics();
     for (let i = 0; i < 5; i++) await metrics();
+    // Express routes are case-insensitive and accept an optional trailing slash;
+    // these must not feed back into SLO request counters.
+    for (const path of ['/internal/metrics/', '/INTERNAL/METRICS']) {
+      await request(app.getHttpServer()).get(path)
+        .set('Authorization', 'Bearer ' + TOKEN).expect(200);
+    }
     const after = await metrics();
     expect(sample(after, 'gym_api_http_request_duration_seconds_count'))
       .toBe(sample(before, 'gym_api_http_request_duration_seconds_count'));
