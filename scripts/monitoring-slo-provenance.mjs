@@ -27,7 +27,7 @@ const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/;
 const KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/;
 const DEPLOYMENT = /^[a-z][a-z0-9_-]{0,39}$/;
 const FIELDS = [
-  'version', 'domain', 'deployment', 'changeRef', 'evidenceSha256',
+  'version', 'domain', 'deployment', 'changeRef', 'decision', 'evidenceSha256',
   'inventorySha256', 'approvedAt', 'expiresAt', 'nonce', 'signerKeyId',
 ];
 const ENTRY_FIELDS = [
@@ -81,6 +81,7 @@ function readJson(path) {
 export function approvalSigningBytes(approval) {
   if (!exactKeys(approval, FIELDS) ||
       approval.version !== 1 || approval.domain !== DOMAIN ||
+      approval.decision !== 'STAGING_ROLLOUT_REVIEWED' ||
       typeof approval.deployment !== 'string' ||
       !DEPLOYMENT.test(approval.deployment) ||
       typeof approval.changeRef !== 'string' ||
