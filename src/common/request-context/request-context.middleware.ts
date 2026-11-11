@@ -24,13 +24,18 @@ export class RequestContextMiddleware implements NestMiddleware {
     (request as RequestWithId)[REQUEST_ID] = requestId;
     response.setHeader('X-Request-ID', requestId);
     const start = process.hrtime.bigint();
+    // Instrument the entire request lifetime without retaining request details.
+    // Never count our own scraper as traffic or as an aborted response.
+    const excludeMetrics = request.path === '/internal/metrics';
+    if (!excludeMetrics) this.httpMetrics.requestStarted();
+    let settled = false;
 
     response.once('finish', () => {
+      if (settled) return;
+      settled = true;
       const durationSeconds = Number(process.hrtime.bigint() - start) / 1_000_000_000;
-      // The metrics endpoint is excluded to avoid scrape-driven feedback loops.
-      // The registry has no route, method, user, IP, URL or token label.
-      if (request.path !== '/internal/metrics') {
-        this.httpMetrics.observe(response.statusCode, durationSeconds);
+      if (!excludeMetrics) {
+        this.httpMetrics.requestCompleted(response.statusCode, durationSeconds);
       }
       const path: unknown = request.route?.path;
       const route = typeof path === 'string' ? path : 'unmatched';
@@ -41,6 +46,23 @@ export class RequestContextMiddleware implements NestMiddleware {
         method: request.method,
         route,
         statusCode: response.statusCode,
+        durationMs: Math.round(durationSeconds * 100_000) / 100,
+      });
+    });
+
+    // "close" can also fire AFTER "finish" for normal requests. In that
+    // case it is not an abort. Incomplete responses have no HTTP status.
+    response.once('close', () => {
+      if (settled) return;
+      settled = true;
+      if (!excludeMetrics) this.httpMetrics.requestAborted();
+      const path: unknown = request.route?.path;
+      const route = typeof path === 'string' ? path : 'unmatched';
+      this.logger.warn('HTTP response closed before finish', {
+        event: 'http.request.aborted',
+        requestId,
+        method: request.method,
+        route,
         durationMs: Math.round(
           (Number(process.hrtime.bigint() - start) / 1_000_000) * 100,
         ) / 100,
