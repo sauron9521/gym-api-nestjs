@@ -200,3 +200,28 @@ test('trusted Docker resource sampler has an opt-in isolated systemd identity', 
     assert.match(alerts, new RegExp(metric));
   }
 });
+
+test('Docker events and cgroup signals stay in opt-in trusted host unit', () => {
+  const signalsService = read('ops/monitoring/gym-api-signals.service');
+  const signalsTimer = read('ops/monitoring/gym-api-signals.timer');
+  const signalsEnv = read('ops/monitoring/signals.env.example');
+  const signalsScript = read('scripts/monitoring-docker-signals.mjs');
+  assert.match(signalsTimer, /^OnCalendar=\*:0\/1$/m);
+  assert.match(signalsTimer, /^Unit=gym-api-signals\.service$/m);
+  assert.match(signalsService, /^User=root$/m);
+  assert.match(signalsService, /^Group=node_exporter$/m);
+  assert.match(signalsService, /^NoNewPrivileges=true$/m);
+  assert.match(signalsService, /^ProtectSystem=strict$/m);
+  assert.match(signalsService, /^ReadWritePaths=\/var\/lib\/node_exporter\/textfile_collector$/m);
+  assert.match(signalsService, /^ExecStart=\/usr\/bin\/env node \/opt\/gym-api\/scripts\/monitoring-docker-signals\.mjs$/m);
+  assert.match(signalsEnv, /^SIGNALS_CONTAINER=gym-api-api-1$/m);
+  assert.match(signalsEnv, /^SIGNALS_TEXTFILE_PATH=\/var\/lib\/node_exporter\/textfile_collector\/gym_api_docker_signals\.prom$/m);
+  assert.match(signalsScript, /'events', '--since'/);
+  assert.match(signalsScript, /'--filter', 'event=oom'/);
+  assert.match(signalsScript, /'\/proc\/' \+ identity\.pid \+ '\/cgroup'/);
+  assert.match(signalsScript, /cgroupCpuStatPath/);
+  assert.doesNotMatch(service + runner, /docker events|docker inspect|docker stats|docker\.sock/);
+  assert.doesNotMatch(signalsService + signalsTimer, /systemctl enable|systemctl start/);
+  assert.match(alerts, /GymApiDockerRecentOomEvents/);
+  assert.match(alerts, /GymApiDockerCpuThrottling/);
+});
