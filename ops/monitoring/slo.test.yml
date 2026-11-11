@@ -1,0 +1,103 @@
+# Recording-rule simulation. No running Prometheus or Grafana required.
+rule_files:
+  - slo.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "readiness valid 0 failures counted and HTTP shares use window gauges"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "0+60x11"
+      - series: gym_api_monitor_ready_probe_success
+        values: "1 1 0 0 1 1 -1 -1 1 1 1 1"
+      - series: gym_api_monitor_http_requests_window_5m
+        values: "40+0x11"
+      - series: gym_api_monitor_http_503_window_5m
+        values: "2+0x11"
+      - series: gym_api_monitor_http_429_window_5m
+        values: "8+0x11"
+    promql_expr_test:
+      - expr: gym_api:sli:monitor_snapshot_fresh
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:monitor_snapshot_fresh{}'
+            value: 1
+      - expr: gym_api:sli:readiness_observed
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:readiness_observed{}'
+            value: 0
+      - expr: gym_api:sli:readiness_observed_ratio_1h
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:readiness_observed_ratio_1h{}'
+            value: 0.5
+      - expr: gym_api:sli:readiness_observed_ratio_24h
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:readiness_observed_ratio_24h{}'
+            value: 0.5
+      - expr: gym_api:sli:http_503_share_5m
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:http_503_share_5m{}'
+            value: 0.05
+      - expr: gym_api:sli:http_429_share_5m
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:http_429_share_5m{}'
+            value: 0.2
+      - expr: gym_api:sli:readiness_observed
+        eval_time: 7m
+        exp_samples: []
+
+  - name: "stale monitoring data is not mistaken for healthy API"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "0+0x30"
+      - series: gym_api_monitor_ready_probe_success
+        values: "1+0x30"
+      - series: gym_api_monitor_http_requests_window_5m
+        values: "100+0x30"
+      - series: gym_api_monitor_http_503_window_5m
+        values: "0+0x30"
+    promql_expr_test:
+      - expr: gym_api:sli:monitor_snapshot_fresh
+        eval_time: 20m
+        exp_samples:
+          - labels: 'gym_api:sli:monitor_snapshot_fresh{}'
+            value: 0
+      - expr: gym_api:sli:readiness_observed
+        eval_time: 20m
+        exp_samples: []
+      - expr: gym_api:sli:http_503_share_5m
+        eval_time: 20m
+        exp_samples: []
+
+  - name: "low traffic is unknown HTTP error share rather than false zero"
+    interval: 1m
+    input_series:
+      - series: gym_api_monitor_last_run_timestamp_seconds
+        values: "0+60x10"
+      - series: gym_api_monitor_ready_probe_success
+        values: "1+0x10"
+      - series: gym_api_monitor_http_requests_window_5m
+        values: "10+0x10"
+      - series: gym_api_monitor_http_503_window_5m
+        values: "0+0x10"
+      - series: gym_api_monitor_http_429_window_5m
+        values: "0+0x10"
+    promql_expr_test:
+      - expr: gym_api:sli:http_503_share_5m
+        eval_time: 5m
+        exp_samples: []
+      - expr: gym_api:sli:http_429_share_5m
+        eval_time: 5m
+        exp_samples: []
+      - expr: gym_api:sli:readiness_observed
+        eval_time: 5m
+        exp_samples:
+          - labels: 'gym_api:sli:readiness_observed{}'
+            value: 1
