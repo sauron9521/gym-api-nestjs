@@ -111,7 +111,7 @@ jobs:
 
       - name: Validate systemd units and five-minute schedule
         run: |
-          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer ops/monitoring/gym-api-resources.service ops/monitoring/gym-api-resources.timer
+          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer ops/monitoring/gym-api-resources.service ops/monitoring/gym-api-resources.timer ops/monitoring/gym-api-signals.service ops/monitoring/gym-api-signals.timer
           systemd-analyze calendar '*:0/5'
           systemd-analyze calendar '*:0/1'
 
@@ -353,6 +353,13 @@ jobs:
         run: |
           bash -n scripts/test-docker-resource-recovery.sh
           bash scripts/test-docker-resource-recovery.sh
+
+      - name: Real Docker Events and cgroup v2 throttling signals E2E
+        env:
+          MONITOR_E2E_IMAGE: gym-api:runtime-ci
+        run: |
+          bash -n scripts/test-docker-signals-e2e.sh
+          bash scripts/test-docker-signals-e2e.sh
 
   # Single stable branch-protection check. A green unit job alone is insufficient:
   # dependency auditing and production-image smoke must also succeed.
