@@ -1,0 +1,105 @@
+# Opt-in: install ONLY after configuring the protected /internal/metrics scrape,
+# validating real traffic, and routing these alerts to an approved test receiver.
+# Provisional availability SLO = 99.9%; 30-day error allowance = 0.1%.
+# Unlike the legacy log-window gauges, these are monotonic process counters.
+groups:
+  - name: gym-api-http-slo-error-budget
+    interval: 1m
+    rules:
+      # Eligible requests = completed 2xx + 3xx + 5xx; exclude client 4xx.
+      # Keep aggregation global to avoid per-user/URL/job alert cardinality.
+      - record: gym_api:slo:http_eligible_requests_1h
+        expr: sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[1h]))
+
+      - record: gym_api:slo:http_eligible_requests_30m
+        expr: sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[30m]))
+
+      - record: gym_api:slo:http_eligible_requests_6h
+        expr: sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[6h]))
+
+      # An alert must not interpret sparse or absent traffic as a real ratio.
+      - record: gym_api:slo:http_5xx_ratio_1h
+        expr: |
+          (
+            sum(increase(gym_api_http_requests_total{status_class="5xx"}[1h]))
+            / clamp_min(gym_api:slo:http_eligible_requests_1h, 1)
+          )
+          and (gym_api:slo:http_eligible_requests_1h >= 500)
+
+      - record: gym_api:slo:http_5xx_ratio_30m
+        expr: |
+          (
+            sum(increase(gym_api_http_requests_total{status_class="5xx"}[30m]))
+            / clamp_min(gym_api:slo:http_eligible_requests_30m, 1)
+          )
+          and (gym_api:slo:http_eligible_requests_30m >= 200)
+
+      - record: gym_api:slo:http_5xx_ratio_6h
+        expr: |
+          (
+            sum(increase(gym_api_http_requests_total{status_class="5xx"}[6h]))
+            / clamp_min(gym_api:slo:http_eligible_requests_6h, 1)
+          )
+          and (gym_api:slo:http_eligible_requests_6h >= 1000)
+
+      # Budget consumed = observed error ratio / (1 - 0.999).
+      # >1 means more failures than the provisional 0.1% error allowance.
+      # This is over *observed* requests in a 30d range, not guaranteed full
+      # month coverage, and therefore must NOT be auto-paged.
+      - record: gym_api:slo:http_error_budget_consumed_30d
+        expr: |
+          (
+            (
+              sum(increase(gym_api_http_requests_total{status_class="5xx"}[30d]))
+              / clamp_min(
+                  sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[30d])),
+                  1
+                )
+            ) / 0.001
+          )
+          and (
+            sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[30d]))
+            >= 1000
+          )
+
+      # Clamped at zero on over-budget; separate consumed ratio retains >1.
+      - record: gym_api:slo:http_error_budget_remaining_30d
+        expr: clamp_min(1 - gym_api:slo:http_error_budget_consumed_30d, 0)
+
+      # Standard fast/slow multi-window signals: both windows must cross the
+      # threshold. Short-window traffic gates prevent low-sample false alerts.
+      # Missing source data is handled by a separate absent-series warning.
+      - alert: GymApiHttpSloFastBurn
+        expr: |
+          (gym_api:sli:http_5xx_ratio_5m > 0.0144)
+          and (gym_api:slo:http_5xx_ratio_1h > 0.0144)
+          and (gym_api:sli:http_eligible_requests_5m >= 50)
+        for: 1m
+        labels:
+          severity: warning
+          slo: http-availability
+        annotations:
+          summary: "Gym API HTTP error budget fast burn (5m and 1h)"
+
+      - alert: GymApiHttpSloSlowBurn
+        expr: |
+          (gym_api:slo:http_5xx_ratio_30m > 0.006)
+          and (gym_api:slo:http_5xx_ratio_6h > 0.006)
+          and (gym_api:slo:http_eligible_requests_30m >= 200)
+        for: 2m
+        labels:
+          severity: warning
+          slo: http-availability
+        annotations:
+          summary: "Gym API HTTP error budget slow burn (30m and 6h)"
+
+      # This file is opt-in: loading it without an authenticated scrape should
+      # trigger a *monitoring* warning rather than report 100% API availability.
+      - alert: GymApiHttpSloMetricsMissing
+        expr: absent(gym_api_http_requests_total{status_class="5xx"})
+        for: 10m
+        labels:
+          severity: warning
+          slo: http-availability
+        annotations:
+          summary: "Gym API protected HTTP metrics series is missing"
