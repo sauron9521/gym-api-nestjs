@@ -153,8 +153,8 @@ redisDescribe('Account throttle Redis client outage and recovery (HTTP + Postgre
   }, 20_000);
 
   it('denies both flows while the Redis client is disconnected, then resumes with original quotas', async () => {
-    await assertPrivateResponse(202, await forgot());
-    await assertPrivateResponse(202, await resend());
+    assertPrivateResponse(202, await forgot());
+    assertPrivateResponse(202, await resend());
     await vi.waitFor(() => {
       expect(mailer.send).toHaveBeenCalledTimes(2);
     }, { timeout: 5_000, interval: 25 });
@@ -170,9 +170,9 @@ redisDescribe('Account throttle Redis client outage and recovery (HTTP + Postgre
     }, { timeout: 5_000, interval: 25 });
     expect(await storage.checkReadiness()).toBe(false);
 
-    await assertPrivateResponse(503, await forgot());
-    await assertPrivateResponse(503, await resend());
-    await assertPrivateResponse(
+    assertPrivateResponse(503, await forgot());
+    assertPrivateResponse(503, await resend());
+    assertPrivateResponse(
       503,
       await forgot('unknown-' + randomUUID() + '@example.test'),
     );
@@ -189,8 +189,8 @@ redisDescribe('Account throttle Redis client outage and recovery (HTTP + Postgre
     await redisClient.connect();
     expect(await storage.checkReadiness()).toBe(true);
 
-    await assertPrivateResponse(202, await forgot());
-    await assertPrivateResponse(202, await resend());
+    assertPrivateResponse(202, await forgot());
+    assertPrivateResponse(202, await resend());
     await vi.waitFor(() => {
       expect(mailer.send).toHaveBeenCalledTimes(4);
     }, { timeout: 5_000, interval: 25 });
@@ -202,11 +202,11 @@ redisDescribe('Account throttle Redis client outage and recovery (HTTP + Postgre
 
     // Reconnecting a client must not reset persisted account quotas.
     for (let index = 0; index < 3; index++) {
-      await assertPrivateResponse(202, await forgot());
-      await assertPrivateResponse(202, await resend());
+      assertPrivateResponse(202, await forgot());
+      assertPrivateResponse(202, await resend());
     }
-    await assertPrivateResponse(429, await forgot());
-    await assertPrivateResponse(429, await resend());
+    assertPrivateResponse(429, await forgot());
+    assertPrivateResponse(429, await resend());
     await vi.waitFor(() => {
       expect(mailer.send).toHaveBeenCalledTimes(10);
     }, { timeout: 5_000, interval: 25 });

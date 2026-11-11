@@ -1,9 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-import type {
-  CreateBodyMeasurementDto,
-  UpdateBodyMeasurementDto,
-} from '../dto/body-measurement.schemas.js';
+import type { CreateBodyMeasurementDto } from '../dto/body-measurement.schemas.js';
 import type {
   MeasurementChanges,
   MeasurementRecord,
@@ -12,7 +9,7 @@ import type {
 
 /** Preserve partial PATCH values: undefined is not the same as null. */
 export function mapMeasurementChanges(
-  input: CreateBodyMeasurementDto | UpdateBodyMeasurementDto,
+  input: CreateBodyMeasurementDto,
 ): MeasurementChanges {
   const { measuredAt, ...fields } = input;
   const data: MeasurementChanges = {

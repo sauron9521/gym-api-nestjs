@@ -332,12 +332,18 @@ export const trainingProgramVersionListItemSchema = objectSchema({
   updatedAt: dateTimeSchema,
 });
 
-export const trainingProgramVersionResponseSchema = objectSchema({
+// Shared fixed fields ensure the detailed projection and assignment schema
+// describe the same required properties without optional-schema fallbacks.
+const trainingProgramVersionResponseFields = {
   ...versionFields,
   workouts: arraySchema(trainingProgramWorkoutResponseSchema),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
-});
+};
+
+export const trainingProgramVersionResponseSchema = objectSchema(
+  trainingProgramVersionResponseFields,
+);
 
 const programReferenceSchema = objectSchema({
   id: uuidSchema,
@@ -403,7 +409,7 @@ export const trainingAssignmentSummaryResponseSchema = objectSchema({
 export const trainingAssignmentDetailsResponseSchema = objectSchema({
   ...assignmentFields,
   version: objectSchema({
-    ...(trainingProgramVersionResponseSchema.properties ?? {}),
+    ...trainingProgramVersionResponseFields,
     program: programReferenceSchema,
   }),
   ...assignmentDetailsFields,

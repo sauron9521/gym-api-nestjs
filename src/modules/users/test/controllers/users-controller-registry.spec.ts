@@ -40,7 +40,8 @@ describe('UsersModule controller registry', () => {
 
   it('preserves explicit 200 for avatar mutations and the 5/min rate limit', () => {
     const methods = UsersController.prototype;
-    for (const method of [methods.uploadAvatar, methods.deleteAvatar]) {
+    for (const name of ['uploadAvatar', 'deleteAvatar'] as const) {
+      const method = Object.getOwnPropertyDescriptor(methods, name)?.value;
       expect(Reflect.getMetadata(HTTP_CODE_METADATA, method)).toBe(200);
       expect(Reflect.getMetadata('THROTTLER:LIMITdefault', method)).toBe(5);
       expect(Reflect.getMetadata('THROTTLER:TTLdefault', method)).toBe(60_000);

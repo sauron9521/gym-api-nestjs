@@ -14,7 +14,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
-    "lint": "oxlint --type-aware src/ test/",
+    "lint": "oxlint --type-aware --deny-warnings src/ test/",
     "architecture:check": "node scripts/check-architecture.mjs",
     "test:architecture": "node --test scripts/check-architecture.test.mjs",
     "architecture:deps": "node scripts/check-feature-dependencies.mjs",
@@ -101,7 +101,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "oxlint --type-aware"
+      "oxlint --type-aware --deny-warnings"
     ],
     "*.{json,md,yml,yaml}": [
       "prettier --check"

@@ -3270,7 +3270,7 @@ describe('Workouts (HTTP + PostgreSQL)', () => {
           .send(workoutPayload(title)),
       ));
 
-      expect([first.status, second.status].sort()).toEqual([201, 409]);
+      expect([first.status, second.status].sort((a, b) => a - b)).toEqual([201, 409]);
       const winner = first.status === 201 ? first : second;
       expect(titles).toContain(winner.body.title);
 

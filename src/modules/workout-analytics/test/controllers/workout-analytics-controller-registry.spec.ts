@@ -34,7 +34,8 @@ describe('WorkoutAnalyticsModule controller registry', () => {
 
   it('keeps the 20-per-minute throttling on both analytics endpoints', () => {
     const handlers = WorkoutAnalyticsController.prototype;
-    for (const handler of [handlers.summary, handlers.exercise]) {
+    for (const name of ['summary', 'exercise'] as const) {
+      const handler = Object.getOwnPropertyDescriptor(handlers, name)?.value;
       expect(Reflect.getMetadata('THROTTLER:LIMITdefault', handler)).toBe(20);
       expect(Reflect.getMetadata('THROTTLER:TTLdefault', handler)).toBe(60_000);
     }

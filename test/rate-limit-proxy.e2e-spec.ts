@@ -8,7 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 
 import { getTrustedProxies } from '../src/common/config/proxy.config.js';
 

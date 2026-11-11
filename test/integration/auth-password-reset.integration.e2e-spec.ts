@@ -323,7 +323,7 @@ describe('Password reset security (HTTP + PostgreSQL)', () => {
         .send({ token, password: newPassword }),
     ]);
 
-    expect(attempts.map((response) => response.status).sort()).toEqual([
+    expect(attempts.map((response) => response.status).sort((a, b) => a - b)).toEqual([
       200,
       400,
     ]);

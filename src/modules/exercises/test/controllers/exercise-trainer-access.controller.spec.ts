@@ -52,11 +52,13 @@ describe('ExerciseTrainerAccessController', () => {
     expect(Reflect.getMetadata(PATH_METADATA, ExerciseTrainerAccessController))
       .toBe('exercises/:id/trainer-access');
     const methods = ExerciseTrainerAccessController.prototype;
-    expect(Reflect.getMetadata(METHOD_METADATA, methods.list)).toBe(RequestMethod.GET);
-    expect(Reflect.getMetadata(METHOD_METADATA, methods.grant)).toBe(RequestMethod.POST);
-    expect(Reflect.getMetadata(METHOD_METADATA, methods.revoke)).toBe(RequestMethod.DELETE);
-    expect(Reflect.getMetadata(PATH_METADATA, methods.revoke)).toBe(':trainerId');
-    expect(Reflect.getMetadata(HTTP_CODE_METADATA, methods.grant)).toBe(200);
-    expect(Reflect.getMetadata(HTTP_CODE_METADATA, methods.revoke)).toBe(204);
+    const getHandler = (name: string) =>
+      Object.getOwnPropertyDescriptor(methods, name)?.value;
+    expect(Reflect.getMetadata(METHOD_METADATA, getHandler('list'))).toBe(RequestMethod.GET);
+    expect(Reflect.getMetadata(METHOD_METADATA, getHandler('grant'))).toBe(RequestMethod.POST);
+    expect(Reflect.getMetadata(METHOD_METADATA, getHandler('revoke'))).toBe(RequestMethod.DELETE);
+    expect(Reflect.getMetadata(PATH_METADATA, getHandler('revoke'))).toBe(':trainerId');
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, getHandler('grant'))).toBe(200);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, getHandler('revoke'))).toBe(204);
   });
 });
