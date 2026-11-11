@@ -238,6 +238,24 @@ jobs:
       - name: Validate production Compose syntax
         run: docker compose -f compose.prod.yml --profile ops config --quiet
 
+      - name: Verify production Compose resource and restart contracts
+        run: |
+          docker compose -f compose.prod.yml --profile ops config --format json | node -e '
+            let raw = "";
+            process.stdin.on("data", chunk => raw += chunk);
+            process.stdin.on("end", () => {
+              const config = JSON.parse(raw);
+              const api = config.services.api;
+              const assert = require("node:assert/strict");
+              assert.equal(api.restart, "unless-stopped");
+              assert.equal(api.mem_limit, 1073741824);
+              assert.equal(api.memswap_limit, 1073741824);
+              assert.equal(api.cpus, 2);
+              assert.equal(api.pids_limit, 256);
+              assert.equal(config.services.migrate.restart, "no");
+            });
+          '
+
       - name: Build migration image
         run: docker build --target migrate -t gym-api:migrate-ci .
 
@@ -327,6 +345,13 @@ jobs:
         run: |
           bash -n scripts/test-monitoring-docker-e2e.sh
           bash scripts/test-monitoring-docker-e2e.sh
+
+      - name: Real Docker restart and resource-limit recovery smoke
+        env:
+          MONITOR_E2E_IMAGE: gym-api:runtime-ci
+        run: |
+          bash -n scripts/test-docker-resource-recovery.sh
+          bash scripts/test-docker-resource-recovery.sh
 
   # Single stable branch-protection check. A green unit job alone is insufficient:
   # dependency auditing and production-image smoke must also succeed.
