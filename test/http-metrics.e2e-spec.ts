@@ -1,9 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AppModule } from '../src/app.module.js';
 import { useTestDatabase } from './utility/test-db-helper.js';
 
 const TOKEN = 'm'.repeat(43);
@@ -17,11 +17,17 @@ describe('HTTP metrics (real Nest middleware, controller and test DB)', () => {
     useTestDatabase();
     process.env.HTTP_METRICS_ENABLED = 'true';
     process.env.HTTP_METRICS_TOKEN = TOKEN;
+    // AppModule evaluates ConfigModule.forRoot() at import time, not at
+    // Test.createTestingModule().compile(). Import only after configuring env.
+    const { AppModule } = await import('../src/app.module.js');
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
+    const config = app.get(ConfigService);
+    expect(config.get('HTTP_METRICS_ENABLED')).toBe(true);
+    expect(config.get('HTTP_METRICS_TOKEN')).toBe(TOKEN);
   }, 30_000);
 
   afterAll(async () => {
