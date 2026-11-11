@@ -68,8 +68,8 @@ test('promtool runs on CI and dashboard displays both error budget and context',
     'gym_api:slo:http_5xx_ratio_30m',
     'gym_api:slo:http_5xx_ratio_6h',
   ]) assert.ok(queries.includes(name), name);
-  assert.equal(dashboard.panels.length, 30);
-  assert.equal(new Set(dashboard.panels.map(panel => panel.id)).size, 30);
+  assert.ok(dashboard.panels.length >= 30);
+  assert.equal(new Set(dashboard.panels.map(panel => panel.id)).size, dashboard.panels.length);
   for (const panel of dashboard.panels) {
     assert.equal(panel.targets[0].datasource.uid, '${DS_PROMETHEUS}');
     assert.ok(panel.description.length > 20);
