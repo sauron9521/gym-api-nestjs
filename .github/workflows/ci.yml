@@ -111,7 +111,7 @@ jobs:
 
       - name: Validate systemd units and five-minute schedule
         run: |
-          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer
+          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer ops/monitoring/gym-api-resources.service ops/monitoring/gym-api-resources.timer
           systemd-analyze calendar '*:0/5'
           systemd-analyze calendar '*:0/1'
 
