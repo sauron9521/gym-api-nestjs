@@ -107,6 +107,12 @@ function readLocalJson(path) {
 }
 
 export function parseDriftArgs(args) {
+  if (args.length === 4 && args[0] === '--fingerprint-inventory' &&
+      args[2] === '--deployment' && isAbsolute(args[1]) &&
+      typeof args[3] === 'string' &&
+      /^[a-z][a-z0-9_-]{0,39}$/.test(args[3])) {
+    return {fingerprintPath: args[1], fingerprintDeployment: args[3]};
+  }
   const supported = [
     '--baseline', '--baseline-inventory', '--current-inventory',
     '--current-report', '--change-record',
@@ -282,6 +288,18 @@ export function evaluatePostRollout({
 async function main(args) {
   try {
     const params = parseDriftArgs(args);
+    if (params.fingerprintPath) {
+      const value = inventoryFingerprint(
+        readLocalJson(params.fingerprintPath), params.fingerprintDeployment,
+      );
+      process.stdout.write(JSON.stringify({
+        status: 'INVENTORY_FINGERPRINT',
+        deployment: params.fingerprintDeployment,
+        replicaCount: value.count,
+        inventorySha256: value.sha256,
+      }) + '\n');
+      return;
+    }
     const report = evaluatePostRollout({
       baseline: readLocalJson(params.baselinePath),
       baselineInventory: readLocalJson(params.baselineInventoryPath),
