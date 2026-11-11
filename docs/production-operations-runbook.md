@@ -149,6 +149,8 @@ This is not a scheduled task or externally configured alert.
 
 An optional host-side systemd timer and Prometheus textfile example are
 available in [monitoring integration](production-monitoring-integration.md).
+The runner reads only a restricted JSONL file from a separately provisioned
+trusted collector; it does not require the Docker socket or docker group.
 These templates are **not installed or activated automatically**; an
 operator must provision node_exporter, permissions, a secure scrape target
 and notification routing. Docker socket access is equivalent to root.
