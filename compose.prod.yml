@@ -13,6 +13,9 @@ x-api-env: &api-env
   MAIL_FROM: ${MAIL_FROM:?MAIL_FROM must be set}
   PORT: "3000"
   ENABLE_OPENAPI: "false"
+  # Internal endpoint remains disabled unless operator supplies a random token.
+  HTTP_METRICS_ENABLED: ${HTTP_METRICS_ENABLED:-false}
+  HTTP_METRICS_TOKEN: ${HTTP_METRICS_TOKEN:-}
   LOG_LEVEL: ${LOG_LEVEL:-log}
   REDIS_URL: ${REDIS_URL:-}
   TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
