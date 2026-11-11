@@ -20,7 +20,7 @@ function controller(enabled: boolean, secret?: string): HttpMetricsController {
 }
 
 function request(token: unknown): Request {
-  return { headers: { 'x-metrics-token': token } } as unknown as Request;
+  return { headers: { authorization: typeof token === 'string' ? 'Bearer ' + token : token } } as unknown as Request;
 }
 
 describe('HttpMetricsController', () => {
