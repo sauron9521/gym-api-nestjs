@@ -35,7 +35,6 @@ export function parseOomEvents(text, id, since, until) {
   if (!text.trim()) return 0;
   const lines = text.trimEnd().split('\n');
   if (lines.length > 512) throw new Error('Too many Docker events');
-  const uniqueNanos = new Set();
   let total = 0;
   for (const line of lines) {
     if (Buffer.byteLength(line) > 16 * 1024) throw new Error('Oversized Docker event');
@@ -47,14 +46,8 @@ export function parseOomEvents(text, id, since, until) {
         event.time < since || event.time > until) {
       throw new Error('Unexpected Docker event');
     }
-    // Docker generally supplies timeNano. Reject duplicate event records.
-    if (event.timeNano !== undefined) {
-      if (!Number.isSafeInteger(event.timeNano) || event.timeNano < 0 ||
-          uniqueNanos.has(event.timeNano)) {
-        throw new Error('Invalid Docker event timestamp');
-      }
-      uniqueNanos.add(event.timeNano);
-    }
+    // Nanosecond Docker timestamps exceed JS safe integers. Count each
+    // emitted event record instead of coercing or deduplicating timeNano.
     total += 1;
   }
   return total;
