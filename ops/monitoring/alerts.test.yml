@@ -301,3 +301,96 @@ tests:
       - eval_time: 8m
         alertname: GymApiDockerRestartLoop
         exp_alerts: []
+
+  - name: "Docker signals missing fires after five minutes"
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GymApiDockerSignalsSnapshotMissing
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: GymApiDockerSignalsSnapshotMissing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API Docker events and cgroup sampler has no metrics"
+
+  - name: "stale Docker signals do not refresh last sample timestamp"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_signals_last_sample_timestamp_seconds
+        values: "0+0x12"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: GymApiDockerSignalsSnapshotStale
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API Docker events and cgroup metrics are stale"
+      - eval_time: 7m
+        alertname: GymApiDockerSignalsSnapshotMissing
+        exp_alerts: []
+
+  - name: "recent Docker OOM events trigger and resolve when the window clears"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_signals_last_sample_timestamp_seconds
+        values: "2000+60x12"
+      - series: gym_api_docker_oom_events_window_10m
+        values: "0 1 2 2 2 1 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GymApiDockerRecentOomEvents
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Docker reported an API container OOM event in the last ten minutes"
+      - eval_time: 8m
+        alertname: GymApiDockerRecentOomEvents
+        exp_alerts: []
+
+  - name: "actual cgroup throttling periods trigger a warning"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_signals_last_sample_timestamp_seconds
+        values: "2000+60x12"
+      - series: gym_api_docker_signals_running
+        values: "1+0x12"
+      - series: gym_api_docker_cpu_periods_total
+        values: "0+100x12"
+      - series: gym_api_docker_cpu_throttled_periods_total
+        values: "0+30x12"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: GymApiDockerCpuThrottling
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerCpuThrottling
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API CPU cgroup is throttled in at least 20 percent of periods"
+
+  - name: "healthy cgroup data does not trigger throttling or OOM"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_signals_last_sample_timestamp_seconds
+        values: "2000+60x12"
+      - series: gym_api_docker_signals_running
+        values: "1+0x12"
+      - series: gym_api_docker_oom_events_window_10m
+        values: "0+0x12"
+      - series: gym_api_docker_cpu_periods_total
+        values: "0+100x12"
+      - series: gym_api_docker_cpu_throttled_periods_total
+        values: "0+5x12"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiDockerCpuThrottling
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerRecentOomEvents
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerSignalsSnapshotStale
+        exp_alerts: []
