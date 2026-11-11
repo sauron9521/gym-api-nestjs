@@ -35,7 +35,7 @@ describe('HTTP metrics (real Nest middleware, controller and test DB)', () => {
   async function metrics(): Promise<string> {
     const result = await request(app.getHttpServer())
       .get('/internal/metrics')
-      .set('X-Metrics-Token', TOKEN)
+      .set('Authorization', 'Bearer ' + TOKEN)
       .expect(200);
     expect(result.headers['content-type']).toContain('text/plain');
     expect(result.headers['cache-control']).toBe('no-store');
@@ -51,10 +51,10 @@ describe('HTTP metrics (real Nest middleware, controller and test DB)', () => {
   it('hides the metrics endpoint from anonymous and invalid-token users', async () => {
     await request(app.getHttpServer()).get('/internal/metrics').expect(404);
     await request(app.getHttpServer())
-      .get('/internal/metrics').set('X-Metrics-Token', 'not-a-token')
+      .get('/internal/metrics').set('Authorization', 'Bearer not-a-token')
       .expect(404);
     await request(app.getHttpServer())
-      .get('/internal/metrics').set('X-Metrics-Token', TOKEN)
+      .get('/internal/metrics').set('Authorization', 'Bearer ' + TOKEN)
       .expect(200);
   });
 
