@@ -1,0 +1,247 @@
+# Dedicated multi-replica PromQL simulation. Neither NestJS nor Prometheus starts.
+rule_files:
+  - http-multi-instance.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "production replicas aggregate without mixing staging or other jobs"
+    interval: 1m
+    input_series:
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-a:3000"}'
+        values: "1+0x30"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-b:3000"}'
+        values: "1+0x30"
+      - series: 'up{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000"}'
+        values: "1+0x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="2xx"}'
+        values: "0+30x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="4xx"}'
+        values: "0+1000x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="5xx"}'
+        values: "0+5x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",status_class="2xx"}'
+        values: "0+20x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",status_class="5xx"}'
+        values: "0+5x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000",status_class="2xx"}'
+        values: "0+4x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000",status_class="5xx"}'
+        values: "0+1x30"
+      - series: 'gym_api_http_requests_total{job="not-gym-api",deployment="production",instance="other:3000",status_class="5xx"}'
+        values: "0+1000x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",le="0.1"}'
+        values: "0+10x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",le="0.25"}'
+        values: "0+30x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",le="+Inf"}'
+        values: "0+35x30"
+      - series: 'gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment="production",instance="prod-a:3000"}'
+        values: "0+35x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",le="0.1"}'
+        values: "0+5x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",le="0.25"}'
+        values: "0+20x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",le="+Inf"}'
+        values: "0+25x30"
+      - series: 'gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment="production",instance="prod-b:3000"}'
+        values: "0+25x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000",le="0.1"}'
+        values: "0+2x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000",le="0.25"}'
+        values: "0+4x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000",le="+Inf"}'
+        values: "0+5x30"
+      - series: 'gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment="staging",instance="stage-a:3000"}'
+        values: "0+5x30"
+    promql_expr_test:
+      - expr: gym_api:multi:http_targets_up
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_targets_up{deployment="production"}'
+            value: 1
+          - labels: 'gym_api:multi:http_targets_up{deployment="staging"}'
+            value: 1
+      - expr: gym_api:multi:http_source_complete
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_source_complete{deployment="production"}'
+            value: 1
+          - labels: 'gym_api:multi:http_source_complete{deployment="staging"}'
+            value: 1
+      - expr: gym_api:multi:http_histogram_complete
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_histogram_complete{deployment="production"}'
+            value: 1
+          - labels: 'gym_api:multi:http_histogram_complete{deployment="staging"}'
+            value: 1
+      - expr: gym_api:multi:http_eligible_requests_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_eligible_requests_5m{deployment="production"}'
+            value: 300
+          - labels: 'gym_api:multi:http_eligible_requests_5m{deployment="staging"}'
+            value: 25
+      - expr: gym_api:multi:http_5xx_requests_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_5xx_requests_5m{deployment="production"}'
+            value: 50
+          - labels: 'gym_api:multi:http_5xx_requests_5m{deployment="staging"}'
+            value: 5
+      - expr: gym_api:multi:http_availability_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_availability_5m{deployment="production"}'
+            value: 0.8333333333333334
+          - labels: 'gym_api:multi:http_availability_5m{deployment="staging"}'
+            value: 0.8
+      - expr: gym_api:multi:http_duration_p95_seconds_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_duration_p95_seconds_5m{deployment="production"}'
+            value: 0.25
+          - labels: 'gym_api:multi:http_duration_p95_seconds_5m{deployment="staging"}'
+            value: 0.25
+      - expr: gym_api:multi:http_error_budget_consumed_30d
+        eval_time: 20m
+        exp_samples:
+          - labels: 'gym_api:multi:http_error_budget_consumed_30d{deployment="production"}'
+            value: 166.66666666666666
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: GymApiMultiHttpSloFastBurn
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              slo: http-availability
+              deployment: production
+            exp_annotations:
+              summary: "Gym API deployment fast HTTP SLO burn (5m and 1h)"
+      - eval_time: 22m
+        alertname: GymApiMultiHttpSloSlowBurn
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              slo: http-availability
+              deployment: production
+            exp_annotations:
+              summary: "Gym API deployment slow HTTP SLO burn (30m and 6h)"
+      - eval_time: 12m
+        alertname: GymApiMultiHttpMetricsIncomplete
+        exp_alerts: []
+
+  - name: "counter and histogram reset in one replica does not reset another"
+    interval: 1m
+    input_series:
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="a:3000"}'
+        values: "1+0x30"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="b:3000"}'
+        values: "1+0x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="a:3000",status_class="2xx"}'
+        values: "0+50x5 0+50x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="a:3000",status_class="5xx"}'
+        values: "0+2x5 0+2x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="b:3000",status_class="2xx"}'
+        values: "0+10x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="b:3000",status_class="5xx"}'
+        values: "0+1x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="a:3000",le="0.1"}'
+        values: "0+15x5 0+15x20"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="a:3000",le="0.25"}'
+        values: "0+40x5 0+40x20"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="a:3000",le="+Inf"}'
+        values: "0+52x5 0+52x20"
+      - series: 'gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment="production",instance="a:3000"}'
+        values: "0+52x5 0+52x20"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="b:3000",le="0.1"}'
+        values: "0+3x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="b:3000",le="0.25"}'
+        values: "0+9x30"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="b:3000",le="+Inf"}'
+        values: "0+11x30"
+      - series: 'gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment="production",instance="b:3000"}'
+        values: "0+11x30"
+    promql_expr_test:
+      - expr: gym_api:multi:http_eligible_requests_5m
+        eval_time: 9m
+        exp_samples:
+          - labels: 'gym_api:multi:http_eligible_requests_5m{deployment="production"}'
+            value: 263
+      - expr: gym_api:multi:http_5xx_requests_5m
+        eval_time: 9m
+        exp_samples:
+          - labels: 'gym_api:multi:http_5xx_requests_5m{deployment="production"}'
+            value: 13
+      - expr: gym_api:multi:http_duration_p95_seconds_5m
+        eval_time: 9m
+        exp_samples:
+          - labels: 'gym_api:multi:http_duration_p95_seconds_5m{deployment="production"}'
+            value: 0.25
+
+  - name: "one down replica suppresses healthy-looking SLI and warns per deployment"
+    interval: 1m
+    input_series:
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="a:3000"}'
+        values: "1+0x15"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="b:3000"}'
+        values: "0+0x15"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="a:3000",status_class="2xx"}'
+        values: "0+100x15"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="a:3000",status_class="5xx"}'
+        values: "0+0x15"
+      - series: 'gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment="production",instance="a:3000",le="+Inf"}'
+        values: "0+100x15"
+      - series: 'gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment="production",instance="a:3000"}'
+        values: "0+100x15"
+    promql_expr_test:
+      - expr: gym_api:multi:http_targets_up
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_targets_up{deployment="production"}'
+            value: 0
+      - expr: gym_api:multi:http_source_complete
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:multi:http_source_complete{deployment="production"}'
+            value: 0
+      - expr: gym_api:multi:http_availability_5m
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:multi:http_duration_p95_seconds_5m
+        eval_time: 8m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiMultiHttpMetricsIncomplete
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              slo: http-availability
+              deployment: production
+            exp_annotations:
+              summary: "Gym API deployment HTTP scrape source is incomplete or down"
+
+  - name: "missing deployment label or unrelated job produces no scoped SLO"
+    interval: 1m
+    input_series:
+      - series: 'up{job="gym-api-internal-http",instance="unlabeled:3000"}'
+        values: "1+0x12"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",instance="unlabeled:3000",status_class="2xx"}'
+        values: "0+500x12"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",instance="unlabeled:3000",status_class="5xx"}'
+        values: "0+0x12"
+      - series: 'up{job="unrelated",deployment="production",instance="other:3000"}'
+        values: "1+0x12"
+      - series: 'gym_api_http_requests_total{job="unrelated",deployment="production",instance="other:3000",status_class="5xx"}'
+        values: "0+500x12"
+    promql_expr_test:
+      - expr: gym_api:multi:http_targets_up
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:multi:http_availability_5m
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:multi:http_error_budget_consumed_30d
+        eval_time: 8m
+        exp_samples: []
