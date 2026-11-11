@@ -106,7 +106,7 @@ jobs:
 
       - name: Test production monitoring reports and configuration invariants
         run: |
-          bash -n scripts/monitoring-collect.sh
+          bash -n scripts/monitoring-collect.sh scripts/monitoring-forward.sh
           npm run test:monitoring
 
       - name: Validate systemd units and five-minute schedule
