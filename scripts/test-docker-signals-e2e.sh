@@ -17,7 +17,28 @@ docker run -d --name "$container" --memory 1g --memory-swap 1g \
 
 export SIGNALS_CONTAINER="$container"
 export SIGNALS_TEXTFILE_PATH="$workdir/gym_api_docker_signals.prom"
-node scripts/monitoring-docker-signals.mjs
+if ! node scripts/monitoring-docker-signals.mjs; then
+  # Diagnostic only: report one of our preapproved static failure categories.
+  # Never print arbitrary Docker output, cgroup paths or exception details.
+  node --input-type=module -e '
+    import { collectSignals } from "./scripts/monitoring-docker-signals.mjs";
+    try {
+      await collectSignals(process.env.SIGNALS_CONTAINER);
+      console.error("Signals sampling succeeded; publication failed");
+    } catch (error) {
+      const permitted = new Set([
+        "Invalid Docker identity", "Invalid Docker PID",
+        "Invalid cgroup mapping", "Requires host cgroup v2",
+        "Invalid cgroup location", "Untrusted cgroup location",
+        "Invalid cgroup CPU counters", "Missing or invalid cgroup CPU counters",
+        "Invalid Docker event input", "Unexpected Docker event",
+      ]);
+      console.error("Signals sampling failure category: " +
+        (permitted.has(error.message) ? error.message : "Docker CLI or host filesystem error"));
+    }
+  '
+  exit 1
+fi
 grep -Fxq 'gym_api_docker_signals_running 1' "$SIGNALS_TEXTFILE_PATH"
 grep -Fxq 'gym_api_docker_oom_events_window_10m 0' "$SIGNALS_TEXTFILE_PATH"
 grep -Eq '^gym_api_docker_cpu_periods_total [0-9]+$' "$SIGNALS_TEXTFILE_PATH"
