@@ -1,0 +1,177 @@
+# Optional production SLO MIGRATION CHECKS. Do not enable paging by merging.
+# Requires PR140 multi-instance.rules + operator-maintained textfile inventory.
+# The inventory uses noncolliding slo_deployment and target_instance labels.
+# The publisher MUST refresh each <=5m from authoritative deployment state.
+# Strict 30s scrape interval required for absolute 30-day sample thresholds.
+groups:
+  - name: gym-api-slo-migration-safeguards
+    interval: 1m
+    rules:
+      # Translate node_exporter textfile labels into the protected HTTP
+      # scraper's deployment+instance identity; other exporter labels dropped.
+      - record: gym_api:migration:expected_target
+        expr: |
+          max by (deployment, instance) (
+            label_replace(
+              label_replace(
+                gym_api_slo_inventory_expected_target{slo_deployment=~".+"} == 1,
+                "deployment", "$1", "slo_deployment", "(.+)"
+              ),
+              "instance", "$1", "target_instance", "(.+)"
+            )
+          )
+
+      - record: gym_api:migration:expected_replicas
+        expr: count by (deployment) (gym_api:migration:expected_target)
+
+      - record: gym_api:migration:inventory_refresh_timestamp_seconds
+        expr: |
+          max by (deployment) (
+            label_replace(
+              gym_api_slo_inventory_last_refresh_timestamp_seconds{slo_deployment=~".+"},
+              "deployment", "$1", "slo_deployment", "(.+)"
+            )
+          )
+
+      - record: gym_api:migration:inventory_fresh
+        expr: |
+          (time() - gym_api:migration:inventory_refresh_timestamp_seconds < bool 900)
+          and (gym_api:migration:inventory_refresh_timestamp_seconds <= time() + 60)
+
+      # Matching counts alone are unsafe: count *exact* expected replica
+      # identities and forbid unknown/extra observed targets.
+      - record: gym_api:migration:observed_replicas
+        expr: count by (deployment) (up{job="gym-api-internal-http",deployment=~".+"})
+
+      - record: gym_api:migration:matched_replicas
+        expr: |
+          count by (deployment) (
+            up{job="gym-api-internal-http",deployment=~".+"}
+            and on (deployment, instance) gym_api:migration:expected_target
+          )
+
+      - record: gym_api:migration:inventory_matches
+        expr: |
+          (
+            gym_api:migration:observed_replicas
+            == bool on (deployment) gym_api:migration:expected_replicas
+          )
+          * on (deployment) (
+            gym_api:migration:matched_replicas
+            == bool on (deployment) gym_api:migration:expected_replicas
+          )
+
+      # Current guarded availability: unknown when inventory is missing,
+      # incomplete, expired or any known scrape source is down.
+      - record: gym_api:migration:http_availability_verified_5m
+        expr: |
+          gym_api:multi:http_availability_5m
+          and on (deployment) (gym_api:migration:inventory_matches == 1)
+          and on (deployment) (gym_api:migration:inventory_fresh == 1)
+
+      # Require >=99% of 30 days of 30-second samples (>=85,536 samples)
+      # from EACH target, not just 1000 HTTP requests. Observe successful
+      # scraping (up==1) and the 2xx,3xx,5xx counter families separately.
+      - record: gym_api:migration:http_scrape_coverage_30d
+        expr: |
+          clamp_max(
+            min by (deployment) (
+              count_over_time(up{job="gym-api-internal-http",deployment=~".+"}[30d])
+              / 86400
+            ), 1
+          )
+
+      - record: gym_api:migration:http_scrape_success_30d
+        expr: |
+          min by (deployment) (
+            avg_over_time(up{job="gym-api-internal-http",deployment=~".+"}[30d])
+          )
+
+      - record: gym_api:migration:http_counter_coverage_30d
+        expr: |
+          clamp_max(
+            min by (deployment) (
+              count_over_time(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class=~"2xx|3xx|5xx"}[30d])
+              / 86400
+            ), 1
+          )
+
+      # Historical target identity is required to match too. A replica
+      # disappearing from discovery during the 30d window invalidates the
+      # verified SLO even when the current target count looks correct.
+      - record: gym_api:migration:historical_replicas_30d
+        expr: |
+          count by (deployment) (
+            max_over_time(up{job="gym-api-internal-http",deployment=~".+"}[30d])
+          )
+
+      - record: gym_api:migration:historical_matched_replicas_30d
+        expr: |
+          count by (deployment) (
+            max_over_time(up{job="gym-api-internal-http",deployment=~".+"}[30d])
+            and on (deployment, instance) gym_api:migration:expected_target
+          )
+
+      - record: gym_api:migration:historical_inventory_matches_30d
+        expr: |
+          (
+            gym_api:migration:historical_replicas_30d
+            == bool on (deployment) gym_api:migration:expected_replicas
+          )
+          * on (deployment) (
+            gym_api:migration:historical_matched_replicas_30d
+            == bool on (deployment) gym_api:migration:expected_replicas
+          )
+
+      # Explicit 0/1 readiness gates. 0 = known incomplete; no series means
+      # missing inventory/scrape data. Only 1 authorizes verified 30d SLO.
+      - record: gym_api:migration:http_history_ready_30d
+        expr: |
+          (gym_api:migration:http_scrape_coverage_30d >= bool 0.99)
+          * on (deployment) (gym_api:migration:http_scrape_success_30d >= bool 0.99)
+          * on (deployment) (gym_api:migration:http_counter_coverage_30d >= bool 0.99)
+          * on (deployment) gym_api:migration:historical_inventory_matches_30d
+          * on (deployment) gym_api:migration:inventory_matches
+          * on (deployment) gym_api:migration:inventory_fresh
+          * on (deployment) gym_api:multi:http_source_complete
+
+      - record: gym_api:migration:http_availability_verified_30d
+        expr: |
+          gym_api:multi:http_availability_30d
+          and on (deployment) (gym_api:migration:http_history_ready_30d == 1)
+
+      - record: gym_api:migration:http_error_budget_consumed_verified_30d
+        expr: |
+          gym_api:multi:http_error_budget_consumed_30d
+          and on (deployment) (gym_api:migration:http_history_ready_30d == 1)
+
+      # Warnings only. Missing inventory and mismatch are distinct from a
+      # service outage; route only to staging/test receivers until approved.
+      - alert: GymApiSloInventoryMissing
+        expr: |
+          gym_api:migration:observed_replicas
+          unless on (deployment) gym_api:migration:expected_replicas
+        for: 5m
+        labels:
+          severity: warning
+          component: slo-inventory
+        annotations:
+          summary: "Gym API deployment has no expected replica inventory"
+
+      - alert: GymApiSloInventoryStale
+        expr: gym_api:migration:inventory_fresh == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: slo-inventory
+        annotations:
+          summary: "Gym API expected replica inventory refresh is stale"
+
+      - alert: GymApiSloInventoryMismatch
+        expr: gym_api:migration:inventory_matches == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: slo-inventory
+        annotations:
+          summary: "Gym API discovered scrape targets do not match expected replicas"
