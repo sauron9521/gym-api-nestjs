@@ -50,7 +50,7 @@ test('fast/slow multi-window alert thresholds require sustained traffic', () => 
     assert.match(budgetRules, new RegExp('alert: ' + name));
     assert.match(testRules, new RegExp('alertname: ' + name));
   }
-  assert.match(budgetRules, /absent\(gym_api_http_requests_total\{status_class="5xx"\}\)/);
+  assert.match(budgetRules, /absent\(sum\(gym_api_http_requests_total\{status_class="5xx"\}\)\)/);
   assert.match(budgetRules, /for: 10m/);
   // Optional rules are separate: no production auto-activation in the legacy alert file.
   assert.doesNotMatch(alertRules, /GymApiHttpSloFastBurn|GymApiHttpSloSlowBurn/);
