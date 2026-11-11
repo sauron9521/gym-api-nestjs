@@ -117,6 +117,13 @@ const baseEnvSchema = z.object({
   ),
   ENABLE_OPENAPI: z.enum(['true', 'false']).default('false')
     .transform((value) => value === 'true'),
+  HTTP_METRICS_ENABLED: z.enum(['true', 'false']).default('false')
+    .transform((value) => value === 'true'),
+  // 32 random bytes base64url-encoded = 43 characters; avoid weak passwords.
+  HTTP_METRICS_TOKEN: z.preprocess(
+    emptyToUndefined,
+    z.string().regex(/^[A-Za-z0-9_-]{43,128}$/).optional(),
+  ),
   AVATAR_STORAGE_DIR: optionalString,
   REDIS_URL: z.preprocess(emptyToUndefined,
     z.string().trim().refine(isRedisUrl, 'Must be a redis:// or rediss:// URL').optional(),
@@ -127,6 +134,13 @@ const baseEnvSchema = z.object({
 });
 
 export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
+  if (env.HTTP_METRICS_ENABLED && !env.HTTP_METRICS_TOKEN) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['HTTP_METRICS_TOKEN'],
+      message: 'A random base64url scrape token is required when HTTP metrics are enabled',
+    });
+  }
   if (env.NODE_ENV !== 'production') return;
 
   for (const key of ['APP_URL', 'JWT_ISSUER'] as const) {
