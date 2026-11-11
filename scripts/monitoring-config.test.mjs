@@ -178,7 +178,7 @@ test('trusted Docker resource sampler has an opt-in isolated systemd identity', 
   assert.match(resourceService, /^ProtectSystem=strict$/m);
   assert.match(resourceService, /^ReadWritePaths=\/var\/lib\/node_exporter\/textfile_collector$/m);
   assert.match(resourceService, /^NoNewPrivileges=true$/m);
-  assert.match(resourceService, /^ExecStart=\/usr\/bin\/node \/opt\/gym-api\/scripts\/monitoring-docker-resources\.mjs$/m);
+  assert.match(resourceService, /^ExecStart=\/usr\/bin\/env node \/opt\/gym-api\/scripts\/monitoring-docker-resources\.mjs$/m);
   assert.match(resourceEnv, /^RESOURCE_CONTAINER=gym-api-api-1$/m);
   assert.match(resourceEnv, /^RESOURCE_TEXTFILE_PATH=\/var\/lib\/node_exporter\/textfile_collector\/gym_api_docker\.prom$/m);
   assert.match(sampler, /'inspect', '--format'/);
