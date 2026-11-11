@@ -20,7 +20,7 @@
     "architecture:deps": "node scripts/check-feature-dependencies.mjs",
     "test:architecture:deps": "node --test scripts/check-feature-dependencies.test.mjs",
     "test:architecture:imports": "node --test scripts/import-parser.test.mjs",
-    "test:monitoring": "node --test scripts/monitoring-report.test.mjs scripts/monitoring-textfile.test.mjs scripts/monitoring-config.test.mjs scripts/monitoring-log-window.test.mjs scripts/monitoring-docker-forwarder.test.mjs scripts/monitoring-docker-resources.test.mjs scripts/monitoring-docker-signals.test.mjs scripts/monitoring-readiness.test.mjs scripts/monitoring-alert-drill.test.mjs scripts/monitoring-slo-config.test.mjs scripts/monitoring-error-budget-config.test.mjs",
+    "test:monitoring": "node --test scripts/monitoring-report.test.mjs scripts/monitoring-textfile.test.mjs scripts/monitoring-config.test.mjs scripts/monitoring-log-window.test.mjs scripts/monitoring-docker-forwarder.test.mjs scripts/monitoring-docker-resources.test.mjs scripts/monitoring-docker-signals.test.mjs scripts/monitoring-readiness.test.mjs scripts/monitoring-alert-drill.test.mjs scripts/monitoring-slo-config.test.mjs scripts/monitoring-error-budget-config.test.mjs scripts/monitoring-http-telemetry-config.test.mjs",
     "monitoring:report": "node scripts/monitoring-report.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
