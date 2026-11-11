@@ -18,7 +18,9 @@ trap 'rm -f -- "$filtered"' EXIT
 # Never write raw Docker logs to disk. Check the two producer statuses
 # BEFORE publishing; even a partially successful pipeline fails closed.
 set +e
-docker logs --since 10m --timestamps -- "$FORWARD_CONTAINER" 2>/dev/null \
+# Docker writes container warnings/errors to stderr; include both streams.
+# Docker CLI errors lack a timestamp and fail normalization instead of leaking.
+docker logs --since 10m --timestamps -- "$FORWARD_CONTAINER" 2>&1 \
   | node "$script_dir/monitoring-docker-forwarder.mjs" normalize > "$filtered"
 statuses=("${PIPESTATUS[@]}")
 set -e
