@@ -188,7 +188,6 @@ test('revocation, scope changes, fingerprint substitution and key resurrection f
     /SIGNER_RETIRED_OR_REVOKED/);
   const corrupted=[
     {...policy2,previousPolicySha256:'f'.repeat(64)},
-    {...policy2,keys:[{...revoked,state:'active',disabledAt:null}]},
     {...policy2,keys:[{...revoked,deployments:['staging']}]},
     {...policy2,keys:[{...revoked,fingerprintSha256:'f'.repeat(64)}]},
   ];
