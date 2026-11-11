@@ -53,15 +53,17 @@ export function parseOomEvents(text, id, since, until) {
   return total;
 }
 
-export function cgroupCpuStatPath(cgroup) {
-  if (typeof cgroup !== 'string' || cgroup.length > 4096) {
+export function cgroupCpuStatPath(cgroup, containerId) {
+  if (typeof cgroup !== 'string' || cgroup.length > 4096 ||
+      !CONTAINER_ID.test(containerId)) {
     throw new Error('Invalid cgroup mapping');
   }
   const lines = cgroup.trim().split(/\r?\n/);
   const values = lines.filter(line => line.startsWith('0::'));
   if (values.length !== 1) throw new Error('Requires host cgroup v2');
   const relative = values[0].slice(3);
-  if (!relative.startsWith('/') || relative.includes('\0') ||
+  if (!relative.startsWith('/') || !relative.includes(containerId) ||
+      relative.includes('\0') ||
       relative.split('/').some(part => part === '.' || part === '..') ||
       !/^\/[a-zA-Z0-9_./:-]*$/.test(relative)) {
     throw new Error('Invalid cgroup location');
@@ -120,7 +122,7 @@ export async function collectSignals(container, now = Math.floor(Date.now() / 10
   let cpu = null;
   if (identity.running) {
     const mapping = await read('/proc/' + identity.pid + '/cgroup');
-    cpu = parseCpuStat(await read(cgroupCpuStatPath(mapping)));
+    cpu = parseCpuStat(await read(cgroupCpuStatPath(mapping, identity.id)));
   }
   return { running: identity.running, oomEvents, cpu };
 }
