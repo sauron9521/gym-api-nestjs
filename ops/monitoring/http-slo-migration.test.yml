@@ -1,0 +1,199 @@
+# All data synthetic. Real 30d positive coverage requires 86,400 scrapes per
+# instance, so short fixtures assert fail-closed, not fabricated 30d success.
+rule_files:
+  - http-multi-instance.rules.yml
+  - http-slo-migration.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "two exact expected replicas verify short SLI but cannot certify 30d history"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_slo_inventory_expected_target{job="node-exporter",instance="node:9100",slo_deployment="production",target_instance="prod-a:3000"}'
+        values: "1+0x30"
+      - series: 'gym_api_slo_inventory_expected_target{job="node-exporter",instance="node:9100",slo_deployment="production",target_instance="prod-b:3000"}'
+        values: "1+0x30"
+      - series: 'gym_api_slo_inventory_last_refresh_timestamp_seconds{job="node-exporter",instance="node:9100",slo_deployment="production"}'
+        values: "0+60x30"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-a:3000"}'
+        values: "1+0x30"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-b:3000"}'
+        values: "1+0x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="2xx"}'
+        values: "0+40x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="3xx"}'
+        values: "0+0x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="5xx"}'
+        values: "0+1x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",status_class="2xx"}'
+        values: "0+60x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",status_class="3xx"}'
+        values: "0+0x30"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-b:3000",status_class="5xx"}'
+        values: "0+1x30"
+    promql_expr_test:
+      - expr: gym_api:migration:expected_replicas
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:expected_replicas{deployment="production"}'
+            value: 2
+      - expr: gym_api:migration:matched_replicas
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:matched_replicas{deployment="production"}'
+            value: 2
+      - expr: gym_api:migration:inventory_matches
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:inventory_matches{deployment="production"}'
+            value: 1
+      - expr: gym_api:migration:inventory_fresh
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:inventory_fresh{deployment="production"}'
+            value: 1
+      - expr: gym_api:migration:http_availability_verified_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:http_availability_verified_5m{deployment="production"}'
+            value: 0.9803921568627451
+      - expr: gym_api:migration:historical_inventory_matches_30d
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:historical_inventory_matches_30d{deployment="production"}'
+            value: 1
+      - expr: gym_api:migration:http_history_ready_30d
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:http_history_ready_30d{deployment="production"}'
+            value: 0
+      - expr: gym_api:migration:http_availability_verified_30d
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:migration:http_error_budget_consumed_verified_30d
+        eval_time: 8m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiSloInventoryMissing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiSloInventoryStale
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiSloInventoryMismatch
+        exp_alerts: []
+
+  - name: "same replica count but wrong instance identity blocks verified availability"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_slo_inventory_expected_target{slo_deployment="production",target_instance="prod-a:3000"}'
+        values: "1+0x20"
+      - series: 'gym_api_slo_inventory_expected_target{slo_deployment="production",target_instance="prod-b:3000"}'
+        values: "1+0x20"
+      - series: 'gym_api_slo_inventory_last_refresh_timestamp_seconds{slo_deployment="production"}'
+        values: "0+60x20"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-a:3000"}'
+        values: "1+0x20"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-c:3000"}'
+        values: "1+0x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="2xx"}'
+        values: "0+100x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="5xx"}'
+        values: "0+0x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-c:3000",status_class="2xx"}'
+        values: "0+100x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-c:3000",status_class="5xx"}'
+        values: "0+0x20"
+    promql_expr_test:
+      - expr: gym_api:migration:observed_replicas
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:observed_replicas{deployment="production"}'
+            value: 2
+      - expr: gym_api:migration:matched_replicas
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:matched_replicas{deployment="production"}'
+            value: 1
+      - expr: gym_api:migration:inventory_matches
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:migration:inventory_matches{deployment="production"}'
+            value: 0
+      - expr: gym_api:migration:http_availability_verified_5m
+        eval_time: 8m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiSloInventoryMismatch
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: slo-inventory
+              deployment: production
+            exp_annotations:
+              summary: "Gym API discovered scrape targets do not match expected replicas"
+
+  - name: "stale inventory hides verified SLI and triggers separate warning"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_slo_inventory_expected_target{slo_deployment="production",target_instance="prod-a:3000"}'
+        values: "1+0x25"
+      - series: 'gym_api_slo_inventory_last_refresh_timestamp_seconds{slo_deployment="production"}'
+        values: "0+0x25"
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-a:3000"}'
+        values: "1+0x25"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="2xx"}'
+        values: "0+100x25"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="5xx"}'
+        values: "0+0x25"
+    promql_expr_test:
+      - expr: gym_api:migration:inventory_fresh
+        eval_time: 21m
+        exp_samples:
+          - labels: 'gym_api:migration:inventory_fresh{deployment="production"}'
+            value: 0
+      - expr: gym_api:migration:http_availability_verified_5m
+        eval_time: 21m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: GymApiSloInventoryStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: slo-inventory
+              deployment: production
+            exp_annotations:
+              summary: "Gym API expected replica inventory refresh is stale"
+
+  - name: "missing inventory is not healthy even when a scraped target is up"
+    interval: 1m
+    input_series:
+      - series: 'up{job="gym-api-internal-http",deployment="production",instance="prod-a:3000"}'
+        values: "1+0x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="2xx"}'
+        values: "0+100x20"
+      - series: 'gym_api_http_requests_total{job="gym-api-internal-http",deployment="production",instance="prod-a:3000",status_class="5xx"}'
+        values: "0+0x20"
+    promql_expr_test:
+      - expr: gym_api:migration:inventory_matches
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:migration:http_availability_verified_5m
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:migration:http_availability_verified_30d
+        eval_time: 8m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiSloInventoryMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: slo-inventory
+              deployment: production
+            exp_annotations:
+              summary: "Gym API deployment has no expected replica inventory"
