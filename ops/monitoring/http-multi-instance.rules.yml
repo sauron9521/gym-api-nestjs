@@ -1,0 +1,192 @@
+# OPTIONAL multi-instance HTTP SLI/SLO rules. Install only on an explicitly
+# labeled, authenticated per-process scrape job (job=gym-api-internal-http).
+# Each target MUST have unique instance and nonempty stable deployment labels.
+# Never aggregate raw counters first: increase()/rate() PER INSTANCE first,
+# then sum by (deployment) to handle independent process restarts.
+# Do not combine this with unscoped single-service SLO/burn dashboards.
+groups:
+  - name: gym-api-multi-instance-http-slo
+    interval: 1m
+    rules:
+      # Report one 0/1 value per deployment; an unhealthy known target makes
+      # *all* derived SLI series for that deployment unavailable, not healthy.
+      - record: gym_api:multi:http_targets_up
+        expr: min by (deployment) (up{job="gym-api-internal-http",deployment=~".+"})
+
+      # A scrape may return up=1 but be missing an exporter family. Verify one
+      # fixed 5xx counter AND +Inf duration bucket per configured target.
+      - record: gym_api:multi:http_source_complete
+        expr: |
+          (
+            count by (deployment) (gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class="5xx"})
+            == bool count by (deployment) (up{job="gym-api-internal-http",deployment=~".+"})
+          ) * on (deployment) gym_api:multi:http_targets_up
+
+      - record: gym_api:multi:http_histogram_complete
+        expr: |
+          (
+            count by (deployment) (gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment=~".+",le="+Inf"})
+            == bool count by (deployment) (up{job="gym-api-internal-http",deployment=~".+"})
+          ) * on (deployment) gym_api:multi:http_targets_up
+
+      - record: gym_api:multi:http_eligible_requests_5m
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class=~"2xx|3xx|5xx"}[5m]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_requests_5m
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class="5xx"}[5m]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_ratio_5m
+        expr: |
+          (gym_api:multi:http_5xx_requests_5m / clamp_min(gym_api:multi:http_eligible_requests_5m, 1))
+          and on (deployment) (gym_api:multi:http_eligible_requests_5m >= 20)
+
+      - record: gym_api:multi:http_eligible_requests_30m
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class=~"2xx|3xx|5xx"}[30m]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_requests_30m
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class="5xx"}[30m]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_ratio_30m
+        expr: |
+          (gym_api:multi:http_5xx_requests_30m / clamp_min(gym_api:multi:http_eligible_requests_30m, 1))
+          and on (deployment) (gym_api:multi:http_eligible_requests_30m >= 200)
+
+      - record: gym_api:multi:http_eligible_requests_1h
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class=~"2xx|3xx|5xx"}[1h]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_requests_1h
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class="5xx"}[1h]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_ratio_1h
+        expr: |
+          (gym_api:multi:http_5xx_requests_1h / clamp_min(gym_api:multi:http_eligible_requests_1h, 1))
+          and on (deployment) (gym_api:multi:http_eligible_requests_1h >= 500)
+
+      - record: gym_api:multi:http_eligible_requests_6h
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class=~"2xx|3xx|5xx"}[6h]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_requests_6h
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class="5xx"}[6h]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_ratio_6h
+        expr: |
+          (gym_api:multi:http_5xx_requests_6h / clamp_min(gym_api:multi:http_eligible_requests_6h, 1))
+          and on (deployment) (gym_api:multi:http_eligible_requests_6h >= 1000)
+
+      - record: gym_api:multi:http_eligible_requests_30d
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class=~"2xx|3xx|5xx"}[30d]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_5xx_requests_30d
+        expr: |
+          sum by (deployment) (increase(gym_api_http_requests_total{job="gym-api-internal-http",deployment=~".+",status_class="5xx"}[30d]))
+          and on (deployment) (gym_api:multi:http_source_complete == 1)
+
+      - record: gym_api:multi:http_availability_5m
+        expr: 1 - gym_api:multi:http_5xx_ratio_5m
+
+      # 30d is a lookback over AVAILABLE scrape samples, NOT guaranteed
+      # 30-day coverage. It cannot become an adopted paging SLO on its own.
+      - record: gym_api:multi:http_availability_30d
+        expr: |
+          (1 - gym_api:multi:http_5xx_requests_30d
+              / clamp_min(gym_api:multi:http_eligible_requests_30d, 1))
+          and on (deployment) (gym_api:multi:http_eligible_requests_30d >= 1000)
+
+      - record: gym_api:multi:http_error_budget_consumed_30d
+        expr: |
+          (gym_api:multi:http_5xx_requests_30d
+            / clamp_min(gym_api:multi:http_eligible_requests_30d, 1)) / 0.001
+          and on (deployment) (gym_api:multi:http_eligible_requests_30d >= 1000)
+
+      - record: gym_api:multi:http_error_budget_remaining_30d
+        expr: clamp_min(1 - gym_api:multi:http_error_budget_consumed_30d, 0)
+
+      # Aggregate rates of cumulative classic buckets across *instances*.
+      - record: gym_api:multi:http_duration_p50_seconds_5m
+        expr: |
+          histogram_quantile(0.50,
+            sum by (deployment, le) (rate(gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment=~".+"}[5m]))
+          )
+          and on (deployment) (
+            sum by (deployment) (increase(gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment=~".+"}[5m])) >= 20
+          )
+          and on (deployment) (gym_api:multi:http_histogram_complete == 1)
+
+      # Aggregate rates of cumulative classic buckets across *instances*.
+      - record: gym_api:multi:http_duration_p95_seconds_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (deployment, le) (rate(gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment=~".+"}[5m]))
+          )
+          and on (deployment) (
+            sum by (deployment) (increase(gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment=~".+"}[5m])) >= 20
+          )
+          and on (deployment) (gym_api:multi:http_histogram_complete == 1)
+
+      # Aggregate rates of cumulative classic buckets across *instances*.
+      - record: gym_api:multi:http_duration_p99_seconds_5m
+        expr: |
+          histogram_quantile(0.99,
+            sum by (deployment, le) (rate(gym_api_http_request_duration_seconds_bucket{job="gym-api-internal-http",deployment=~".+"}[5m]))
+          )
+          and on (deployment) (
+            sum by (deployment) (increase(gym_api_http_request_duration_seconds_count{job="gym-api-internal-http",deployment=~".+"}[5m])) >= 20
+          )
+          and on (deployment) (gym_api:multi:http_histogram_complete == 1)
+
+      # The previously defined single-service burn-rate thresholds apply per
+      # deployment here, with explicit 'on (deployment)' vector matching.
+      # Keep warning-only and route to approved staging receivers until
+      # independently calibrated and verified in real production traffic.
+      - alert: GymApiMultiHttpSloFastBurn
+        expr: |
+          (gym_api:multi:http_5xx_ratio_5m > 0.0144)
+          and on (deployment) (gym_api:multi:http_5xx_ratio_1h > 0.0144)
+          and on (deployment) (gym_api:multi:http_eligible_requests_5m >= 50)
+        for: 1m
+        labels:
+          severity: warning
+          slo: http-availability
+        annotations:
+          summary: "Gym API deployment fast HTTP SLO burn (5m and 1h)"
+
+      - alert: GymApiMultiHttpSloSlowBurn
+        expr: |
+          (gym_api:multi:http_5xx_ratio_30m > 0.006)
+          and on (deployment) (gym_api:multi:http_5xx_ratio_6h > 0.006)
+          and on (deployment) (gym_api:multi:http_eligible_requests_30m >= 200)
+        for: 2m
+        labels:
+          severity: warning
+          slo: http-availability
+        annotations:
+          summary: "Gym API deployment slow HTTP SLO burn (30m and 6h)"
+
+      - alert: GymApiMultiHttpMetricsIncomplete
+        expr: |
+          (gym_api:multi:http_source_complete == 0)
+          or on (deployment) (gym_api:multi:http_histogram_complete == 0)
+        for: 5m
+        labels:
+          severity: warning
+          slo: http-availability
+        annotations:
+          summary: "Gym API deployment HTTP scrape source is incomplete or down"
