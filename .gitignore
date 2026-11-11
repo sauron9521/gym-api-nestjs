@@ -74,3 +74,10 @@ uploads/
 # Generated OpenAPI artifacts
 /openapi/openapi.json
 /openapi/api-types.d.ts
+
+# Private operator SLO preflight, review, and rollout evidence artifacts.
+# Commit only *.example.json templates, never actual operator evidence.
+*.slo-preflight.json
+*.slo-review.json
+*.slo-evidence.json
+.slo-evidence/
