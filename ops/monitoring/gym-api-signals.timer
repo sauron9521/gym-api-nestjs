@@ -1,0 +1,12 @@
+# Opt-in: requires Linux host cgroup v2 and trusted Docker access.
+[Unit]
+Description=Sample Gym API Docker OOM events and cgroup CPU counters every minute
+
+[Timer]
+OnCalendar=*:0/1
+Persistent=true
+AccuracySec=10s
+Unit=gym-api-signals.service
+
+[Install]
+WantedBy=timers.target
