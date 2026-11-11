@@ -133,3 +133,34 @@ test('production Docker stdout storage is bounded while remaining docker-logs re
   assert.match(compose, /max-file: "3"/);
 });
 
+
+test('aggregate severity rules use exported gauges and bounded alert durations', () => {
+  for (const [name, metric, severity] of [
+    ['GymApiMonitoringCriticalSignal', 'gym_api_monitor_critical_alert', 'critical'],
+    ['GymApiMonitoringWarningSignal', 'gym_api_monitor_warning_alert', 'warning'],
+  ]) {
+    const rule = alerts.match(new RegExp('- alert: ' + name + '([\\s\\S]*?)(?=\\n\\s+- alert:|$)'));
+    assert.ok(rule, 'Missing aggregate alert: ' + name);
+    assert.match(rule[1], new RegExp('expr: ' + metric + ' == 1'));
+    assert.match(rule[1], /for: 2m/);
+    assert.match(rule[1], new RegExp('severity: ' + severity));
+    assert.doesNotMatch(rule[1], /email|token|password|url:|path:/i);
+  }
+
+  const healthy = metricsFromReport(buildReport(emptySummary(), {
+    live: { status: 'ok' }, ready: { status: 'ok' },
+  }), 1_700_000_000);
+  assert.match(healthy, /^gym_api_monitor_critical_alert 0$/m);
+  assert.match(healthy, /^gym_api_monitor_warning_alert 0$/m);
+
+  const failed = metricsFromReport(buildReport(emptySummary(), {
+    live: { status: 'failed' }, ready: { status: 'ok' },
+  }), 1_700_000_000);
+  assert.match(failed, /^gym_api_monitor_critical_alert 1$/m);
+
+  const warningSummary = { ...emptySummary(), redisOutages: 1 };
+  const warning = metricsFromReport(buildReport(warningSummary, {
+    live: { status: 'ok' }, ready: { status: 'ok' },
+  }), 1_700_000_000);
+  assert.match(warning, /^gym_api_monitor_warning_alert 1$/m);
+});
