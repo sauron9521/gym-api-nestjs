@@ -348,6 +348,7 @@ async function main(args) {
     const opts = parseProvenanceArgs(args);
     if (opts.mode === 'audit') {
       if (!opts.ledger.endsWith('.jsonl')) throw new ProvenanceError('LEDGER_PATH_INVALID');
+      if (!existsSync(opts.ledger)) throw new ProvenanceError('LEDGER_MISSING');
       const state = loadLedger(opts.ledger);
       process.stdout.write(JSON.stringify({
         status: 'LOCAL_HASH_CHAIN_INTACT', entries: state.rows,
