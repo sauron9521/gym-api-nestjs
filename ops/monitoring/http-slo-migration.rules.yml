@@ -145,6 +145,9 @@ groups:
           gym_api:multi:http_error_budget_consumed_30d
           and on (deployment) (gym_api:migration:http_history_ready_30d == 1)
 
+      - record: gym_api:migration:http_error_budget_remaining_verified_30d
+        expr: clamp_min(1 - gym_api:migration:http_error_budget_consumed_verified_30d, 0)
+
       # Warnings only. Missing inventory and mismatch are distinct from a
       # service outage; route only to staging/test receivers until approved.
       - alert: GymApiSloInventoryMissing
