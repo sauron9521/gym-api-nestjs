@@ -1,0 +1,109 @@
+rule_files:
+  - http-telemetry.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "high abort ratio warns and uses only fixed application metrics"
+    interval: 1m
+    input_series:
+      - series: gym_api_http_requests_started_total
+        values: "0+100x15"
+      - series: gym_api_http_requests_aborted_total
+        values: "0+10x15"
+      - series: gym_api_http_requests_in_flight
+        values: "0+0x15"
+      - series: 'up{job="gym-api-internal-http",instance="api-a:3000"}'
+        values: "1+0x15"
+    promql_expr_test:
+      - expr: gym_api:telemetry:http_starts_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:telemetry:http_starts_5m{}'
+            value: 500
+      - expr: gym_api:telemetry:http_aborts_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:telemetry:http_aborts_5m{}'
+            value: 50
+      - expr: gym_api:telemetry:http_abort_ratio_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:telemetry:http_abort_ratio_5m{}'
+            value: 0.1
+      - expr: gym_api:telemetry:http_in_flight
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:telemetry:http_in_flight{}'
+            value: 0
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiHttpAbortedResponsesElevated
+        exp_alerts:
+          - exp_labels: { severity: warning, component: http-telemetry }
+            exp_annotations:
+              summary: "Gym API had over 5 percent aborted HTTP responses in five minutes"
+      - eval_time: 8m
+        alertname: GymApiHttpMetricsTargetDown
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiHttpMetricsJobMissing
+        exp_alerts: []
+
+  - name: "low traffic and healthy responses are never a false abort alert"
+    interval: 1m
+    input_series:
+      - series: gym_api_http_requests_started_total
+        values: "0+1x15"
+      - series: gym_api_http_requests_aborted_total
+        values: "0+1x15"
+      - series: 'up{job="gym-api-internal-http",instance="api-a:3000"}'
+        values: "1+0x15"
+    promql_expr_test:
+      - expr: gym_api:telemetry:http_abort_ratio_5m
+        eval_time: 8m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiHttpAbortedResponsesElevated
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiHttpMetricsTargetDown
+        exp_alerts: []
+
+  - name: "one unhealthy scrape target is not masked by another healthy replica"
+    interval: 1m
+    input_series:
+      - series: 'up{job="gym-api-internal-http",instance="api-a:3000"}'
+        values: "1+0x15"
+      - series: 'up{job="gym-api-internal-http",instance="api-b:3000"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: GymApiHttpMetricsTargetDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: http-telemetry
+              job: gym-api-internal-http
+              instance: api-b:3000
+            exp_annotations:
+              summary: "A configured Gym API HTTP metrics scrape target is down"
+      - eval_time: 5m
+        alertname: GymApiHttpMetricsJobMissing
+        exp_alerts: []
+
+  - name: "missing scrape discovery warns without claiming API is healthy"
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GymApiHttpMetricsJobMissing
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: GymApiHttpMetricsJobMissing
+        exp_alerts:
+          - exp_labels: { severity: warning, component: http-telemetry }
+            exp_annotations:
+              summary: "Gym API HTTP metrics scrape job is absent"
+      - eval_time: 7m
+        alertname: GymApiHttpAbortedResponsesElevated
+        exp_alerts: []
