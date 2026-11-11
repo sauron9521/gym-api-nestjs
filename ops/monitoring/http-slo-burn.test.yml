@@ -1,0 +1,146 @@
+# Strictly synthetic counters. No notification routing or live API access.
+rule_files:
+  - slo.rules.yml
+  - http-slo-burn.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "sustained 5xx consumes budget and trips fast and slow burn"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_http_requests_total{status_class="2xx"}'
+        values: "0+100x25"
+      - series: 'gym_api_http_requests_total{status_class="3xx"}'
+        values: "0+0x25"
+      - series: 'gym_api_http_requests_total{status_class="4xx"}'
+        values: "0+400x25"
+      - series: 'gym_api_http_requests_total{status_class="5xx"}'
+        values: "0+10x25"
+    promql_expr_test:
+      - expr: gym_api:slo:http_eligible_requests_1h
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:slo:http_eligible_requests_1h{}'
+            value: 880
+      - expr: gym_api:slo:http_5xx_ratio_1h
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:slo:http_5xx_ratio_1h{}'
+            value: 0.09090909090909091
+      - expr: gym_api:slo:http_eligible_requests_6h
+        eval_time: 16m
+        exp_samples:
+          - labels: 'gym_api:slo:http_eligible_requests_6h{}'
+            value: 1760
+      - expr: gym_api:slo:http_error_budget_consumed_30d
+        eval_time: 16m
+        exp_samples:
+          - labels: 'gym_api:slo:http_error_budget_consumed_30d{}'
+            value: 90.9090909090909
+      - expr: gym_api:slo:http_error_budget_remaining_30d
+        eval_time: 16m
+        exp_samples:
+          - labels: 'gym_api:slo:http_error_budget_remaining_30d{}'
+            value: 0
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: GymApiHttpSloFastBurn
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiHttpSloFastBurn
+        exp_alerts:
+          - exp_labels: { severity: warning, slo: http-availability }
+            exp_annotations:
+              summary: "Gym API HTTP error budget fast burn (5m and 1h)"
+      - eval_time: 8m
+        alertname: GymApiHttpSloSlowBurn
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: GymApiHttpSloSlowBurn
+        exp_alerts:
+          - exp_labels: { severity: warning, slo: http-availability }
+            exp_annotations:
+              summary: "Gym API HTTP error budget slow burn (30m and 6h)"
+      - eval_time: 16m
+        alertname: GymApiHttpSloMetricsMissing
+        exp_alerts: []
+
+  - name: "healthy traffic leaves budget and does not alert"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_http_requests_total{status_class="2xx"}'
+        values: "0+100x25"
+      - series: 'gym_api_http_requests_total{status_class="3xx"}'
+        values: "0+0x25"
+      - series: 'gym_api_http_requests_total{status_class="5xx"}'
+        values: "0+0x25"
+    promql_expr_test:
+      - expr: gym_api:slo:http_error_budget_consumed_30d
+        eval_time: 16m
+        exp_samples:
+          - labels: 'gym_api:slo:http_error_budget_consumed_30d{}'
+            value: 0
+      - expr: gym_api:slo:http_error_budget_remaining_30d
+        eval_time: 16m
+        exp_samples:
+          - labels: 'gym_api:slo:http_error_budget_remaining_30d{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: GymApiHttpSloFastBurn
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: GymApiHttpSloSlowBurn
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: GymApiHttpSloMetricsMissing
+        exp_alerts: []
+
+  - name: "insufficient traffic cannot cause false burn despite high error ratio"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_http_requests_total{status_class="2xx"}'
+        values: "0+2x25"
+      - series: 'gym_api_http_requests_total{status_class="3xx"}'
+        values: "0+0x25"
+      - series: 'gym_api_http_requests_total{status_class="5xx"}'
+        values: "0+1x25"
+    promql_expr_test:
+      - expr: gym_api:slo:http_5xx_ratio_1h
+        eval_time: 16m
+        exp_samples: []
+      - expr: gym_api:slo:http_5xx_ratio_30m
+        eval_time: 16m
+        exp_samples: []
+      - expr: gym_api:slo:http_5xx_ratio_6h
+        eval_time: 16m
+        exp_samples: []
+      - expr: gym_api:slo:http_error_budget_consumed_30d
+        eval_time: 16m
+        exp_samples: []
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: GymApiHttpSloFastBurn
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: GymApiHttpSloSlowBurn
+        exp_alerts: []
+
+  - name: "missing authenticated scrape warns instead of fabricating healthy SLI"
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: GymApiHttpSloMetricsMissing
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: GymApiHttpSloMetricsMissing
+        exp_alerts:
+          - exp_labels: { severity: warning, slo: http-availability }
+            exp_annotations:
+              summary: "Gym API protected HTTP metrics series is missing"
+      - eval_time: 12m
+        alertname: GymApiHttpSloFastBurn
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: GymApiHttpSloSlowBurn
+        exp_alerts: []

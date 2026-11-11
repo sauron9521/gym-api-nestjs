@@ -1501,6 +1501,300 @@
           "sort": "none"
         }
       }
+    },
+    {
+      "id": 26,
+      "title": "Provisional error budget consumed, observed 30d",
+      "description": "Share of provisional 99.9% SLO error budget consumed by observed eligible requests during the available 30d range; may exceed 100% and is NOT proof of complete month coverage.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 66,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:slo:http_error_budget_consumed_30d",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 27,
+      "title": "Provisional error budget remaining, observed 30d",
+      "description": "Remaining provisional fraction, clamped at zero. No Data when fewer than 1000 eligible requests; missing scrape history can distort this measure.",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 66,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:slo:http_error_budget_remaining_30d",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 28,
+      "title": "HTTP 5xx share, 1h",
+      "description": "Real request-weighted 5xx ratio for completed 2xx/3xx/5xx; no data under 500 eligible requests. Gates the fast 5m+1h burn alert.",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 66,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:slo:http_5xx_ratio_1h",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 29,
+      "title": "HTTP 5xx share, 30m",
+      "description": "Request-weighted ratio, requires at least 200 eligible requests. Gates the optional slow 30m+6h burn alert.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:slo:http_5xx_ratio_30m",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 30,
+      "title": "HTTP 5xx share, 6h",
+      "description": "Request-weighted ratio, requires at least 1000 eligible requests. Multi-window alert requires sustained 30m and 6h excess.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 71,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:slo:http_5xx_ratio_6h",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
     }
   ],
   "refresh": "1m",
@@ -1512,7 +1806,9 @@
     "observability",
     "provisional-sli",
     "http",
-    "latency"
+    "latency",
+    "slo",
+    "error-budget"
   ],
   "templating": {
     "list": []
@@ -1523,7 +1819,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Gym API | Observability, HTTP SLI & Latency",
+  "title": "Gym API | Observability, HTTP SLI & Error Budget",
   "uid": "gym-api-observability",
-  "version": 2
+  "version": 3
 }
