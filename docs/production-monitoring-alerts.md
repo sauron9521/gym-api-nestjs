@@ -114,8 +114,10 @@ See [health and observability](observability-health.md) and the
 
 ## Optional recurring exporter and alert rules (PR #126)
 
-For a provider-independent host deployment, PR #126 adds an opt-in
-five-minute systemd runner and sanitized node_exporter textfile metrics,
+For a provider-independent host deployment, PR #126 added a five-minute
+systemd runner and sanitized node_exporter textfile metrics. PR #128 makes
+the runner read a dedicated **read-only timestamped JSONL source** without
+Docker socket access; a trusted external log forwarder is required.
 plus Prometheus alert templates for missing or stale collection,
 readiness/liveness, 429/503 and Redis outages. No service is deployed
 or enabled automatically. See [monitoring integration](production-monitoring-integration.md)
