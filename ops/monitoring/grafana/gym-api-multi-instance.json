@@ -229,8 +229,8 @@
     },
     {
       "id": 4,
-      "title": "Availability, 5m",
-      "description": "Completed eligible 2xx, 3xx and 5xx requests weighted across all healthy replicas. No Data below 20 eligible requests or when a source is incomplete.",
+      "title": "Verified availability, 5m",
+      "description": "Eligible request-weighted five-minute availability shown ONLY with fresh operator inventory matching every discovered replica and healthy source. No Data is not 100%.",
       "type": "stat",
       "gridPos": {
         "x": 18,
@@ -244,7 +244,7 @@
       },
       "targets": [
         {
-          "expr": "gym_api:multi:http_availability_5m{deployment=\"$deployment\"}",
+          "expr": "gym_api:migration:http_availability_verified_5m{deployment=\"$deployment\"}",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
@@ -290,8 +290,8 @@
     },
     {
       "id": 5,
-      "title": "Availability, observed 30d",
-      "description": "Request-weighted observed 30d ratio; valid only with sufficient volume and verified full scrape coverage. Not an adopted contractual SLO.",
+      "title": "Verified availability, 30d",
+      "description": "Strict 30-day verified availability: requires exact historical target set, 99% scrape/counter coverage and valid current inventory. Remains No Data during initial 30-day warm-up.",
       "type": "stat",
       "gridPos": {
         "x": 0,
@@ -305,7 +305,7 @@
       },
       "targets": [
         {
-          "expr": "gym_api:multi:http_availability_30d{deployment=\"$deployment\"}",
+          "expr": "gym_api:migration:http_availability_verified_30d{deployment=\"$deployment\"}",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
@@ -351,8 +351,8 @@
     },
     {
       "id": 6,
-      "title": "Error budget consumed, observed 30d",
-      "description": "Provisional 99.9% SLO: fraction of the 0.1% allowance used over available samples, potentially above 100%. Check scrape coverage separately.",
+      "title": "Verified error budget consumed, 30d",
+      "description": "Provisional 99.9% SLO budget consumption, displayed ONLY when the 30-day target inventory and scrape/counter history are trustworthy. May exceed 100%.",
       "type": "stat",
       "gridPos": {
         "x": 6,
@@ -366,7 +366,7 @@
       },
       "targets": [
         {
-          "expr": "gym_api:multi:http_error_budget_consumed_30d{deployment=\"$deployment\"}",
+          "expr": "gym_api:migration:http_error_budget_consumed_verified_30d{deployment=\"$deployment\"}",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
@@ -412,8 +412,8 @@
     },
     {
       "id": 7,
-      "title": "Error budget remaining",
-      "description": "Clamped remaining fraction of the provisional budget. Missing or incomplete target data must show No Data rather than healthy status.",
+      "title": "Verified error budget remaining, 30d",
+      "description": "Only displays remaining provisional 30-day error budget when all 30-day readiness gates pass. No Data is not a healthy zero burn.",
       "type": "stat",
       "gridPos": {
         "x": 12,
@@ -427,7 +427,7 @@
       },
       "targets": [
         {
-          "expr": "gym_api:multi:http_error_budget_remaining_30d{deployment=\"$deployment\"}",
+          "expr": "gym_api:migration:http_error_budget_remaining_verified_30d{deployment=\"$deployment\"}",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
@@ -1053,6 +1053,598 @@
           "sort": "none"
         }
       }
+    },
+    {
+      "id": 18,
+      "title": "Inventory fresh",
+      "description": "1 means operator inventory refreshed within 15m and timestamp not excessively in the future. Zero means stale; No Data indicates missing inventory.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:inventory_fresh{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 19,
+      "title": "Exact inventory match",
+      "description": "1 means known scraped replica identities EXACTLY match the expected inventory; 0 means mismatch. No Data means inventory missing.",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 42,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:inventory_matches{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 20,
+      "title": "Verified 30d history ready",
+      "description": "1 only when current inventory, exact historical target identity, at least 99% of expected 30-second samples and successful scrapes are verified. Zero means incomplete history.",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 42,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:http_history_ready_30d{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 21,
+      "title": "Historical target identity match",
+      "description": "0 if a replica appeared and disappeared within the trailing 30d or expected targets differ. Requires a stable target set for trusted 30d availability.",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 42,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:historical_inventory_matches_30d{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 22,
+      "title": "Expected replicas",
+      "description": "Number of distinct target identities in the operator-managed source of truth, not a count guessed from currently discovered Prometheus targets.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:expected_replicas{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "Discovered replicas",
+      "description": "Number of currently discovered HTTP scrape targets for the selected deployment; compare with expected count AND exact identity match.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 47,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:observed_replicas{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "title": "Scrape sample coverage, 30d",
+      "description": "Minimum across replicas of received up samples / 86,400 expected 30-second samples over 30d. The verified SLO requires at least 99%.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:http_scrape_coverage_30d{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 25,
+      "title": "Successful scrapes, 30d",
+      "description": "Minimum fraction of up=1 observations across replicas over the available lookback. At least 99% required in addition to total sample count.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 54,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:http_scrape_success_30d{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 26,
+      "title": "HTTP counter sample coverage, 30d",
+      "description": "Minimum across replicas/status classes (2xx,3xx,5xx) of observed counter samples / expected 86,400; 99% needed before verified 30d SLO.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 61,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:http_counter_coverage_30d{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 27,
+      "title": "Verified 30d availability over time",
+      "description": "Shows a 30-day availability signal only after source, membership and history checks pass; No Data means not enough evidence, not 100%.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 61,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:migration:http_availability_verified_30d{deployment=\"$deployment\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
     }
   ],
   "refresh": "1m",
@@ -1063,7 +1655,9 @@
     "observability",
     "multi-instance",
     "slo",
-    "provisional"
+    "provisional",
+    "inventory",
+    "migration-readiness"
   ],
   "templating": {
     "list": [
@@ -1100,7 +1694,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Gym API | Deployment-scoped HTTP SLI & SLO",
+  "title": "Gym API | Deployment HTTP SLO & Verified History",
   "uid": "gym-api-multi-instance",
-  "version": 1
+  "version": 2
 }

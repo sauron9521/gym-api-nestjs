@@ -82,8 +82,8 @@ test('dedicated Grafana dashboard never mingles staging and production by defaul
   }
   const queries = dashboard.panels.map(p=>p.targets[0].expr);
   for (const name of [
-    'gym_api:multi:http_availability_5m',
-    'gym_api:multi:http_error_budget_consumed_30d',
+    'gym_api:migration:http_availability_verified_5m',
+    'gym_api:migration:http_error_budget_consumed_verified_30d',
     'gym_api:multi:http_duration_p95_seconds_5m',
     'gym_api:multi:http_targets_up',
     'gym_api:multi:http_histogram_complete',

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "scrapeIntervalSeconds": 30,
+  "deployments": [
+    {
+      "name": "staging-example",
+      "instances": [
+        "api-a.internal.example.test:8443",
+        "api-b.internal.example.test:8443"
+      ]
+    }
+  ]
+}
