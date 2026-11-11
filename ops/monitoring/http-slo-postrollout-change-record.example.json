@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "changeRef": "CHG-REPLACE-WITH-TICKET",
+  "evidenceSha256": "REPLACE_WITH_SHA256_OF_ARCHIVED_EVIDENCE_JSON",
+  "inventorySha256": "REPLACE_WITH_CANONICAL_BASELINE_INVENTORY_SHA256",
+  "recordedAt": "REPLACE_WITH_APPROVAL_TIMESTAMP_IN_UTC",
+  "decision": "STAGING_ROLLOUT_REVIEWED",
+  "operatorVerifiedExternally": false
+}

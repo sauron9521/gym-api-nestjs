@@ -81,3 +81,9 @@ uploads/
 *.slo-review.json
 *.slo-evidence.json
 .slo-evidence/
+
+# Actual private post-rollout snapshots and manually exported change records.
+*.slo-change-record.json
+*.slo-postrollout.json
+*.slo-baseline-inventory.json
+*.slo-current-inventory.json
