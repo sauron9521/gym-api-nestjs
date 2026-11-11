@@ -16,15 +16,16 @@ describe('AvatarPublicController', () => {
   it('serves only validated active avatar data with security and cache headers', async () => {
     const key = '11111111-1111-4111-8111-111111111111.png';
     const bytes = Buffer.from('image');
-    const response = { setHeader: vi.fn() } as unknown as Response;
+    const setHeader = vi.fn();
+    const response = { setHeader } as unknown as Response;
     service.readPublic.mockResolvedValue({ bytes, contentType: 'image/png' });
 
     const result = await controller.get(key, response);
 
     expect(service.readPublic).toHaveBeenCalledExactlyOnceWith(key);
-    expect(response.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
-    expect(response.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
-    expect(response.setHeader).toHaveBeenCalledWith(
+    expect(setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+    expect(setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(setHeader).toHaveBeenCalledWith(
       'Cross-Origin-Resource-Policy',
       'cross-origin',
     );
@@ -37,10 +38,11 @@ describe('AvatarPublicController', () => {
 
   it('propagates missing avatar errors before sending response headers', async () => {
     const error = new Error('Avatar not found');
-    const response = { setHeader: vi.fn() } as unknown as Response;
+    const setHeader = vi.fn();
+    const response = { setHeader } as unknown as Response;
     service.readPublic.mockRejectedValue(error);
 
     await expect(controller.get('unknown.png', response)).rejects.toBe(error);
-    expect(response.setHeader).not.toHaveBeenCalled();
+    expect(setHeader).not.toHaveBeenCalled();
   });
 });
