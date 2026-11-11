@@ -19,11 +19,11 @@ docker run -d --name "$name" --restart unless-stopped \
     const file = "/state/attempt";
     const attempt = Number(fs.readFileSync(file, "utf8")) + 1;
     fs.writeFileSync(file, String(attempt));
-    if (attempt === 1) process.exit(23);
+    if (attempt === 1) setTimeout(() => process.exit(23), 11000);
     setInterval(() => {}, 1000);
   ' >/dev/null
 success=0
-for i in $(seq 1 80); do
+for i in $(seq 1 160); do
   state="$(docker inspect --format '{{.State.Running}} {{.RestartCount}}' "$name")"
   if [[ "$state" =~ ^true\ ([1-9][0-9]*)$ ]] && [[ "$(cat "$workdir/attempt")" -ge 2 ]]; then
     success=1
