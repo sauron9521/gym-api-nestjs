@@ -6,8 +6,8 @@
  */
 import { createHash, createPublicKey, verify as verifySignature } from 'node:crypto';
 import {
-  closeSync, existsSync, fsyncSync, lstatSync, openSync, readFileSync,
-  unlinkSync, writeSync,
+  closeSync, constants, existsSync, fstatSync, fsyncSync, lstatSync,
+  openSync, readFileSync, unlinkSync, writeSync,
 } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -283,17 +283,25 @@ export function recordVerifiedApproval(file, verified, nowMs = Date.now(), expec
       previousHash: prior.headSha256,
     };
     const line = JSON.stringify({...row, entryHash: entryHash(row)}) + '\n';
-    if (existsSync(file) && !lstatSync(file).isFile()) {
+    const original = existsSync(file) ? lstatSync(file) : null;
+    if (original && !original.isFile()) {
       throw new ProvenanceError('LEDGER_UNSAFE_PATH');
     }
-    const beforeBytes = existsSync(file) ? lstatSync(file).size : 0;
+    const beforeBytes = original?.size ?? 0;
     if (beforeBytes + Buffer.byteLength(line) > MAX_LEDGER_BYTES) {
       throw new ProvenanceError('LEDGER_FULL');
     }
-    // O_NOFOLLOW protects against symlink substitution on supported systems.
-    // openSync('ax') is O_APPEND | O_CREAT | O_EXCL; only for new files.
-    // Existing files require O_APPEND without O_EXCL.
-    destination = openSync(file, existsSync(file) ? 'a' : 'ax', 0o600);
+    // O_NOFOLLOW (when available) prevents symlink substitution. Verify the
+    // opened descriptor still identifies the file we checked under the lock.
+    const flags = constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT |
+      (original ? 0 : constants.O_EXCL) | (constants.O_NOFOLLOW ?? 0);
+    destination = openSync(file, flags, 0o600);
+    const opened = fstatSync(destination);
+    if (!opened.isFile() || opened.size !== beforeBytes ||
+        (original && (opened.dev !== original.dev ||
+                      opened.ino !== original.ino))) {
+      throw new ProvenanceError('LEDGER_CHANGED_DURING_WRITE');
+    }
     writeSync(destination, line);
     fsyncSync(destination);
     closeSync(destination);
