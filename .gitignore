@@ -87,3 +87,10 @@ uploads/
 *.slo-postrollout.json
 *.slo-baseline-inventory.json
 *.slo-current-inventory.json
+
+# Restricted SLO signing and replay history (templates use *.example.json).
+*.slo-approval.json
+*.slo-signature
+*.slo-provenance.jsonl
+*.slo-provenance.jsonl.lock
+*.slo-trusted-key.pem
