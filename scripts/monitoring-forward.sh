@@ -2,7 +2,7 @@
 # Privileged TRUSTED forwarder. Gym monitor never calls Docker.
 # Rebuild one last-10-minute sanitized JSONL snapshot every minute.
 set -Eeuo pipefail
-umask 077
+umask 027  # mktemp remains 0600; final JSONL is group-readable 0640
 
 : "${FORWARD_CONTAINER:?Set an exact container name}"
 : "${FORWARD_LOG_FILE:?Set absolute /var/log/gym-api/events.jsonl}"
