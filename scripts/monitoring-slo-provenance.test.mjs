@@ -51,6 +51,7 @@ function fixture(referenceTime = now, changeRef = 'CHG-145-PROVENANCE', nonce = 
   const approval = {
     version: 1, domain: 'gym-api-slo-change-approval/v1',
     deployment, changeRef: review.changeRef,
+    decision: 'STAGING_ROLLOUT_REVIEWED',
     evidenceSha256: evidenceDigest,
     inventorySha256: inventoryFingerprint(inventory, deployment).sha256,
     approvedAt: iso(referenceTime - 60_000),
@@ -94,6 +95,7 @@ test('tampering, wrong scope or key cannot be laundered into signature validatio
     {approval: {...sample.approval, deployment:'staging'}},
     {approval: {...sample.approval, nonce:'b'.repeat(32)}},
     {approval: {...sample.approval, signerKeyId:'OTHER-KEY'}},
+    {approval: {...sample.approval, decision:'APPROVED_FOR_PRODUCTION'}},
     {approval: {...sample.approval, extra:'inject'}},
     {approval: {...sample.approval, evidenceSha256:'0'.repeat(64)}},
     {approval: {...sample.approval, inventorySha256:'0'.repeat(64)}},
