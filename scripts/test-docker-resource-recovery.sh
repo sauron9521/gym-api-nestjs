@@ -10,6 +10,9 @@ cleanup() {
 }
 trap cleanup EXIT
 printf '0' > "$workdir/attempt"
+# The production image runs as non-root; this disposable fixture contains no secrets.
+chmod 0777 "$workdir"
+chmod 0666 "$workdir/attempt"
 # The first invocation crashes; the next stays alive until the test stops it.
 docker run -d --name "$name" --restart unless-stopped \
   --memory 1g --memory-swap 1g --cpus 2 --pids-limit 256 \
