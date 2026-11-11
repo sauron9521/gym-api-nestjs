@@ -74,9 +74,9 @@ function trustedDirectory(info) {
   return info.isDirectory() && !info.isSymbolicLink() &&
     (info.mode & 0o022) === 0;
 }
-function trustedFile(info) {
+function trustedFile(info, maxBytes) {
   return info.isFile() && !info.isSymbolicLink() &&
-    (info.mode & 0o027) === 0 && info.size <= 64 * 1024;
+    (info.mode & 0o027) === 0 && info.size <= maxBytes;
 }
 
 /** No file content, paths, user-controlled strings or process errors are
@@ -112,7 +112,7 @@ export async function assessReadiness({
         stat(dirname(path)), stat(path),
       ]);
       if (!trustedDirectory(folder)) issues.push('DIRECTORY_UNSAFE');
-      if (!trustedFile(file)) issues.push('FILE_UNSAFE');
+      if (!trustedFile(file, source.metric ? 128 * 1024 : 16 * 1024 * 1024)) issues.push('FILE_UNSAFE');
       if (issues.includes('DIRECTORY_UNSAFE') || issues.includes('FILE_UNSAFE')) {
         // Never read a file in an unsafe location.
         items.push({ component: source.name, issues });
