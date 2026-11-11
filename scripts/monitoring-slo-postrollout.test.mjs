@@ -223,6 +223,17 @@ test('CLI reads only local JSON; returns zero for no drift, two on drift or bad 
     for (const [name, path] of Object.entries(paths)) {
       writeFileSync(path, JSON.stringify(sample[name]));
     }
+    const fingerprint = spawnSync(process.execPath, [
+      cli, '--fingerprint-inventory', paths.baselineInventory,
+      '--deployment', deployment,
+    ], {encoding: 'utf8'});
+    assert.equal(fingerprint.status, 0);
+    const finger = JSON.parse(fingerprint.stdout);
+    assert.equal(finger.status, 'INVENTORY_FINGERPRINT');
+    assert.equal(finger.inventorySha256, sample.changeRecord.inventorySha256);
+    assert.equal(finger.replicaCount, 2);
+    assert.ok(!fingerprint.stdout.includes('prod-a.internal'));
+
     const args = [
       '--baseline', paths.baseline,
       '--baseline-inventory', paths.baselineInventory,
