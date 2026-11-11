@@ -1,4 +1,11 @@
+import { once } from 'node:events';
+import { createServer, get } from 'node:http';
+
 import type { INestApplication } from '@nestjs/common';
+import type { Request, Response } from 'express';
+
+import { HttpMetricsRegistry } from '../src/common/http-metrics/http-metrics.registry.js';
+import { RequestContextMiddleware } from '../src/common/request-context/request-context.middleware.js';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
@@ -101,4 +108,61 @@ describe('HTTP metrics (real Nest middleware, controller and test DB)', () => {
     expect(after.match(/^gym_api_http_request_duration_seconds_bucket\{/gm))
       .toHaveLength(12);
   });
+
+
+  it('records a real TCP client disconnect without inventing a completed HTTP status', async () => {
+    const registry = new HttpMetricsRegistry();
+    const middleware = new RequestContextMiddleware(registry);
+    let notifyClose: (() => void) | undefined;
+    const closeObserved = new Promise<void>((resolve) => {
+      notifyClose = resolve;
+    });
+    const server = createServer((incoming, outgoing) => {
+      middleware.use(
+        incoming as unknown as Request,
+        outgoing as unknown as Response,
+        () => {
+          outgoing.once('close', () => notifyClose?.());
+          outgoing.writeHead(200, { 'content-type': 'text/plain' });
+          outgoing.write('partial'); // deliberately never call end()
+        },
+      );
+    });
+    try {
+      server.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+      const addr = server.address();
+      if (!addr || typeof addr === 'string') throw new Error('Missing TCP port');
+
+      await new Promise<void>((resolve, reject) => {
+        const client = get({
+          host: '127.0.0.1', port: addr.port,
+          path: '/never-completes?private=DO_NOT_EXPORT',
+          agent: false,
+        }, (incoming) => {
+          incoming.on('error', () => undefined);
+          client.destroy(); // real socket close before HTTP response finish
+          resolve();
+        });
+        client.once('error', reject);
+      });
+      await Promise.race([
+        closeObserved,
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Server did not observe disconnect')), 4000);
+        }),
+      ]);
+      const snapshot = registry.render();
+      expect(sample(snapshot, 'gym_api_http_requests_started_total')).toBe(1);
+      expect(sample(snapshot, 'gym_api_http_requests_aborted_total')).toBe(1);
+      expect(sample(snapshot, 'gym_api_http_requests_in_flight')).toBe(0);
+      expect(sample(snapshot, 'gym_api_http_request_duration_seconds_count')).toBe(0);
+      expect(sample(snapshot, 'gym_api_http_requests_total{status_class="2xx"}')).toBe(0);
+      expect(snapshot).not.toContain('DO_NOT_EXPORT');
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
 });
