@@ -163,6 +163,15 @@ jobs:
             -v "$PWD/ops/monitoring:/rules:ro" \
             prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
             test rules /rules/http-slo-burn.test.yml
+          # Opt-in HTTP scrape-integrity rules stay offline in CI.
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            check rules /rules/http-telemetry.rules.yml
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            test rules /rules/http-telemetry.test.yml
 
       - name: Validate backup tooling without production credentials
         run: |

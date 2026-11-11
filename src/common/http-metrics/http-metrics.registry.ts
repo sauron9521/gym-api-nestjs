@@ -20,6 +20,27 @@ export class HttpMetricsRegistry {
   private total = 0;
   private totalDurationSeconds = 0;
 
+  // Completion counters alone miss client disconnects and stalled responses.
+  // These three series have NO client-specific labels or event history.
+  private started = 0;
+  private aborted = 0;
+  private inFlight = 0;
+
+  requestStarted(): void {
+    this.started++;
+    this.inFlight++;
+  }
+
+  requestCompleted(status: number, durationSeconds: number): void {
+    if (this.inFlight > 0) this.inFlight--;
+    this.observe(status, durationSeconds);
+  }
+
+  requestAborted(): void {
+    if (this.inFlight > 0) this.inFlight--;
+    this.aborted++;
+  }
+
   /** Called only after a completed HTTP response, never on unfinished sockets. */
   observe(status: number, durationSeconds: number): void {
     if (!Number.isInteger(status) || status < 100 || status > 599 ||
@@ -64,6 +85,15 @@ export class HttpMetricsRegistry {
       'gym_api_http_request_duration_seconds_bucket{le="+Inf"} ' + this.total,
       'gym_api_http_request_duration_seconds_sum ' + this.totalDurationSeconds,
       'gym_api_http_request_duration_seconds_count ' + this.total,
+      '# HELP gym_api_http_requests_started_total HTTP requests received by middleware.',
+      '# TYPE gym_api_http_requests_started_total counter',
+      'gym_api_http_requests_started_total ' + this.started,
+      '# HELP gym_api_http_requests_aborted_total HTTP responses closed before finish.',
+      '# TYPE gym_api_http_requests_aborted_total counter',
+      'gym_api_http_requests_aborted_total ' + this.aborted,
+      '# HELP gym_api_http_requests_in_flight Current started requests without terminal outcome.',
+      '# TYPE gym_api_http_requests_in_flight gauge',
+      'gym_api_http_requests_in_flight ' + this.inFlight,
       '',
     );
     return lines.join('\n');

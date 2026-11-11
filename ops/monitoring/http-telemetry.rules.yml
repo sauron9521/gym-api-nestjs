@@ -1,0 +1,60 @@
+# Optional: deploy ONLY with the opt-in protected HTTP scrape from PR #137.
+# Separate from production alerts.rules.yml. Per-target status uses stable
+# Prometheus job/instance labels; no application-generated sensitive labels.
+groups:
+  - name: gym-api-http-telemetry-integrity
+    interval: 1m
+    rules:
+      # These are process-local monotonic counters, NOT log-window gauges.
+      # One aborted response may take place without an HTTP status code.
+      - record: gym_api:telemetry:http_starts_5m
+        expr: sum(increase(gym_api_http_requests_started_total[5m]))
+
+      - record: gym_api:telemetry:http_aborts_5m
+        expr: sum(increase(gym_api_http_requests_aborted_total[5m]))
+
+      - record: gym_api:telemetry:http_abort_ratio_5m
+        expr: |
+          (
+            gym_api:telemetry:http_aborts_5m
+            / clamp_min(gym_api:telemetry:http_starts_5m, 1)
+          )
+          and (gym_api:telemetry:http_starts_5m >= 20)
+
+      # Active requests are a gauge, not a lifetime count.
+      - record: gym_api:telemetry:http_in_flight
+        expr: sum(gym_api_http_requests_in_flight)
+
+      # Monitor each explicitly configured target in a multi-instance scrape.
+      # Do not aggregate 'up' across targets: one healthy replica could mask
+      # an unreachable replica. 'job'/'instance' are Prometheus target labels.
+      - alert: GymApiHttpMetricsTargetDown
+        expr: up{job="gym-api-internal-http"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: http-telemetry
+        annotations:
+          summary: "A configured Gym API HTTP metrics scrape target is down"
+
+      # If even the target definition disappears, a per-instance 'up == 0'
+      # cannot fire. This one global alert detects missing scrape discovery.
+      - alert: GymApiHttpMetricsJobMissing
+        expr: absent(sum(up{job="gym-api-internal-http"}))
+        for: 5m
+        labels:
+          severity: warning
+          component: http-telemetry
+        annotations:
+          summary: "Gym API HTTP metrics scrape job is absent"
+
+      - alert: GymApiHttpAbortedResponsesElevated
+        expr: |
+          (gym_api:telemetry:http_abort_ratio_5m > 0.05)
+          and (gym_api:telemetry:http_starts_5m >= 100)
+        for: 2m
+        labels:
+          severity: warning
+          component: http-telemetry
+        annotations:
+          summary: "Gym API had over 5 percent aborted HTTP responses in five minutes"

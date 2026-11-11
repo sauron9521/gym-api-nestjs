@@ -76,4 +76,27 @@ describe('HttpMetricsRegistry', () => {
     expect(findValue(metrics,
       'gym_api_http_request_duration_seconds_count')).toBe(1000);
   });
+
+
+  it('tracks active and disconnected requests without counting aborts as HTTP errors', () => {
+    const registry = new HttpMetricsRegistry();
+    registry.requestStarted();
+    registry.requestStarted();
+    registry.requestStarted();
+    expect(findValue(registry.render(), 'gym_api_http_requests_in_flight')).toBe(3);
+
+    registry.requestAborted();
+    registry.requestCompleted(503, 0.17);
+    registry.requestCompleted(200, 0.03);
+
+    const metrics = registry.render();
+    expect(findValue(metrics, 'gym_api_http_requests_started_total')).toBe(3);
+    expect(findValue(metrics, 'gym_api_http_requests_aborted_total')).toBe(1);
+    expect(findValue(metrics, 'gym_api_http_requests_in_flight')).toBe(0);
+    expect(findValue(metrics, 'gym_api_http_request_duration_seconds_count')).toBe(2);
+    expect(findValue(metrics, 'gym_api_http_requests_total{status_class="5xx"}')).toBe(1);
+    expect(findValue(metrics, 'gym_api_http_requests_total{status_class="2xx"}')).toBe(1);
+    expect(metrics).not.toMatch(/method=|path=|url=|user=|request_id=/);
+  });
+
 });

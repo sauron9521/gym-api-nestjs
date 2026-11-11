@@ -61,4 +61,70 @@ describe('RequestContextMiddleware', () => {
     expect(JSON.stringify(metadata)).not.toContain('SECRET');
     expect(JSON.stringify(metadata)).not.toContain('forged-client-id');
   });
+
+
+  it('counts disconnect only when close precedes finish; finish then close is completed once', () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const registry = new HttpMetricsRegistry();
+    const middleware = new RequestContextMiddleware(registry);
+
+    const request = {
+      path: '/workouts/secret?auth=SECRET_QUERY',
+      method: 'POST',
+      originalUrl: '/workouts/secret?auth=SECRET_QUERY',
+      route: { path: '/workouts/:id' },
+      headers: { authorization: 'Bearer SENSITIVE_TOKEN' },
+    } as unknown as Request;
+    const open = () => Object.assign(new EventEmitter(), {
+      setHeader: vi.fn(), statusCode: 200,
+    }) as unknown as Response;
+
+    const responseAborted = open();
+    middleware.use(request, responseAborted, vi.fn());
+    expect(registry.render()).toContain('gym_api_http_requests_in_flight 1');
+    responseAborted.emit('close');
+    responseAborted.emit('finish');
+    responseAborted.emit('close');
+    expect(registry.render()).toContain('gym_api_http_requests_started_total 1');
+    expect(registry.render()).toContain('gym_api_http_requests_aborted_total 1');
+    expect(registry.render()).toContain('gym_api_http_requests_in_flight 0');
+    expect(registry.render()).toContain('gym_api_http_request_duration_seconds_count 0');
+    expect(log).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[1]).toMatchObject({
+      event: 'http.request.aborted', method: 'POST', route: '/workouts/:id',
+    });
+    expect(JSON.stringify(warn.mock.calls[0]?.[1])).not.toMatch(/SECRET|Bearer|SENSITIVE/);
+
+    const responseCompleted = open();
+    middleware.use(request, responseCompleted, vi.fn());
+    responseCompleted.emit('finish');
+    responseCompleted.emit('close');
+    responseCompleted.emit('finish');
+    expect(registry.render()).toContain('gym_api_http_requests_started_total 2');
+    expect(registry.render()).toContain('gym_api_http_requests_aborted_total 1');
+    expect(registry.render()).toContain('gym_api_http_request_duration_seconds_count 1');
+    expect(registry.render()).toContain('gym_api_http_requests_in_flight 0');
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it('does not count internal metric scrapes even on abort', () => {
+    const registry = new HttpMetricsRegistry();
+    const middleware = new RequestContextMiddleware(registry);
+    for (const done of ['finish', 'close']) {
+      const response = Object.assign(new EventEmitter(), {
+        setHeader: vi.fn(), statusCode: 200,
+      }) as unknown as Response;
+      middleware.use({
+        path: '/internal/metrics', method: 'GET', route: { path: '/internal/metrics' },
+      } as unknown as Request, response, vi.fn());
+      response.emit(done);
+    }
+    expect(registry.render()).toContain('gym_api_http_requests_started_total 0');
+    expect(registry.render()).toContain('gym_api_http_requests_aborted_total 0');
+    expect(registry.render()).toContain('gym_api_http_requests_in_flight 0');
+    expect(registry.render()).toContain('gym_api_http_request_duration_seconds_count 0');
+  });
+
 });

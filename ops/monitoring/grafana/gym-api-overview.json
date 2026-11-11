@@ -1795,6 +1795,238 @@
           "sort": "none"
         }
       }
+    },
+    {
+      "id": 31,
+      "title": "HTTP starts (5m)",
+      "description": "Count of accepted API requests over five minutes from process-local monotonically increasing start counters. Scrapes are excluded.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 79,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:telemetry:http_starts_5m",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 32,
+      "title": "HTTP aborted (5m)",
+      "description": "Requests whose response closed before the finish event; they have no completed status class and are not counted as 5xx.",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 79,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:telemetry:http_aborts_5m",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 33,
+      "title": "HTTP aborted share (5m)",
+      "description": "Aborted responses divided by started requests. No Data below 20 starts or if the authenticated scraper is missing. Separate from 5xx availability SLO.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 79,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:telemetry:http_abort_ratio_5m",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 34,
+      "title": "HTTP in-flight requests",
+      "description": "Currently started but not yet finished or aborted requests, per-process gauges summed across the scraped application processes.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 84,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "gym_api:telemetry:http_in_flight",
+          "legendFormat": "",
+          "refId": "A",
+          "interval": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
     }
   ],
   "refresh": "1m",
@@ -1808,7 +2040,8 @@
     "http",
     "latency",
     "slo",
-    "error-budget"
+    "error-budget",
+    "telemetry-integrity"
   ],
   "templating": {
     "list": []
@@ -1819,7 +2052,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Gym API | Observability, HTTP SLI & Error Budget",
+  "title": "Gym API | HTTP SLI, Error Budget & Telemetry Integrity",
   "uid": "gym-api-observability",
-  "version": 3
+  "version": 4
 }
