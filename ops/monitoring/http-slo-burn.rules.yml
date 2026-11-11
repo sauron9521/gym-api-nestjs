@@ -96,7 +96,7 @@ groups:
       # This file is opt-in: loading it without an authenticated scrape should
       # trigger a *monitoring* warning rather than report 100% API availability.
       - alert: GymApiHttpSloMetricsMissing
-        expr: absent(gym_api_http_requests_total{status_class="5xx"})
+        expr: absent(sum(gym_api_http_requests_total{status_class="5xx"}))
         for: 10m
         labels:
           severity: warning
