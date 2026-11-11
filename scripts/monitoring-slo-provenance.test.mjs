@@ -86,7 +86,7 @@ test('valid signed, scope-bound, fresh Ed25519 record verifies without granting 
 test('tampering, wrong scope or key cannot be laundered into signature validation', () => {
   const sample = fixture();
   const cases = [
-    {signature: sample.signature.slice(0,-1)+'A'},
+    {signature: (sample.signature[0]==='A'?'B':'A') + sample.signature.slice(1)},
     {signature: 'x'},
     {trustedKeySha256: 'f'.repeat(64)},
     {publicKeyPem: '-----BEGIN PRIVATE KEY-----'},
