@@ -94,3 +94,9 @@ uploads/
 *.slo-provenance.jsonl
 *.slo-provenance.jsonl.lock
 *.slo-trusted-key.pem
+
+# Operator-only root-signed policy, detached signatures and pinned ledger refs.
+*.slo-key-policy.json
+*.slo-policy-signature
+*.slo-key-root.pem
+*.slo-key-policy-pin.json
