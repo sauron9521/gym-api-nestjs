@@ -88,6 +88,20 @@ test('healthy authorized host fixtures satisfy all four collectors', async () =>
   } finally { dir.clean(); }
 });
 
+test('legitimate bounded 16 MiB log snapshots are allowed, without reading raw logs', async () => {
+  const dir = fixture();
+  try {
+    writeFileSync(dir.logFile, 'x'.repeat(70 * 1024), { mode: 0o640 });
+    clock(dir.logFile);
+    const result = await assessReadiness({
+      logFile: dir.logFile, textfileDir: dir.metrics, nowSeconds: NOW,
+      probe: healthyProbe,
+    });
+    assert.equal(result.ready, true);
+    assert.doesNotMatch(JSON.stringify(result), /xxxxx/);
+  } finally { dir.clean(); }
+});
+
 test('inactive timers, stale files and stale metrics fail closed', async () => {
   const dir = fixture();
   try {
