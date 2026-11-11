@@ -45,7 +45,28 @@ export function selectWindowLine(line, nowMs) {
   // otherwise could keep the sample apparently healthy.
   if (at > nowMs + 5_000) throw new Error('Clock-skewed log entry');
   if (at < nowMs - WINDOW_MS || at > nowMs) return null;
-  return line;
+
+  // Only emit whitelisted aggregate signals. The output must never carry
+  // arbitrary log fields (authorization headers, session IDs or user data).
+  const candidates = [record, record.message, record.context,
+    record.metadata, record.data, record.message?.context,
+    record.message?.metadata];
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      continue;
+    }
+    if (candidate.event === 'http.request.completed') {
+      const status = candidate.statusCode;
+      return Number.isInteger(status) && status >= 100 && status <= 599
+        ? JSON.stringify({ event: 'http.request.completed', statusCode: status })
+        : null;
+    }
+    if (candidate.event === 'RATE_LIMIT_REDIS_UNAVAILABLE' ||
+        candidate.event === 'RATE_LIMIT_REDIS_RECOVERED') {
+      return JSON.stringify({ event: candidate.event });
+    }
+  }
+  return null;
 }
 
 /** Read-only regular file; reject symlinks, pipes, writable-by-group/world
