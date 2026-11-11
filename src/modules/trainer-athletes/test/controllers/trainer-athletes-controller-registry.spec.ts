@@ -36,7 +36,7 @@ describe('TrainerAthletesModule controller registry', () => {
 
   it('retains 201 for creation and explicit 200 statuses for transitions', () => {
     const controller = TrainerAthletesController.prototype;
-    expect(Reflect.getMetadata(HTTP_CODE_METADATA, controller.create)).toBeUndefined();
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, Object.getOwnPropertyDescriptor(controller, 'create')?.value)).toBeUndefined();
     for (const handler of ['accept', 'decline', 'cancel', 'terminate'] as const) {
       expect(Reflect.getMetadata(HTTP_CODE_METADATA, controller[handler])).toBe(200);
     }
