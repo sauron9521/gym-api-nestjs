@@ -318,6 +318,16 @@ jobs:
             exit 1
           fi
 
+      # Real Docker Engine integration (not a mocked Docker CLI). The
+      # production runtime image was already built in this job; the test
+      # starts only a disposable Node log emitter, never the real API.
+      - name: Real Docker local logging to Prometheus monitoring E2E
+        env:
+          MONITOR_E2E_IMAGE: gym-api:runtime-ci
+        run: |
+          bash -n scripts/test-monitoring-docker-e2e.sh
+          bash scripts/test-monitoring-docker-e2e.sh
+
   # Single stable branch-protection check. A green unit job alone is insufficient:
   # dependency auditing and production-image smoke must also succeed.
   required-gates:

@@ -140,11 +140,16 @@ untrusted services.
 Docker RFC3339Nano and Nest JSON normalization, stderr events,
 secret stripping, malformed-input fail-closed behavior, atomic
 replacements, strict file permissions, and failed Docker collection.
-The tests use a fake Docker CLI, **not the real Docker socket**.
-CI also verifies the forwarder shell and systemd units/calendar.
+The unit tests use a fake Docker CLI so they never require a daemon.
+Starting in PR #130, the **separate Docker production smoke CI job**
+also runs a [real Docker Engine end-to-end test](monitoring-real-docker-e2e.md)
+using the actual `local` logging driver, stdout/stderr, forwarder,
+JSONL, HTTP probes and Prometheus gauges, including outage/recovery
+scenarios. CI also verifies the forwarder shell and systemd units/calendar.
 
-CI does not prove that production Docker can be contacted, users/groups
-are provisioned, or that your monitoring service has actual read access.
+The Docker Engine test does not establish that your **production host**
+is provisioned correctly: actual users/groups, on-host file access,
+systemd timers and downstream notifications still require deployment checks.
 Check these on the real host, and run a controlled drill: force a
 forwarder failure, verify the snapshot mtime stays old, and confirm
 that the monitor stops publishing fresh gauges and your external alerts
