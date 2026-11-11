@@ -43,10 +43,32 @@ fi
 [[ "$(docker inspect --format '{{.HostConfig.MemorySwap}}' "$name")" = 1073741824 ]]
 [[ "$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$name")" = 2000000000 ]]
 [[ "$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$name")" = 256 ]]
+# Run actual host-side resource sampling against the disposable live container.
+mkdir -m 0700 "$workdir/metrics"
+export RESOURCE_CONTAINER="$name"
+export RESOURCE_TEXTFILE_PATH="$workdir/metrics/gym_api_docker.prom"
+node scripts/monitoring-docker-resources.mjs
+grep -Fxq 'gym_api_docker_running 1' "$RESOURCE_TEXTFILE_PATH"
+grep -Eq '^gym_api_docker_restart_count [1-9][0-9]*$' "$RESOURCE_TEXTFILE_PATH"
+grep -Eq '^gym_api_docker_memory_percent [0-9]' "$RESOURCE_TEXTFILE_PATH"
+[[ "$(stat -c '%a' "$RESOURCE_TEXTFILE_PATH")" = 640 ]]
+cp "$RESOURCE_TEXTFILE_PATH" "$workdir/last-good.prom"
+if RESOURCE_CONTAINER="missing-$name" node scripts/monitoring-docker-resources.mjs >/dev/null 2>&1; then
+  echo 'Resource sampler accepted an unknown Docker container' >&2
+  exit 1
+fi
+cmp -s "$RESOURCE_TEXTFILE_PATH" "$workdir/last-good.prom" || {
+  echo 'Failed Docker collection overwrote last good sample' >&2
+  exit 1
+}
 docker stop --time 3 "$name" >/dev/null
 sleep 2
 [[ "$(docker inspect --format '{{.State.Running}}' "$name")" = false ]] || {
   echo 'Explicit stop unexpectedly restarted the container' >&2
   exit 1
 }
+RESOURCE_CONTAINER="$name" node scripts/monitoring-docker-resources.mjs
+grep -Fxq 'gym_api_docker_running 0' "$RESOURCE_TEXTFILE_PATH"
+grep -Fxq 'gym_api_docker_memory_percent -1' "$RESOURCE_TEXTFILE_PATH"
+echo 'Docker resource sampler live, unavailable, and stopped states: OK'
 echo 'Docker restart policy and resource ceilings: OK'

@@ -164,3 +164,39 @@ test('aggregate severity rules use exported gauges and bounded alert durations',
   }), 1_700_000_000);
   assert.match(warning, /^gym_api_monitor_warning_alert 1$/m);
 });
+
+test('trusted Docker resource sampler has an opt-in isolated systemd identity', () => {
+  const resourceService = read('ops/monitoring/gym-api-resources.service');
+  const resourceTimer = read('ops/monitoring/gym-api-resources.timer');
+  const resourceEnv = read('ops/monitoring/resources.env.example');
+  const sampler = read('scripts/monitoring-docker-resources.mjs');
+  assert.match(resourceTimer, /^OnCalendar=\*:0\/1$/m);
+  assert.match(resourceTimer, /^Unit=gym-api-resources\.service$/m);
+  assert.match(resourceService, /^Type=oneshot$/m);
+  assert.match(resourceService, /^User=root$/m);
+  assert.match(resourceService, /^Group=node_exporter$/m);
+  assert.match(resourceService, /^ProtectSystem=strict$/m);
+  assert.match(resourceService, /^ReadWritePaths=\/var\/lib\/node_exporter\/textfile_collector$/m);
+  assert.match(resourceService, /^NoNewPrivileges=true$/m);
+  assert.match(resourceService, /^ExecStart=\/usr\/bin\/env node \/opt\/gym-api\/scripts\/monitoring-docker-resources\.mjs$/m);
+  assert.match(resourceEnv, /^RESOURCE_CONTAINER=gym-api-api-1$/m);
+  assert.match(resourceEnv, /^RESOURCE_TEXTFILE_PATH=\/var\/lib\/node_exporter\/textfile_collector\/gym_api_docker\.prom$/m);
+  assert.match(sampler, /'inspect', '--format'/);
+  assert.match(sampler, /'stats', '--no-stream'/);
+  assert.doesNotMatch(resourceService + resourceTimer, /systemctl enable|systemctl start/);
+  // No privileges or Docker socket are added to the old gym-monitor reader.
+  assert.doesNotMatch(service + runner, /docker stats|docker inspect|docker\.sock/);
+  assert.doesNotMatch(service, /^SupplementaryGroups=docker$/m);
+  for (const metric of [
+    'gym_api_docker_last_sample_timestamp_seconds',
+    'gym_api_docker_running',
+    'gym_api_docker_cpu_percent',
+    'gym_api_docker_memory_percent',
+    'gym_api_docker_pids',
+    'gym_api_docker_restart_count',
+    'gym_api_docker_oom_killed',
+  ]) {
+    assert.match(sampler, new RegExp(metric));
+    assert.match(alerts, new RegExp(metric));
+  }
+});

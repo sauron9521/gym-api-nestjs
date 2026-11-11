@@ -95,3 +95,69 @@ groups:
           severity: warning
         annotations:
           summary: "Gym API monitoring report contains a warning signal"
+
+      # Metrics are produced by a separate opt-in trusted host collector.
+      - alert: GymApiDockerResourceSnapshotMissing
+        expr: absent(gym_api_docker_last_sample_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API Docker resource sampler has no metrics"
+
+      - alert: GymApiDockerResourceSnapshotStale
+        expr: time() - gym_api_docker_last_sample_timestamp_seconds > 180
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API Docker resource metrics are stale"
+
+      - alert: GymApiDockerContainerStopped
+        expr: gym_api_docker_running == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API Docker container is not running"
+
+      - alert: GymApiDockerOOMKilled
+        expr: gym_api_docker_oom_killed == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API Docker container was killed by OOM"
+
+      - alert: GymApiDockerMemoryPressure
+        expr: gym_api_docker_memory_percent >= 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API container memory usage exceeds 90 percent"
+
+      - alert: GymApiDockerCpuSaturation
+        expr: gym_api_docker_cpu_percent >= 180
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API container CPU usage is near its 2-core limit"
+
+      - alert: GymApiDockerPidPressure
+        expr: gym_api_docker_pids >= 230
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API container PID usage is near its 256-PID limit"
+
+      # RestartCount is a per-container gauge; the number resets on recreate.
+      - alert: GymApiDockerRestartLoop
+        expr: clamp_min(delta(gym_api_docker_restart_count[10m]), 0) >= 3
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API container restarted at least three times within ten minutes"

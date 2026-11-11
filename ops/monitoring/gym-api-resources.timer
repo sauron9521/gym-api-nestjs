@@ -1,0 +1,12 @@
+# OPT-IN; only enable on the authorized Docker host after review.
+[Unit]
+Description=Sample gym API container resources once per minute
+
+[Timer]
+OnCalendar=*:0/1
+Persistent=true
+AccuracySec=10s
+Unit=gym-api-resources.service
+
+[Install]
+WantedBy=timers.target
