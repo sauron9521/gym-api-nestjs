@@ -81,7 +81,7 @@ export function parseCpuStat(text) {
   }
   const values = new Map();
   for (const line of text.trim().split(/\r?\n/)) {
-    const match = /^([a-z_]+) (\d+)$/.exec(line);
+    const match = /^([a-z][a-z0-9_.-]*)[ \t]+(\d+)$/.exec(line);
     if (!match || values.has(match[1])) throw new Error('Invalid cgroup CPU counters');
     values.set(match[1], Number(match[2]));
   }
