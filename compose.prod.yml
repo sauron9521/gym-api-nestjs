@@ -25,6 +25,12 @@ services:
       target: runtime
     init: true
     restart: unless-stopped
+    # Per-container safety ceilings; tune after observing real production load.
+    # Docker enforces these limits even when the host has spare capacity.
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2.0
+    pids_limit: 256
     # Bounded Docker stdout storage; readable via docker logs --timestamps.
     logging:
       driver: local
