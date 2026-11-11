@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "domain": "gym-api-slo-key-policy/v1",
+  "sequence": 1,
+  "issuedAt": "REPLACE_WITH_UTC_TIMESTAMP",
+  "expiresAt": "REPLACE_WITH_UTC_TIMESTAMP_MAX_30D",
+  "previousPolicySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "keys": [
+    {
+      "keyId": "staging-approver-01",
+      "fingerprintSha256": "REPLACE_WITH_INDEPENDENTLY_TRUSTED_SPKI_SHA256",
+      "deployments": [
+        "staging"
+      ],
+      "validFrom": "REPLACE_WITH_UTC_TIMESTAMP",
+      "validUntil": "REPLACE_WITH_UTC_TIMESTAMP",
+      "state": "active",
+      "disabledAt": null
+    }
+  ]
+}
