@@ -182,6 +182,16 @@ jobs:
             -v "$PWD/ops/monitoring:/rules:ro" \
             prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
             test rules /rules/http-multi-instance.test.yml
+          # Optional verified SLO migration gates. No live Prometheus,
+          # privileged inventory writer or Alertmanager receivers in CI.
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            check rules /rules/http-slo-migration.rules.yml
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            test rules /rules/http-slo-migration.test.yml
 
       - name: Validate backup tooling without production credentials
         run: |
