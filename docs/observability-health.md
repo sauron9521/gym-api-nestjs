@@ -71,8 +71,9 @@ fixed alert codes and low-cardinality counters; it never prints raw log
 lines or probe URLs. It is one-shot and does not schedule checks or send
 notifications. Details: [monitoring and alert rules](production-monitoring-alerts.md).
 
-An opt-in systemd + node_exporter textfile integration and example
-Prometheus alert rules are available in
+An opt-in systemd + node_exporter textfile integration, now using a
+restricted read-only JSONL source **without Docker privileges**, and
+example Prometheus alert rules are available in
 [monitoring integration](production-monitoring-integration.md). Nothing
 starts or pages automatically when this repo is checked out.
 

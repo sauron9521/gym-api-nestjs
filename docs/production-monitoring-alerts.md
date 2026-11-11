@@ -30,7 +30,8 @@ and logs restricted to a **known input time window**, e.g. five minutes:
 
 ```sh
 # Replace the example Docker name and operator-reachable URL.
-docker logs --since 5m gym-api 2>&1 \
+node scripts/monitoring-log-window.mjs \
+  --file /var/log/gym-api/events.jsonl \
   | npm run --silent monitoring:report -- \
       --base-url http://127.0.0.1:3000
 
@@ -113,11 +114,13 @@ See [health and observability](observability-health.md) and the
 
 ## Optional recurring exporter and alert rules (PR #126)
 
-For a provider-independent host deployment, PR #126 adds an opt-in
-five-minute systemd runner and sanitized node_exporter textfile metrics,
-plus Prometheus alert templates for missing or stale collection,
-readiness/liveness, 429/503 and Redis outages. No service is deployed
-or enabled automatically. See [monitoring integration](production-monitoring-integration.md)
+For provider-independent deployments, PR #126 added a five-minute
+systemd runner, sanitized node_exporter textfile metrics and Prometheus
+alert templates for missing/stale collection, health failures, 429/503
+and Redis outages. PR #128 changes the runner to read a dedicated
+**read-only timestamped JSONL source**, without Docker socket access.
+A separately provisioned trusted log forwarder is required; no service
+is deployed or enabled automatically. See [monitoring integration](production-monitoring-integration.md)
 for the operator setup, least-privilege limitations and rollback steps.
 
 ## Security and limitations

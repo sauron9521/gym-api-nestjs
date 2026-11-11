@@ -61,6 +61,11 @@ test('systemd timer is opt-in and points to a one-shot service every five minute
   assert.match(service, /^SuccessExitStatus=2$/m);
   assert.match(service, /^User=gym-monitor$/m);
   assert.match(service, /^Group=node_exporter$/m);
+  assert.match(service, /^SupplementaryGroups=gym-api-logs$/m);
+  assert.match(service, /^ReadOnlyPaths=\/var\/log\/gym-api$/m);
+  assert.doesNotMatch(service, /^SupplementaryGroups=docker$/m);
+  assert.match(service, /^PrivateDevices=true$/m);
+  assert.match(service, /^RestrictSUIDSGID=true$/m);
   assert.match(service, /^UMask=0027$/m);
   assert.match(service, /^NoNewPrivileges=true$/m);
   assert.match(service, /^ProtectSystem=strict$/m);
@@ -68,9 +73,10 @@ test('systemd timer is opt-in and points to a one-shot service every five minute
   assert.doesNotMatch(service + timer, /systemctl enable|systemctl start/);
 });
 
-test('runner rejects unsafe container identifiers and preserves previous metrics after source errors', () => {
-  assert.match(runner, /\^\[a-zA-Z0-9\]/);
-  assert.match(runner, /docker logs --since 5m -- "\$API_CONTAINER"/);
+test('runner only consumes read-only JSONL and preserves old metrics on source errors', () => {
+  assert.match(runner, /monitoring-log-window\.mjs/);
+  assert.match(runner, /--file "\$MONITOR_LOG_FILE"/);
+  assert.doesNotMatch(runner + service, /docker logs|\/var\/run\/docker\.sock|SupplementaryGroups=docker/);
   assert.match(runner, /PIPESTATUS\[@\]/);
   assert.match(runner, /statuses\[0\]/);
   assert.match(runner, /statuses\[1\]/);
@@ -83,11 +89,13 @@ test('example environment does not include secrets or arbitrary log destination 
     .filter((line) => line && !line.trimStart().startsWith('#'));
   const keys = entries.map((line) => line.split('=')[0]);
   assert.deepEqual(keys, [
-    'API_CONTAINER',
+    'MONITOR_LOG_FILE',
     'MONITOR_API_ORIGIN',
     'MONITOR_TEXTFILE_PATH',
   ]);
   assert.doesNotMatch(entries.join('\n'), /bearer|password|jwt|token|secret|api_key/i);
   assert.ok(entries.every((line) => line.split('=', 2).length === 2));
   assert.match(exampleEnv, /textfile_collector\/gym_api_monitor\.prom/);
+  assert.match(exampleEnv, /^MONITOR_LOG_FILE=\/var\/log\/gym-api\/events\.jsonl$/m);
+  assert.doesNotMatch(exampleEnv, /API_CONTAINER|docker\.sock/);
 });

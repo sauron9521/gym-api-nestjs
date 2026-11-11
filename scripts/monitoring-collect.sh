@@ -1,27 +1,22 @@
 #!/usr/bin/env bash
-# One-shot, five-minute report for node_exporter's textfile collector.
-# Does NOT install a timer, expose an endpoint, or send notifications.
+# One-shot five-minute report from an already-provisioned read-only log file.
+# No Docker socket, process privileges, background scheduling or notifications.
 set -Eeuo pipefail
 umask 027
 
-: "${API_CONTAINER:?Set API_CONTAINER to the exact Docker container name}"
+: "${MONITOR_LOG_FILE:?Set MONITOR_LOG_FILE to an absolute read-only .jsonl source}"
 : "${MONITOR_API_ORIGIN:?Set MONITOR_API_ORIGIN to an HTTP(S) origin}"
 : "${MONITOR_TEXTFILE_PATH:?Set MONITOR_TEXTFILE_PATH to an absolute .prom file}"
-
-# Never let a caller provide Docker flags in place of a container name.
-if [[ ! "${API_CONTAINER}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
-  printf '%s\n' 'Invalid monitor container identifier' >&2
-  exit 1
-fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 report_file="$(mktemp)"
 trap 'rm -f -- "$report_file"' EXIT
 
-# Capture the status of *both* producer and consumer; a failed Docker
-# command must not publish 0 requests as if a complete window were read.
+# Both pipeline commands must succeed (report exit 2 means critical health
+# signal, NOT an invalid report). An invalid source leaves the old .prom
+# snapshot untouched so its existing stale timestamp can trigger an alert.
 set +e
-docker logs --since 5m -- "$API_CONTAINER" 2>/dev/null \
+node "$script_dir/monitoring-log-window.mjs" --file "$MONITOR_LOG_FILE" \
   | node "$script_dir/monitoring-report.mjs" --base-url "$MONITOR_API_ORIGIN" > "$report_file"
 statuses=("${PIPESTATUS[@]}")
 set -e
@@ -35,10 +30,5 @@ if [[ "${statuses[1]}" -ne 0 && "${statuses[1]}" -ne 2 ]]; then
   exit 1
 fi
 
-# Write only sanitized gauges and an up-to-date run timestamp.
-# Atomic rename preserves the last good report on collection failure.
 node "$script_dir/monitoring-textfile.mjs" --output "$MONITOR_TEXTFILE_PATH" < "$report_file"
-
-# 2 signals critical metrics to non-systemd callers; the sample systemd
-# unit treats 2 as a successful *publication*, letting Prometheus alert.
 exit "${statuses[1]}"

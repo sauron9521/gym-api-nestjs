@@ -110,51 +110,63 @@ test('CLI accepts sanitized report, ignores extra secret fields, and rejects mal
   }
 });
 
-test('five-minute collection publishes real gauges even on critical health probe status', () => {
+test('five-minute read-only log collection publishes privacy-safe metrics without Docker privileges', () => {
   const dir = mkdtempSync(join(tmpdir(), 'gym-monitor-runner-'));
   try {
-    const bin = join(dir, 'docker');
+    const source = join(dir, 'events.jsonl');
     const dest = join(dir, 'metric.prom');
-    writeFileSync(bin,
-      '#!/bin/sh\n' +
-      'test "$1" = logs || exit 9\n' +
-      'i=0\nwhile [ "$i" -lt 20 ]; do\n' +
-      '  printf \'{"event":"http.request.completed","statusCode":429,"secret":"private@example.test"}\\n\'\n' +
-      '  i=$((i + 1))\ndone\n');
-    chmodSync(bin, 0o755);
+    const recent = new Date(Date.now() - 1500).toISOString();
+    const lines = Array.from({ length: 20 }, () =>
+      JSON.stringify({
+        timestamp: recent,
+        event: 'http.request.completed',
+        statusCode: 429,
+        email: 'private@example.test',
+        token: 'sensitive-token',
+      }));
+    lines.push(JSON.stringify({
+      timestamp: new Date(Date.now() - 10 * 60_000).toISOString(),
+      event: 'http.request.completed',
+      statusCode: 503,
+    }));
+    writeFileSync(source, lines.join('\n') + '\n');
+    chmodSync(source, 0o640);
 
+    const environment = {
+      ...process.env,
+      MONITOR_LOG_FILE: source,
+      MONITOR_API_ORIGIN: 'http://127.0.0.1:1',
+      MONITOR_TEXTFILE_PATH: dest,
+    };
     const run = spawnSync('bash', [collect], {
-      encoding: 'utf8', timeout: 20_000,
-      env: {
-        ...process.env,
-        PATH: dir + ':' + process.env.PATH,
-        API_CONTAINER: 'gym-api-test',
-        MONITOR_API_ORIGIN: 'http://127.0.0.1:1',
-        MONITOR_TEXTFILE_PATH: dest,
-      },
+      encoding: 'utf8', timeout: 20_000, env: environment,
     });
     assert.equal(run.status, 2, run.stderr);
     assert.equal(run.stdout, '');
     const output = readFileSync(dest, 'utf8');
     assert.match(output, /gym_api_monitor_http_429_window_5m 20/);
+    assert.match(output, /gym_api_monitor_http_503_window_5m 0/);
     assert.match(output, /gym_api_monitor_critical_alert 1/);
     assert.match(output, /gym_api_monitor_live_probe_success 0/);
-    assert.equal(output.includes('private@example.test'), false);
+    for (const sensitive of ['private@example.test', 'sensitive-token']) {
+      assert.equal(output.includes(sensitive), false);
+    }
 
-    // A failed Docker log command must leave the last good file untouched.
-    writeFileSync(bin, '#!/bin/sh\nexit 17\n');
-    chmodSync(bin, 0o755);
+    // A failed/untrusted source must preserve the last complete snapshot.
+    chmodSync(source, 0o666);
     const rejected = spawnSync('bash', [collect], {
-      encoding: 'utf8', timeout: 20_000,
-      env: {
-        ...process.env,
-        PATH: dir + ':' + process.env.PATH,
-        API_CONTAINER: 'gym-api-test',
-        MONITOR_API_ORIGIN: 'http://127.0.0.1:1',
-        MONITOR_TEXTFILE_PATH: dest,
-      },
+      encoding: 'utf8', timeout: 20_000, env: environment,
     });
     assert.equal(rejected.status, 1);
+    assert.equal(readFileSync(dest, 'utf8'), output);
+    assert.equal(rejected.stderr.includes('private@example.test'), false);
+
+    chmodSync(source, 0o640);
+    writeFileSync(source, '{ broken JSON\n');
+    const malformed = spawnSync('bash', [collect], {
+      encoding: 'utf8', timeout: 20_000, env: environment,
+    });
+    assert.equal(malformed.status, 1);
     assert.equal(readFileSync(dest, 'utf8'), output);
   } finally {
     rmSync(dir, { recursive: true, force: true });
