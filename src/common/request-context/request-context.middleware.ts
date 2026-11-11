@@ -26,7 +26,10 @@ export class RequestContextMiddleware implements NestMiddleware {
     const start = process.hrtime.bigint();
     // Instrument the entire request lifetime without retaining request details.
     // Never count our own scraper as traffic or as an aborted response.
-    const excludeMetrics = request.path === '/internal/metrics';
+    // Express routes are case-insensitive and allow one trailing slash by
+    // default; those are still scrapes and must not change SLO counters.
+    const excludeMetrics = typeof request.path === 'string' &&
+      /^\/internal\/metrics\/?$/i.test(request.path);
     if (!excludeMetrics) this.httpMetrics.requestStarted();
     let settled = false;
 
