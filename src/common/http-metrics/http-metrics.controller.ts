@@ -43,7 +43,12 @@ export class HttpMetricsController {
     const secret = this.config.get('HTTP_METRICS_TOKEN');
     // Fail with an indistinguishable 404 for disabled/unauthorized access.
     if (enabled !== true || !secret ||
-        !validMetricsToken(request.headers['x-metrics-token'], secret)) {
+        !validMetricsToken(
+          typeof request.headers.authorization === 'string' &&
+          request.headers.authorization.startsWith('Bearer ')
+            ? request.headers.authorization.slice('Bearer '.length) : undefined,
+          secret,
+        )) {
       throw new NotFoundException();
     }
     return this.registry.render();
