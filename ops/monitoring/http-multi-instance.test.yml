@@ -131,6 +131,9 @@ tests:
         alertname: GymApiMultiHttpMetricsIncomplete
         exp_alerts: []
 
+  # promtool applies Prometheus's counter-reset correction AND boundary
+  # extrapolation. Numeric expectations are measured with the pinned image,
+  # not computed by naively summing raw snapshot deltas.
   - name: "counter and histogram reset in one replica does not reset another"
     interval: 1m
     input_series:
@@ -167,12 +170,12 @@ tests:
         eval_time: 9m
         exp_samples:
           - labels: 'gym_api:multi:http_eligible_requests_5m{deployment="production"}'
-            value: 263
+            value: 250
       - expr: gym_api:multi:http_5xx_requests_5m
         eval_time: 9m
         exp_samples:
           - labels: 'gym_api:multi:http_5xx_requests_5m{deployment="production"}'
-            value: 13
+            value: 12.5
       - expr: gym_api:multi:http_duration_p95_seconds_5m
         eval_time: 9m
         exp_samples:
