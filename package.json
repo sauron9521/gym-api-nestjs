@@ -20,7 +20,7 @@
     "architecture:deps": "node scripts/check-feature-dependencies.mjs",
     "test:architecture:deps": "node --test scripts/check-feature-dependencies.test.mjs",
     "test:architecture:imports": "node --test scripts/import-parser.test.mjs",
-    "test:monitoring": "node --test scripts/monitoring-report.test.mjs scripts/monitoring-textfile.test.mjs scripts/monitoring-config.test.mjs scripts/monitoring-log-window.test.mjs scripts/monitoring-docker-forwarder.test.mjs scripts/monitoring-docker-resources.test.mjs scripts/monitoring-docker-signals.test.mjs",
+    "test:monitoring": "node --test scripts/monitoring-report.test.mjs scripts/monitoring-textfile.test.mjs scripts/monitoring-config.test.mjs scripts/monitoring-log-window.test.mjs scripts/monitoring-docker-forwarder.test.mjs scripts/monitoring-docker-resources.test.mjs scripts/monitoring-docker-signals.test.mjs scripts/monitoring-readiness.test.mjs scripts/monitoring-alert-drill.test.mjs",
     "monitoring:report": "node scripts/monitoring-report.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -42,7 +42,9 @@
     "config:validate": "tsx scripts/validate-env.ts",
     "security:audit:prod": "npm audit --omit=dev --audit-level=high",
     "security:audit:critical": "npm audit --audit-level=critical",
-    "imports:smoke": "node --input-type=module -e \"import { validateEnv } from '#src/common/config/env.validation'; import { Prisma } from '#prisma/client'; if (typeof validateEnv !== 'function' || !Prisma) process.exit(1); console.log('Native ESM aliases resolved')\""
+    "imports:smoke": "node --input-type=module -e \"import { validateEnv } from '#src/common/config/env.validation'; import { Prisma } from '#prisma/client'; if (typeof validateEnv !== 'function' || !Prisma) process.exit(1); console.log('Native ESM aliases resolved')\"",
+    "monitoring:preflight": "node scripts/monitoring-readiness.mjs",
+    "monitoring:alert-drill": "node scripts/monitoring-alert-drill.mjs"
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.5",
