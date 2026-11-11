@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "deployment": "production",
+  "reviewer": "REPLACE-WITH-OPERATOR-ALIAS",
+  "reviewedAt": "REPLACE-WITH-CURRENT-UTC-ISO8601",
+  "changeRef": "CHG-REPLACE-WITH-TICKET",
+  "decision": "REVIEWED_FOR_STAGING",
+  "confirmations": {
+    "independentInventoryReviewed": false,
+    "perReplicaScrapeAndHistoryReviewed": false,
+    "secretsAndAccessReviewed": false,
+    "testAlertRoutingReviewed": false,
+    "rollbackProcedureReviewed": false
+  }
+}
