@@ -28,11 +28,11 @@ test('strictly validate Docker identity, cgroup mapping and actual CPU counters'
     'token 110 true', id + ' 0 true', id + ' 110 false', id + ' -1 true',
     id + ' 10 what', '',
   ]) assert.throws(() => parseIdentity(value));
-  assert.equal(cgroupCpuStatPath('0::/system.slice/docker-' + id + '.scope\n'),
+  assert.equal(cgroupCpuStatPath('0::/system.slice/docker-' + id + '.scope\n', id),
     '/sys/fs/cgroup/system.slice/docker-' + id + '.scope/cpu.stat');
   for (const value of ['', '4:cpu:/parent', '0::/../../etc', '0::/valid\n0::/other',
     '0::/bad path', '0::/x/./z']) {
-    assert.throws(() => cgroupCpuStatPath(value));
+    assert.throws(() => cgroupCpuStatPath(value, id));
   }
   assert.deepEqual(parseCpuStat(cpuStat), {
     periods: 100, throttledPeriods: 25, throttledSeconds: 0.5,
