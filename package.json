@@ -20,7 +20,7 @@
     "architecture:deps": "node scripts/check-feature-dependencies.mjs",
     "test:architecture:deps": "node --test scripts/check-feature-dependencies.test.mjs",
     "test:architecture:imports": "node --test scripts/import-parser.test.mjs",
-    "test:monitoring": "node --test scripts/monitoring-report.test.mjs scripts/monitoring-textfile.test.mjs scripts/monitoring-config.test.mjs scripts/monitoring-log-window.test.mjs scripts/monitoring-docker-forwarder.test.mjs scripts/monitoring-docker-resources.test.mjs scripts/monitoring-docker-signals.test.mjs scripts/monitoring-readiness.test.mjs scripts/monitoring-alert-drill.test.mjs scripts/monitoring-slo-config.test.mjs scripts/monitoring-error-budget-config.test.mjs scripts/monitoring-http-telemetry-config.test.mjs scripts/monitoring-multi-instance-config.test.mjs scripts/monitoring-slo-inventory.test.mjs scripts/monitoring-slo-migration-config.test.mjs scripts/monitoring-slo-preflight.test.mjs scripts/monitoring-slo-rollout-evidence.test.mjs scripts/monitoring-slo-postrollout.test.mjs scripts/monitoring-slo-provenance.test.mjs",
+    "test:monitoring": "node --test scripts/monitoring-report.test.mjs scripts/monitoring-textfile.test.mjs scripts/monitoring-config.test.mjs scripts/monitoring-log-window.test.mjs scripts/monitoring-docker-forwarder.test.mjs scripts/monitoring-docker-resources.test.mjs scripts/monitoring-docker-signals.test.mjs scripts/monitoring-readiness.test.mjs scripts/monitoring-alert-drill.test.mjs scripts/monitoring-slo-config.test.mjs scripts/monitoring-error-budget-config.test.mjs scripts/monitoring-http-telemetry-config.test.mjs scripts/monitoring-multi-instance-config.test.mjs scripts/monitoring-slo-inventory.test.mjs scripts/monitoring-slo-migration-config.test.mjs scripts/monitoring-slo-preflight.test.mjs scripts/monitoring-slo-rollout-evidence.test.mjs scripts/monitoring-slo-postrollout.test.mjs scripts/monitoring-slo-provenance.test.mjs scripts/monitoring-slo-key-lifecycle.test.mjs",
     "monitoring:report": "node scripts/monitoring-report.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -49,7 +49,8 @@
     "monitoring:slo-preflight": "node scripts/monitoring-slo-preflight.mjs",
     "monitoring:slo-evidence": "node scripts/monitoring-slo-rollout-evidence.mjs",
     "monitoring:slo-postrollout": "node scripts/monitoring-slo-postrollout.mjs",
-    "monitoring:slo-provenance": "node scripts/monitoring-slo-provenance.mjs"
+    "monitoring:slo-provenance": "node scripts/monitoring-slo-provenance.mjs",
+    "monitoring:slo-keys": "node scripts/monitoring-slo-key-lifecycle.mjs"
   },
   "dependencies": {
     "@nestjs/authentication": "^0.1.5",
