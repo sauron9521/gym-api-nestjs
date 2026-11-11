@@ -7,6 +7,7 @@ import {
   getRequestId,
   RequestContextMiddleware,
 } from './request-context.middleware.js';
+import { HttpMetricsRegistry } from '../http-metrics/http-metrics.registry.js';
 
 describe('RequestContextMiddleware', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -35,7 +36,8 @@ describe('RequestContextMiddleware', () => {
     }) as unknown as Response;
 
     const next = vi.fn() as NextFunction;
-    new RequestContextMiddleware().use(request, response, next);
+    const registry = new HttpMetricsRegistry();
+    new RequestContextMiddleware(registry).use(request, response, next);
 
     const id = getRequestId(request);
     expect(next).toHaveBeenCalledOnce();
@@ -44,6 +46,8 @@ describe('RequestContextMiddleware', () => {
     expect(id).not.toBe('forged-client-id');
 
     emitter.emit('finish');
+    expect(registry.render()).toContain('gym_api_http_requests_total{status_class="4xx"} 1');
+    expect(registry.render()).toContain('gym_api_http_request_duration_seconds_count 1');
     expect(log).toHaveBeenCalledOnce();
     const metadata = log.mock.calls[0]?.[1];
 

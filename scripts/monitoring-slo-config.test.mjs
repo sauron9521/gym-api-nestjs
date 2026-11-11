@@ -5,7 +5,8 @@ import { test } from 'node:test';
 const root = new URL('../', import.meta.url);
 const read = path => readFileSync(new URL(path, root), 'utf8');
 const rules = read('ops/monitoring/slo.rules.yml');
-const testRules = read('ops/monitoring/slo.test.yml');
+const testRules = read('ops/monitoring/slo.test.yml') + '\n' +
+  read('ops/monitoring/http-metrics.slo.test.yml');
 const dashboard = JSON.parse(read('ops/monitoring/grafana/gym-api-overview.json'));
 const exporter = read('scripts/monitoring-textfile.mjs');
 const resource = read('scripts/monitoring-docker-resources.mjs');
@@ -23,6 +24,13 @@ test('recording rules are fixed, non-labeled and constrained by source freshness
     'gym_api:sli:readiness_coverage_ratio_24h',
     'gym_api:sli:http_503_share_5m',
     'gym_api:sli:http_429_share_5m',
+    'gym_api:sli:http_eligible_requests_5m',
+    'gym_api:sli:http_5xx_ratio_5m',
+    'gym_api:sli:http_availability_5m',
+    'gym_api:sli:http_availability_30d',
+    'gym_api:sli:http_duration_p50_seconds_5m',
+    'gym_api:sli:http_duration_p95_seconds_5m',
+    'gym_api:sli:http_duration_p99_seconds_5m',
   ]);
   assert.doesNotMatch(rules, /^\s+labels:/m);
   assert.match(rules, /gym_api_monitor_last_run_timestamp_seconds < 900/);
@@ -82,4 +90,23 @@ test('dashboard does not treat window gauges as counters or claim latency SLO', 
   ]) assert.ok(exporter.includes(reference));
   assert.ok(resource.includes('gym_api_docker_memory_percent'));
   assert.ok(signals.includes('gym_api_docker_cpu_throttled_periods_total'));
+});
+
+test('real HTTP availability and histogram queries use monotonic counters only', () => {
+  const metrics = read('src/common/http-metrics/http-metrics.registry.ts');
+  assert.match(metrics, /gym_api_http_requests_total/);
+  assert.match(metrics, /gym_api_http_request_duration_seconds_bucket/);
+  assert.match(rules, /increase\(gym_api_http_requests_total/);
+  assert.match(rules, /histogram_quantile\(0\.95/);
+  assert.match(rules, /gym_api:sli:http_availability_30d/);
+  assert.match(rules, /gym_api:sli:http_eligible_requests_5m >= 20/);
+  assert.doesNotMatch(metrics, /userId|email|originalUrl|authorization|requestId/);
+  const queries = dashboard.panels.map(panel => panel.targets[0].expr);
+  for (const metric of [
+    'gym_api:sli:http_availability_5m',
+    'gym_api:sli:http_availability_30d',
+    'gym_api:sli:http_duration_p50_seconds_5m',
+    'gym_api:sli:http_duration_p95_seconds_5m',
+    'gym_api:sli:http_duration_p99_seconds_5m',
+  ]) assert.ok(queries.includes(metric));
 });

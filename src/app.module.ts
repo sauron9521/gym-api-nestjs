@@ -12,6 +12,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiExceptionFilter } from '#src/common/filters/api-exception.filter';
 import { RolesGuard } from '#src/common/guards/roles.guard';
 import { RequestContextMiddleware } from '#src/common/request-context/request-context.middleware';
+import { HttpMetricsRegistry } from '#src/common/http-metrics/http-metrics.registry';
+import { HttpMetricsController } from '#src/common/http-metrics/http-metrics.controller';
 import { DistributedThrottlerStorage } from '#src/common/rate-limit/distributed-throttler.storage';
 import { RateLimitStorageModule } from '#src/common/rate-limit/rate-limit-storage.module';
 import { AuthNoStoreMiddleware } from '#src/modules/auth/middleware/auth-no-store.middleware';
@@ -86,8 +88,9 @@ import { WorkoutAnalyticsModule } from '#src/modules/workout-analytics/workout-a
     TrainerAthletesModule,
     TrainingProgramsModule,
   ],
-  controllers: [],
+  controllers: [HttpMetricsController],
   providers: [
+    HttpMetricsRegistry,
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     {
       provide: APP_GUARD,

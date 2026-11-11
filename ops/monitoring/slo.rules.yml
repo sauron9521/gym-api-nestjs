@@ -53,3 +53,71 @@ groups:
           and (gym_api_monitor_http_requests_window_5m >= 20)
           and (time() - gym_api_monitor_last_run_timestamp_seconds < 900)
           and (gym_api_monitor_last_run_timestamp_seconds <= time() + 60)
+
+  # True request-weighted signals. These are process-local monotonic counters
+  # and a classic Prometheus histogram, unlike the older rolling-window gauges.
+  # Eligibility deliberately excludes 1xx and client-fault 4xx responses.
+  - name: gym-api-http-request-sli
+    interval: 1m
+    rules:
+      - record: gym_api:sli:http_eligible_requests_5m
+        expr: |
+          sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[5m]))
+
+      - record: gym_api:sli:http_5xx_ratio_5m
+        expr: |
+          (
+            sum(increase(gym_api_http_requests_total{status_class="5xx"}[5m]))
+            / clamp_min(gym_api:sli:http_eligible_requests_5m, 1)
+          )
+          and (gym_api:sli:http_eligible_requests_5m >= 20)
+
+      - record: gym_api:sli:http_availability_5m
+        expr: 1 - gym_api:sli:http_5xx_ratio_5m
+
+      # A 30-day view needs >=30d Prometheus retention, sufficient history
+      # and >=1000 eligible requests; absent is unknown, not 100% success.
+      - record: gym_api:sli:http_availability_30d
+        expr: |
+          (
+            1 - (
+              sum(increase(gym_api_http_requests_total{status_class="5xx"}[30d]))
+              / clamp_min(
+                  sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[30d])),
+                  1
+                )
+            )
+          )
+          and (
+            sum(increase(gym_api_http_requests_total{status_class=~"2xx|3xx|5xx"}[30d]))
+            >= 1000
+          )
+
+      # Histogram quantiles require a finite sample and remain approximate.
+      # Do not present these as measured end-to-end user latency.
+      - record: gym_api:sli:http_duration_p50_seconds_5m
+        expr: |
+          histogram_quantile(0.50,
+            sum by (le) (rate(gym_api_http_request_duration_seconds_bucket[5m]))
+          )
+          and (
+            sum(increase(gym_api_http_request_duration_seconds_count[5m])) >= 20
+          )
+
+      - record: gym_api:sli:http_duration_p95_seconds_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(gym_api_http_request_duration_seconds_bucket[5m]))
+          )
+          and (
+            sum(increase(gym_api_http_request_duration_seconds_count[5m])) >= 20
+          )
+
+      - record: gym_api:sli:http_duration_p99_seconds_5m
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(gym_api_http_request_duration_seconds_bucket[5m]))
+          )
+          and (
+            sum(increase(gym_api_http_request_duration_seconds_count[5m])) >= 20
+          )

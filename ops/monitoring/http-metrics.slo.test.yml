@@ -1,0 +1,104 @@
+# Real monotonic HTTP counters and classic histograms — independent from the
+# legacy five-minute *gauge* proxy tests in slo.test.yml.
+rule_files:
+  - slo.rules.yml
+evaluation_interval: 1m
+
+tests:
+  - name: "request-weighted availability excludes 4xx and histogram quantiles are real"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_http_requests_total{status_class="2xx"}'
+        values: "0+30x12"
+      - series: 'gym_api_http_requests_total{status_class="3xx"}'
+        values: "0+0x12"
+      - series: 'gym_api_http_requests_total{status_class="4xx"}'
+        values: "0+100x12"
+      - series: 'gym_api_http_requests_total{status_class="5xx"}'
+        values: "0+10x12"
+      - series: 'gym_api_http_request_duration_seconds_bucket{le="0.1"}'
+        values: "0+10x12"
+      - series: 'gym_api_http_request_duration_seconds_bucket{le="0.25"}'
+        values: "0+30x12"
+      - series: 'gym_api_http_request_duration_seconds_bucket{le="+Inf"}'
+        values: "0+30x12"
+      - series: gym_api_http_request_duration_seconds_count
+        values: "0+30x12"
+    promql_expr_test:
+      - expr: gym_api:sli:http_eligible_requests_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_eligible_requests_5m{}'
+            value: 200
+      - expr: gym_api:sli:http_5xx_ratio_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_5xx_ratio_5m{}'
+            value: 0.25
+      - expr: gym_api:sli:http_availability_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_availability_5m{}'
+            value: 0.75
+      - expr: gym_api:sli:http_duration_p50_seconds_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_duration_p50_seconds_5m{}'
+            value: 0.1375
+      - expr: gym_api:sli:http_duration_p95_seconds_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_duration_p95_seconds_5m{}'
+            value: 0.23875
+      - expr: gym_api:sli:http_duration_p99_seconds_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_duration_p99_seconds_5m{}'
+            value: 0.24775
+      - expr: gym_api:sli:http_availability_30d
+        eval_time: 8m
+        exp_samples: []
+
+  - name: "low traffic is unknown instead of perfect availability or false latency"
+    interval: 1m
+    input_series:
+      - series: 'gym_api_http_requests_total{status_class="2xx"}'
+        values: "0+1x12"
+      - series: 'gym_api_http_requests_total{status_class="3xx"}'
+        values: "0+0x12"
+      - series: 'gym_api_http_requests_total{status_class="5xx"}'
+        values: "0+0x12"
+      - series: 'gym_api_http_request_duration_seconds_bucket{le="0.25"}'
+        values: "0+1x12"
+      - series: 'gym_api_http_request_duration_seconds_bucket{le="+Inf"}'
+        values: "0+1x12"
+      - series: gym_api_http_request_duration_seconds_count
+        values: "0+1x12"
+    promql_expr_test:
+      - expr: gym_api:sli:http_eligible_requests_5m
+        eval_time: 8m
+        exp_samples:
+          - labels: 'gym_api:sli:http_eligible_requests_5m{}'
+            value: 5
+      - expr: gym_api:sli:http_5xx_ratio_5m
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:sli:http_availability_5m
+        eval_time: 8m
+        exp_samples: []
+      - expr: gym_api:sli:http_duration_p95_seconds_5m
+        eval_time: 8m
+        exp_samples: []
+
+  - name: "missing exporter is not interpreted as healthy traffic"
+    interval: 1m
+    promql_expr_test:
+      - expr: gym_api:sli:http_eligible_requests_5m
+        eval_time: 10m
+        exp_samples: []
+      - expr: gym_api:sli:http_availability_5m
+        eval_time: 10m
+        exp_samples: []
+      - expr: gym_api:sli:http_duration_p95_seconds_5m
+        eval_time: 10m
+        exp_samples: []
