@@ -42,8 +42,8 @@ describe('BodyMeasurementsModule controller registry', () => {
   });
 
   it('preserves explicit 204 No Content for deletion and default 201 for creation', () => {
-    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handlers.remove)).toBe(204);
-    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handlers.create)).toBeUndefined();
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, Object.getOwnPropertyDescriptor(handlers, 'remove')?.value)).toBe(204);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, Object.getOwnPropertyDescriptor(handlers, 'create')?.value)).toBeUndefined();
   });
 
   it('declares exactly six distinct HTTP verb/path pairs', () => {
