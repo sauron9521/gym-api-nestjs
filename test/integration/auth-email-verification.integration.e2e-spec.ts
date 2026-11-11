@@ -305,7 +305,7 @@ describe('Email verification security (HTTP + PostgreSQL)', () => {
         .send({ token: account.token }),
     ]);
 
-    expect(attempts.map((response) => response.status).sort()).toEqual([
+    expect(attempts.map((response) => response.status).sort((a, b) => a - b)).toEqual([
       200,
       400,
     ]);
