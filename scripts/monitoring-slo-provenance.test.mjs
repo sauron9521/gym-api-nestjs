@@ -28,7 +28,7 @@ const checks = Object.fromEntries(PREFLIGHT_METRICS.map(metric => [
       metric.endsWith('error_budget_consumed_verified_30d') ? 1 : 1,
 ]));
 
-function fixture(referenceTime = now) {
+function fixture(referenceTime = now, changeRef = 'CHG-145-PROVENANCE', nonce = 'a'.repeat(32)) {
   const keys = generateKeyPairSync('ed25519');
   const inventory = {
     version: 1, scrapeIntervalSeconds: 30,
@@ -40,7 +40,7 @@ function fixture(referenceTime = now) {
     checks: {...checks}, reasons: [],
   };
   const review = {
-    version: 1, deployment, changeRef: 'CHG-145-PROVENANCE',
+    version: 1, deployment, changeRef,
     reviewer: 'operator-01',
     reviewedAt: iso(referenceTime - 3 * 60_000),
     decision: 'REVIEWED_FOR_STAGING',
@@ -55,7 +55,7 @@ function fixture(referenceTime = now) {
     inventorySha256: inventoryFingerprint(inventory, deployment).sha256,
     approvedAt: iso(referenceTime - 60_000),
     expiresAt: iso(referenceTime + 60 * 60_000),
-    nonce: 'a'.repeat(32), signerKeyId: 'staging-approver-01',
+    nonce, signerKeyId: 'staging-approver-01',
   };
   const signature = sign(null, approvalSigningBytes(approval),
     keys.privateKey).toString('base64url');
@@ -141,23 +141,9 @@ test('hash-chained ledger rejects byte edits, reordered rows, partial writes and
       /APPROVAL_REPLAY_DETECTED/);
     assert.equal(verifyLedger(readFileSync(path,'utf8')).rows,1);
 
-    const changed = fixture(now + 10*60_000);
-    changed.approval = {
-      ...changed.approval, changeRef:'CHG-145-SECOND',
-      nonce:'b'.repeat(32),
-    };
-    // signed payload is immutable; deliberately re-signing in tests by
-    // using a fresh second fixture with a new approved ticket below.
-    const second = fixture(now + 10*60_000);
-    second.approval.changeRef = 'CHG-145-SECOND';
-    second.evidence.review.changeRef='CHG-145-SECOND';
-    // Above modification invalidates evidence digest; test ledger chaining
-    // with direct independently validated shape for a synthetic second.
-    const secondVerified={
-      ...first, changeRef:'CHG-145-SECOND',
-      evidenceSha256:'c'.repeat(64), approvalSha256:'d'.repeat(64),
-      nonce:'b'.repeat(32),
-    };
+    const secondVerified = verifySignedApproval(
+      fixture(now + 10*60_000, 'CHG-145-SECOND', 'b'.repeat(32)),
+    );
     const after = recordVerifiedApproval(path,secondVerified,now+10*60_000);
     assert.equal(after.rows,2);
     state=verifyLedger(readFileSync(path,'utf8'));
