@@ -79,3 +79,19 @@ groups:
           severity: critical
         annotations:
           summary: "Node exporter cannot read one or more textfile snapshots"
+
+      - alert: GymApiMonitoringCriticalSignal
+        expr: gym_api_monitor_critical_alert == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gym API monitoring report contains a critical signal"
+
+      - alert: GymApiMonitoringWarningSignal
+        expr: gym_api_monitor_warning_alert == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gym API monitoring report contains a warning signal"
