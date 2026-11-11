@@ -199,6 +199,6 @@ export class DistributedThrottlerStorage implements ThrottlerStorage, OnApplicat
 
   async onApplicationShutdown(): Promise<void> {
     this.redis?.disconnect();
-    await this.memory.onApplicationShutdown();
+    this.memory.onApplicationShutdown();
   }
 }
