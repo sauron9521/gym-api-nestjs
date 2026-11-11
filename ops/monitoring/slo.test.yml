@@ -38,6 +38,11 @@ tests:
         exp_samples:
           - labels: 'gym_api:sli:readiness_observed_ratio_24h{}'
             value: 0.5
+      - expr: gym_api:sli:readiness_coverage_ratio_24h
+        eval_time: 3m
+        exp_samples:
+          - labels: 'gym_api:sli:readiness_coverage_ratio_24h{}'
+            value: 0.002777777777777778
       - expr: gym_api:sli:http_503_share_5m
         eval_time: 3m
         exp_samples:
