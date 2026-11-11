@@ -169,3 +169,135 @@ tests:
           - exp_labels: { severity: critical }
             exp_annotations:
               summary: "Node exporter cannot read one or more textfile snapshots"
+
+  - name: "resource sampler missing and stale data both alert"
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GymApiDockerResourceSnapshotMissing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API Docker resource sampler has no metrics"
+
+  - name: "stale Docker snapshot does not silently recover"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_last_sample_timestamp_seconds
+        values: "0+0x12"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: GymApiDockerResourceSnapshotStale
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API Docker resource metrics are stale"
+      - eval_time: 7m
+        alertname: GymApiDockerResourceSnapshotMissing
+        exp_alerts: []
+
+  - name: "sustained resource pressure and restart loops alert"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_last_sample_timestamp_seconds
+        values: "2000+60x12"
+      - series: gym_api_docker_running
+        values: "1+0x12"
+      - series: gym_api_docker_oom_killed
+        values: "0+0x12"
+      - series: gym_api_docker_memory_percent
+        values: "95+0x12"
+      - series: gym_api_docker_cpu_percent
+        values: "195+0x12"
+      - series: gym_api_docker_pids
+        values: "235+0x12"
+      - series: gym_api_docker_restart_count
+        values: "0+1x12"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiDockerMemoryPressure
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API container memory usage exceeds 90 percent"
+      - eval_time: 8m
+        alertname: GymApiDockerCpuSaturation
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API container CPU usage is near its 2-core limit"
+      - eval_time: 8m
+        alertname: GymApiDockerPidPressure
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Gym API container PID usage is near its 256-PID limit"
+      - eval_time: 8m
+        alertname: GymApiDockerRestartLoop
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API container restarted at least three times within ten minutes"
+      - eval_time: 8m
+        alertname: GymApiDockerOOMKilled
+        exp_alerts: []
+
+  - name: "stopped and OOM-killed Docker process surfaces both failures"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_running
+        values: "0+0x8"
+      - series: gym_api_docker_oom_killed
+        values: "1+0x8"
+      - series: gym_api_docker_memory_percent
+        values: "-1+0x8"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GymApiDockerContainerStopped
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API Docker container is not running"
+      - eval_time: 4m
+        alertname: GymApiDockerOOMKilled
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Gym API Docker container was killed by OOM"
+      - eval_time: 4m
+        alertname: GymApiDockerMemoryPressure
+        exp_alerts: []
+
+  - name: "healthy Docker usage never fires resource alerts"
+    interval: 1m
+    input_series:
+      - series: gym_api_docker_last_sample_timestamp_seconds
+        values: "2000+60x10"
+      - series: gym_api_docker_running
+        values: "1+0x10"
+      - series: gym_api_docker_oom_killed
+        values: "0+0x10"
+      - series: gym_api_docker_cpu_percent
+        values: "10+0x10"
+      - series: gym_api_docker_memory_percent
+        values: "35+0x10"
+      - series: gym_api_docker_pids
+        values: "10+0x10"
+      - series: gym_api_docker_restart_count
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: GymApiDockerResourceSnapshotMissing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerResourceSnapshotStale
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerContainerStopped
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerMemoryPressure
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GymApiDockerRestartLoop
+        exp_alerts: []
