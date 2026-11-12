@@ -49,10 +49,13 @@ export default defineConfig({
           lines: 78,
         },
         'src/modules/training-programs/**/*.ts': {
-          statements: 61,
-          branches: 50,
-          functions: 60,
-          lines: 62,
+          // Verified by successful PR #167 CI (run 43289865381):
+          // statements 97.53%, branches 92.45%, functions 97.92%, lines 97.48%.
+          // Leave a small buffer for routine, test-covered refactoring.
+          statements: 95,
+          branches: 90,
+          functions: 95,
+          lines: 95,
         },
       },
     },
