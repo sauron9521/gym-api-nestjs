@@ -215,7 +215,7 @@ describe('TrainingProgramAssignmentRepository privacy and completion', () => {
       tx.$queryRaw.mockResolvedValue([]);
       await expect(repository.completeAssignmentIfNoUnfinishedWorkouts(input))
         .resolves.toEqual({ status: 'NOT_ACTIVE' });
-      const sql = (tx.$queryRaw.mock.calls[0]?.[0] as readonly string[]).join('?');
+      const sql = (tx.$queryRaw.mock.calls[0]![0] as readonly string[]).join('?');
       expect(sql).toContain('FROM "training_program_assignments"');
       expect(sql).toContain('FOR UPDATE');
       expect(sql).toContain('"status" = \'ACTIVE\'');
@@ -318,7 +318,7 @@ describe('TrainingProgramAssignmentRepository privacy and completion', () => {
       await expect(repository.createAssignmentForActiveRelationship(input))
         .resolves.toBe(assignment);
       expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
-      const sourceLockSql = (tx.$queryRaw.mock.calls[0]?.[0] as readonly string[]).join('?');
+      const sourceLockSql = (tx.$queryRaw.mock.calls[0]![0] as readonly string[]).join('?');
       expect(sourceLockSql).toContain('FROM "exercises"');
       expect(sourceLockSql).toContain('FOR SHARE');
       expect(tx.$queryRaw.mock.invocationCallOrder[0])
