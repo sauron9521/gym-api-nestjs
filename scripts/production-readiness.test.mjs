@@ -167,6 +167,7 @@ const approval = {
 
 test('local operator approval GO is possible only for separately confirmed apply', () => {
   const report = verifyReleaseEvidence(candidate);
+  report.verifiedAt = time.toISOString();
   const ok = evaluateOperatorApproval(report, approval, env, time);
   assert.equal(ok.decision, 'GO');
   assert.equal(ok.decisionScope, 'MANUAL_SINGLE_HOST_APPLY');
@@ -178,7 +179,10 @@ test('local operator approval GO is possible only for separately confirmed apply
 
 test('local operator gate defaults NO-GO on missing proofs, drift and expiry', () => {
   const report = verifyReleaseEvidence(candidate);
+  report.verifiedAt = time.toISOString();
   const cases = [
+    [{ ...report, verifiedAt: '2026-10-30T00:00:00Z' }, approval, env, time],
+    [{ ...report, verifiedAt: '2026-11-13T00:00:00Z' }, approval, env, time],
     [null, approval, env, time],
     [{ ...report, releaseEvidence: 'FAILED' }, approval, env, time],
     [report, null, env, time],
