@@ -37,9 +37,9 @@ for binary in psql pg_restore sha256sum tar; do
 done
 
 (
-  cd "$archive"
-  sha256sum -c SHA256SUMS >/dev/null
-  pg_restore --list postgres.dump >/dev/null
+  cd "$archive" &&
+  sha256sum -c SHA256SUMS >/dev/null &&
+  pg_restore --list postgres.dump >/dev/null &&
   tar -tzf avatars.tar.gz >/dev/null
 ) || { echo 'Backup validation failed; restore was not attempted' >&2; exit 1; }
 

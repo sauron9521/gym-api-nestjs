@@ -47,9 +47,9 @@ age="$((now - created_epoch))"
 }
 
 (
-  cd -- "$latest"
-  sha256sum --check --status SHA256SUMS
-  pg_restore --list postgres.dump >/dev/null
+  cd -- "$latest" &&
+  sha256sum --check --status SHA256SUMS &&
+  pg_restore --list postgres.dump >/dev/null &&
   tar -tzf avatars.tar.gz >/dev/null
 ) || { echo "Latest backup integrity verification failed" >&2; exit 1; }
 
