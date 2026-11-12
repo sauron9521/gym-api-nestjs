@@ -224,10 +224,12 @@ jobs:
           node --test scripts/release-supply-chain.test.mjs
           node --test scripts/staging-smoke.test.mjs
           node --test scripts/staging-functional-smoke.test.mjs
+          node --test scripts/staging-upgrade-rollback.test.mjs
           node --test scripts/ghcr-retention-plan.test.mjs
           node --test scripts/production-digest-guard.test.mjs
           node --test scripts/docker-base-policy.test.mjs
           bash -n scripts/production-digest-deploy.sh
+          bash -n scripts/staging-upgrade-run.sh
 
       - name: Validate application test environment
         run: npm run config:validate

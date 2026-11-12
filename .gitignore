@@ -107,3 +107,7 @@ uploads/
 # Private synthetic staging credentials must never enter Git/artifacts.
 /staging/functional-state.json
 /staging/functional-evidence.json
+
+# Runner-only two-release staging rehearsal progress and safe evidence.
+/staging/upgrade-phase-state.json
+/staging/upgrade-evidence.json
