@@ -21,13 +21,15 @@ export const workoutSetUpdateStatusSchema = z.enum(['COMPLETED', 'SKIPPED']);
 
 export const workoutDateSchema = z.coerce.date();
 
-export const workoutWeightSchema = z.number().finite().min(0).max(999999.99);
+// Prisma stores workout weights as Decimal(8,2): reject values that would round.
+export const workoutWeightSchema = z.number().finite().min(0).max(999999.99).multipleOf(0.01);
 
 export const workoutDistanceSchema = z
   .number()
   .finite()
   .min(0)
-  .max(99999999.99);
+  .max(99999999.99)
+  .multipleOf(0.01);
 
 export const workoutRepsSchema = z.number().int().min(1).max(1000);
 
@@ -35,7 +37,8 @@ export const workoutDurationSchema = z.number().int().min(1).max(604800);
 
 export const workoutRestSchema = z.number().int().min(0).max(86400);
 
-export const workoutRpeSchema = z.number().finite().min(1).max(10);
+// Prisma stores target/actual RPE as Decimal(3,1).
+export const workoutRpeSchema = z.number().finite().min(1).max(10).multipleOf(0.1);
 
 export const workoutRirSchema = z.number().int().min(0).max(10);
 
