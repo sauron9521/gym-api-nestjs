@@ -79,6 +79,7 @@ container, a separate migration image and optional managed Redis.
 - [Manual immutable-digest deployment and runtime-only rollback](docs/production-digest-deployment.md)
 - [Manual disposable staging rehearsal of verified GHCR images](docs/staging-ghcr-rehearsal.md)
 - [Manual two-signed-release staging upgrade and runtime-only rollback rehearsal](docs/staging-two-release-upgrade.md)
+- [Production readiness evidence and human approval gate (NO-GO by default)](docs/production-readiness-approval.md)
 
 `GET /health/live` only checks API process health.
 `GET /health/ready` checks PostgreSQL and, if `REDIS_URL` is configured,
