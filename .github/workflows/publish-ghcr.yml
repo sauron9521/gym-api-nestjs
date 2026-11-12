@@ -1,0 +1,182 @@
+name: Publish verified release candidate to GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: "Successful Release candidate images and signed provenance workflow run ID"
+        required: true
+        type: string
+      source_sha:
+        description: "Full 40-character main commit SHA that the release run built"
+        required: true
+        type: string
+      confirm_publish:
+        description: "Explicit authorization to publish both verified images"
+        required: true
+        default: NO_PUBLISH
+        type: choice
+        options:
+          - NO_PUBLISH
+          - PUBLISH_VERIFIED_CANDIDATE
+
+# No PR, push, schedule or release trigger. No implicit registry permissions.
+permissions:
+  contents: read
+
+# Serialize re-runs for the same release artifact; do not cancel mid-push.
+concurrency:
+  group: ghcr-publish-${{ inputs.release_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify provenance, publish and confirm GHCR digests
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      attestations: read
+      packages: write
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+      PUBLISH_CONFIRM: ${{ inputs.confirm_publish }}
+
+    steps:
+      - name: Checkout trusted promotion scripts from main
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Require explicit confirmation, successful release run and green source CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$PUBLISH_CONFIRM" = PUBLISH_VERIFIED_CANDIDATE || {
+            echo "Explicit publication confirmation is required" >&2
+            exit 1
+          }
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          [[ "$RELEASE_RUN_ID" =~ ^[1-9][0-9]{0,15}$ ]] || exit 1
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" \
+            > "$RUNNER_TEMP/release-run.json"
+          node scripts/ghcr-promotion.mjs validate-run \
+            --repository "$GITHUB_REPOSITORY" --source-sha "$SOURCE_SHA" \
+            --release-run-id "$RELEASE_RUN_ID" \
+            --run-json "$RUNNER_TEMP/release-run.json"
+
+          successful_gates="$(gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "CI / required gates" and .status == "completed" and .conclusion == "success")] | length')"
+          test "$successful_gates" -ge 1 || {
+            echo "The exact source commit must pass required main CI" >&2
+            exit 1
+          }
+
+      - name: Download images and manifest from the verified release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          gh run download "$RELEASE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "gym-api-release-$SOURCE_SHA-$RELEASE_RUN_ID" \
+            --dir release
+
+      - name: Verify archive hash, exact origin and both GitHub attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/release-bundle.mjs verify \
+            --archive release/images.tar.gz --manifest release/manifest.json \
+            --commit "$SOURCE_SHA" --repository "$GITHUB_REPOSITORY" \
+            --run-id "$RELEASE_RUN_ID"
+          for file in release/images.tar.gz release/manifest.json; do
+            gh attestation verify "$file" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-artifacts.yml" \
+              --source-ref refs/heads/main \
+              --source-digest "$SOURCE_SHA"
+          done
+
+      - name: Load exact signed images and check config digests
+        run: |
+          set -euo pipefail
+          docker load -i release/images.tar.gz
+          node scripts/release-bundle.mjs verify-images \
+            --manifest release/manifest.json --commit "$SOURCE_SHA" \
+            --repository "$GITHUB_REPOSITORY" --run-id "$RELEASE_RUN_ID"
+
+      - name: Authenticate and refuse previously published tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+          node scripts/ghcr-promotion.mjs preflight \
+            --repository "$GITHUB_REPOSITORY" --source-sha "$SOURCE_SHA" \
+            --release-run-id "$RELEASE_RUN_ID"
+
+      - name: Publish both verified images without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A repeated promotion is blocked. GHCR tags themselves are mutable,
+          # so consumers must pin the immutable digest printed by this job.
+          node scripts/ghcr-promotion.mjs preflight \
+            --repository "$GITHUB_REPOSITORY" --source-sha "$SOURCE_SHA" \
+            --release-run-id "$RELEASE_RUN_ID" >/dev/null
+          lower_repo="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          immutable_label="sha-$SOURCE_SHA-run-$RELEASE_RUN_ID"
+          runtime="ghcr.io/$lower_repo:$immutable_label"
+          migrate="ghcr.io/$lower_repo-migrate:$immutable_label"
+          docker tag "gym-api:runtime-$SOURCE_SHA" "$runtime"
+          docker tag "gym-api:migrate-$SOURCE_SHA" "$migrate"
+          docker push "$runtime"
+          docker push "$migrate"
+
+          # Pull the published tags and verify their remote image IDs, labels
+          # and non-root users against the attested release manifest.
+          docker pull "$runtime"
+          docker pull "$migrate"
+          node scripts/ghcr-promotion.mjs verify-published \
+            --repository "$GITHUB_REPOSITORY" --source-sha "$SOURCE_SHA" \
+            --release-run-id "$RELEASE_RUN_ID" \
+            --manifest release/manifest.json \
+            > "$RUNNER_TEMP/ghcr-digests.json"
+          cp "$RUNNER_TEMP/ghcr-digests.json" release/ghcr-digests.json
+          node -e '
+            const fs = require("node:fs");
+            const refs = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const lines = [
+              "### Verified GHCR promotion",
+              "Source SHA: " + process.env.SOURCE_SHA,
+              "Release run: " + process.env.RELEASE_RUN_ID,
+              "Runtime: " + refs.runtime,
+              "Migrate: " + refs.migrate,
+              "Deploy only by the exact @sha256 digest; no deploy occurred.",
+            ];
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          ' "$RUNNER_TEMP/ghcr-digests.json"
+
+      - name: Preserve digest-only publication receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: ghcr-digests-${{ inputs.source_sha }}-${{ inputs.release_run_id }}
+          path: release/ghcr-digests.json
+          if-no-files-found: error
+          retention-days: 30
