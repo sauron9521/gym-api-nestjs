@@ -54,8 +54,8 @@ jobs:
         id: base
         run: |
           set -euo pipefail
-          docker pull --platform linux/amd64 node:22-bookworm-slim
-          base_image="$(docker image inspect --format '{{index .RepoDigests 0}}' node:22-bookworm-slim)"
+          docker pull --platform linux/amd64 node:22-trixie-slim
+          base_image="$(docker image inspect --format '{{index .RepoDigests 0}}' node:22-trixie-slim)"
           [[ "$base_image" == *@sha256:* ]] || exit 1
           echo "ref=$base_image" >> "$GITHUB_OUTPUT"
 

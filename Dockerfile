@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Node 22 matches CI. Build and runtime share the same OS family for native deps.
 # Release candidates may inject a digest-pinned base to eliminate tag drift.
-ARG NODE_BASE_IMAGE=node:22-bookworm-slim
+ARG NODE_BASE_IMAGE=node:22-trixie-slim
 FROM ${NODE_BASE_IMAGE} AS base
 WORKDIR /app
 

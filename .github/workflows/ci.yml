@@ -224,6 +224,7 @@ jobs:
           node --test scripts/release-supply-chain.test.mjs
           node --test scripts/ghcr-retention-plan.test.mjs
           node --test scripts/production-digest-guard.test.mjs
+          node --test scripts/docker-base-policy.test.mjs
           bash -n scripts/production-digest-deploy.sh
 
       - name: Validate application test environment
@@ -447,6 +448,55 @@ jobs:
               exit 1
             fi
           '
+
+      # Critical glibc CVE-2026-5450 is unfixed in Debian 12 Bookworm
+      # (libc6 2.36-9+deb12u14), fixed in Debian 13 Trixie at
+      # 2.41-12+deb13u4. Verify BOTH image stages with Debian's version
+      # ordering rather than relying solely on a mutable Docker tag.
+      - name: Enforce patched Debian 13 glibc in both Docker images
+        run: |
+          set -euo pipefail
+          for image in gym-api:runtime-ci gym-api:migrate-ci; do
+            docker run --rm --entrypoint sh "$image" -eu -c '
+              . /etc/os-release
+              test "$VERSION_CODENAME" = trixie
+              version="$(dpkg-query -W -f="\${Version}" libc6)"
+              dpkg --compare-versions "$version" ge "2.41-12+deb13u4"
+              echo "Patched Debian glibc verified"
+            '
+          done
+
+      # Scan the actual images built by PR CI (no registry credentials).
+      # Prevent green PRs containing critical OS/runtime vulnerabilities
+      # before a signed candidate reaches manual GHCR promotion.
+      - name: Block critical runtime image vulnerabilities
+        uses: anchore/scan-action@v7
+        with:
+          image: gym-api:runtime-ci
+          fail-build: true
+          severity-cutoff: critical
+          output-format: json
+          output-file: runtime-ci.grype.json
+
+      - name: Block critical migration image vulnerabilities
+        uses: anchore/scan-action@v7
+        with:
+          image: gym-api:migrate-ci
+          fail-build: true
+          severity-cutoff: critical
+          output-format: json
+          output-file: migrate-ci.grype.json
+
+      - name: Retain Docker vulnerability reports for diagnosis
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-security-${{ github.sha }}
+          path: |
+            runtime-ci.grype.json
+            migrate-ci.grype.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Run migrations using separate one-shot image
         run: docker run --rm --network host -e DATABASE_URL gym-api:migrate-ci
