@@ -28,7 +28,12 @@ export function validateSpdx(sbom) {
 
 export function validateGrype(report) {
   assert.ok(Array.isArray(report?.matches), 'No Grype matches array');
-  assert.ok(Array.isArray(report?.ignoredMatches), 'No Grype ignoredMatches array');
+  // Grype 0.110.0 omits ignoredMatches entirely when there are none.
+  // An explicitly present ignoredMatches value must still be an array.
+  if (Object.hasOwn(report, 'ignoredMatches')) {
+    assert.ok(Array.isArray(report.ignoredMatches),
+      'Invalid Grype ignoredMatches array');
+  }
   assert.equal(typeof report?.descriptor?.name, 'string', 'Missing Grype descriptor');
   assert.ok(report.descriptor.name.toLowerCase().includes('grype'), 'Wrong scanner');
   // Grype scan-action itself enforces the critical threshold. Verify that
@@ -39,6 +44,8 @@ export function validateGrype(report) {
     const severity = String(m.vulnerability.severity ?? 'unknown').toLowerCase();
     severities[severity] = (severities[severity] ?? 0) + 1;
   }
+  // Keep the fail-closed critical policy independent of scan-action exit code.
+  assert.equal(severities.critical, 0, 'Critical Grype vulnerabilities present');
   return { findings: report.matches.length, severities };
 }
 
