@@ -114,3 +114,19 @@ image registry/release pinning and signatures,
 TLS reverse proxy, and deployment rollback procedures. Revisit base image
 digest pinning regularly. The production deployment described here is
 a single-host baseline, not a multi-replica platform.
+
+
+## Optional signed release candidate bundle (PR #154)
+
+A separate, **manual-only** GitHub Actions workflow can build Docker
+runtime/migration images from a green `main` commit, lock the resolved
+Node base image by SHA-256 digest for that release build, package
+both tagged images, and produce GitHub-signed SLSA provenance.
+An independent job reloads the archive and verifies the image IDs.
+See [release candidate verification](release-artifacts.md).
+
+This workflow **does not** push images to a registry, create a GitHub
+Release, run migrations or deploy to production. The existing local
+`docker compose up --build` flow is unchanged; for deployment use
+a verified immutable registry digest or an explicitly reviewed archive
+promotion process. Do not rely solely on mutable tags.
