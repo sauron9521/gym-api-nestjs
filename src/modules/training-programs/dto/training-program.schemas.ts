@@ -44,13 +44,15 @@ export const trainingProgramWeightSchema = z
   .number()
   .finite()
   .min(0)
-  .max(999999.99);
+  .max(999999.99)
+  .multipleOf(0.01);
 
 export const trainingProgramDistanceSchema = z
   .number()
   .finite()
   .min(0)
-  .max(99999999.99);
+  .max(99999999.99)
+  .multipleOf(0.01);
 
 export const trainingProgramRepsSchema = z.number().int().min(1).max(1000);
 
@@ -62,7 +64,8 @@ export const trainingProgramDurationSchema = z
 
 export const trainingProgramRestSchema = z.number().int().min(0).max(86400);
 
-export const trainingProgramRpeSchema = z.number().finite().min(1).max(10);
+// Match PostgreSQL Decimal(3,1); never silently round targets.
+export const trainingProgramRpeSchema = z.number().finite().min(1).max(10).multipleOf(0.1);
 
 export const trainingProgramRirSchema = z.number().int().min(0).max(10);
 
