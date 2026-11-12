@@ -1,0 +1,12 @@
+# OPT-IN. Ensure Prometheus and real alert routing exist before activation.
+[Unit]
+Description=Check Gym API backup health every fifteen minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+AccuracySec=30s
+Unit=gym-api-backup-health.service
+
+[Install]
+WantedBy=timers.target

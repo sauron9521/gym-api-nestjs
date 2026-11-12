@@ -123,9 +123,22 @@ jobs:
 
       - name: Validate systemd units and five-minute schedule
         run: |
-          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer ops/monitoring/gym-api-resources.service ops/monitoring/gym-api-resources.timer ops/monitoring/gym-api-signals.service ops/monitoring/gym-api-signals.timer
+          systemd-analyze verify ops/monitoring/gym-api-monitor.service ops/monitoring/gym-api-monitor.timer ops/monitoring/gym-api-forwarder.service ops/monitoring/gym-api-forwarder.timer ops/monitoring/gym-api-resources.service ops/monitoring/gym-api-resources.timer ops/monitoring/gym-api-signals.service ops/monitoring/gym-api-signals.timer ops/backup/gym-api-backup-health.service ops/backup/gym-api-backup-health.timer
           systemd-analyze calendar '*:0/5'
           systemd-analyze calendar '*:0/1'
+          systemd-analyze calendar '*:0/15'
+
+      # Backup health alert rules remain opt-in; validate only in offline CI.
+      - name: Validate backup alert firing and recovery
+        run: |
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            check rules /rules/backup-health.rules.yml
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$PWD/ops/monitoring:/rules:ro" \
+            prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
+            test rules /rules/backup-health.test.yml
 
       # Immutable official Prometheus image; no Prometheus server is started.
       # Validate both PromQL syntax and expected alert firing/resolution.

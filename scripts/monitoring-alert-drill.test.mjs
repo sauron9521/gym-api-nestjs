@@ -85,3 +85,21 @@ test('CLI dry run prints synthetic alert without sending notifications', () => {
   assert.equal(rejected.status, 1);
   assert.doesNotMatch(rejected.stderr + rejected.stdout, /user:pass|example.test/);
 });
+
+test('manual delivery drill correlates a specific notification without claiming receipt', async () => {
+  const id = '70b8db83-12e4-40d5-9b65-2f7c8f5b2d11';
+  const alerts = drillAlert(1_800_000_000_000, id);
+  assert.equal(alerts[0].labels.drill_id, id);
+  assert.match(alerts[0].annotations.summary, new RegExp(id));
+  assert.throws(() => drillAlert(1_800_000_000_000, 'raw-customer-email@example.test'));
+  let delivered;
+  const result = await deliverDrill('https://alertmanager.example.test',
+    1_800_000_000_000, async (_url, request) => {
+      delivered = JSON.parse(request.body);
+      return { status: 202 };
+    }, id);
+  assert.equal(delivered[0].labels.drill_id, id);
+  assert.deepEqual(result, {
+    submitted: true, notificationConfirmed: false, drillId: id,
+  });
+});

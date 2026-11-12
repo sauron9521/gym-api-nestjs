@@ -57,3 +57,12 @@ Never grant `gym-monitor` Docker socket access. Only the separate trusted forwar
 ## Rollback
 
 If the new aggregate alerts are too noisy, remove only `GymApiMonitoringCriticalSignal` and `GymApiMonitoringWarningSignal` from the operator-managed Prometheus rule installation, validate with promtool and reload Prometheus using your deployment's approved procedure. Existing specific alerts and monitoring collection remain unchanged. This PR does not change API code, dependencies, Docker Compose, host provisioning, or notification delivery.
+
+## Verified backup health and recipient receipt drill
+
+Backup health alert rules are **opt-in** and separate from
+`ops/monitoring/alerts.rules.yml`. See
+[backup alerting and delivery verification](backup-alert-delivery.md) for
+safe host activation, a manual alert with a unique correlation ID and
+operator-attested receipt. Alertmanager acceptance alone never proves that
+a person actually received a notification.

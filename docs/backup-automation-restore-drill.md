@@ -131,3 +131,11 @@ test DB. It exercises avatar extraction in a scratch Docker volume.
 This validates the toolchain, not production permissions, external
 replication, backup encryption, alert delivery, consistency under live
 avatar writes, monthly drills or recovery time on full production data.
+
+## Backup alert monitoring and delivery check
+
+An optional 15-minute verification collector, separate Prometheus backup
+alerts and a correlated operator notification-receipt drill are documented
+in [backup alerting and delivery verification](backup-alert-delivery.md).
+Neither the collector nor an external paging route is enabled by merging
+this repository change.

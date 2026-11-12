@@ -1,0 +1,25 @@
+# OPT-IN: deploy only on a trusted host with protected backup storage.
+# Does not need DB credentials or access to the Docker socket.
+[Unit]
+Description=Gym API verified backup health Prometheus snapshot
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=node_exporter
+WorkingDirectory=/opt/gym-api
+EnvironmentFile=/etc/gym-api/backup-health.env
+ExecStart=/usr/bin/env node /opt/gym-api/scripts/monitoring-backup-health.mjs
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/srv/private/gym-backups
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+TimeoutStartSec=70s
