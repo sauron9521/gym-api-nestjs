@@ -35,8 +35,11 @@ performs production restores automatically.**
    backup volume name is correct, and disk capacity is sufficient.
 3. Copy `ops/backup/backup.env.example` to
    `/etc/gym-api/backup.env` as root, owner root, mode **0600**.
-   Securely supply a backup-role `DATABASE_URL` (never expose it
-   through shell history or application logs), and set `AVATAR_VOLUME`.
+   Securely supply `BACKUP_DATABASE_URL` using a backup-role, **libpq-compatible**
+   connection URL (omit Prisma's `schema=public` option, which `pg_dump`
+   rejects), and set `AVATAR_VOLUME`. The script retains legacy
+   `DATABASE_URL` support when the override is absent. Never expose either
+   credential through shell history or application logs.
 4. Verify a **manual** backup first and review its permissions:
    `sudo bash scripts/backup-production.sh /srv/private/gym-backups`.
    Ensure the `DATABASE_URL` is present only in the authorized process

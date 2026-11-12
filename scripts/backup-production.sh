@@ -10,7 +10,10 @@ usage() {
 }
 
 [[ "$#" -eq 1 && -n "$1" ]] || usage
-[[ -n "${DATABASE_URL:-}" ]] || { echo 'DATABASE_URL is required' >&2; exit 2; }
+# A separate libpq-compatible URL avoids Prisma-only query options such as
+# ?schema=public, which pg_dump/pg_restore cannot parse.
+backup_db_url="${BACKUP_DATABASE_URL:-${DATABASE_URL:-}}"
+[[ -n "$backup_db_url" ]] || { echo 'BACKUP_DATABASE_URL or DATABASE_URL is required' >&2; exit 2; }
 avatar_volume="${AVATAR_VOLUME:-gym-api_avatars}"
 [[ "$avatar_volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || {
   echo 'Invalid AVATAR_VOLUME name' >&2
@@ -43,7 +46,7 @@ cleanup() {
 trap cleanup EXIT
 
 pg_dump --format=custom --no-owner --no-acl \
-  --file="$destination/postgres.dump" --dbname="$DATABASE_URL"
+  --file="$destination/postgres.dump" --dbname="$backup_db_url"
 pg_restore --list "$destination/postgres.dump" >/dev/null
 
 # Read-only volume mount, no network access or extra capabilities, output

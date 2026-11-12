@@ -16,9 +16,11 @@ Run on a trusted operator host with:
   major version, Docker CLI and access to the production avatar volume
 - A writable, private directory on encrypted storage with capacity for both
   the full database export and all avatars
-- A restricted `DATABASE_URL` in the **environment** (never in shell history
-  or committed files). Protect process arguments, backup files, secrets and
-  operator access; the script uses `--dbname` to hand the URL to `pg_dump`
+- A restricted PostgreSQL/libpq-compatible `BACKUP_DATABASE_URL` in the
+  **environment** (never in shell history or committed files); omit
+  Prisma-only query options such as `?schema=public`. The legacy
+  `DATABASE_URL` remains a fallback. Protect process arguments, backup files,
+  secrets and operator access; the script uses `--dbname` to hand the URL to `pg_dump`
 - The actual Docker volume name, usually `gym-api_avatars`; verify with
   `docker volume ls` if `COMPOSE_PROJECT_NAME` was customized
 

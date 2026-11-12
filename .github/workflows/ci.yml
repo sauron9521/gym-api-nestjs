@@ -269,8 +269,9 @@ jobs:
 
           docker run --rm --network host \
             --mount "type=bind,src=$work/backup,dst=/backup" \
-            -e DATABASE_URL postgres:17-alpine sh -ec \
-            'pg_dump --format=custom --no-owner --no-acl --dbname="$DATABASE_URL" --file=/backup/postgres.dump'
+            -e BACKUP_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/gym_app_test \
+            postgres:17-alpine sh -ec \
+            'pg_dump --format=custom --no-owner --no-acl --dbname="$BACKUP_DATABASE_URL" --file=/backup/postgres.dump'
 
           tar -czf "$work/backup/avatars.tar.gz" -C "$work/avatars" .
           (
