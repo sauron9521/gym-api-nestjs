@@ -72,7 +72,8 @@ test('manual GHCR publish signs provenance and SPDX SBOMs for both exact digests
   assert.match(workflow, /push-to-registry: true/g);
   assert.match(workflow, /sbom-path: release\/runtime\.spdx\.json/);
   assert.match(workflow, /sbom-path: release\/migrate\.spdx\.json/);
-  assert.match(workflow, /--predicate-type https:\/\/spdx\.dev\/Document\/v2\.3/);
+  assert.match(workflow, /for predicate in https:\/\/slsa\.dev\/provenance\/v1 https:\/\/spdx\.dev\/Document\/v2\.3/);
+  assert.match(workflow, /--predicate-type "\$predicate"/);
   assert.match(workflow, /--signer-workflow/);
   assert.match(workflow, /--source-digest "\$GITHUB_SHA"/);
   const beforePush = workflow.indexOf('      - name: Publish both verified images without rebuilding');
