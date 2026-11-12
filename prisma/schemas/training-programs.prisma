@@ -75,8 +75,8 @@ model TrainingProgramWorkout {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  // The unique index already supports lookups by (versionId, weekNumber, dayNumber).
   @@unique([versionId, weekNumber, dayNumber])
-  @@index([versionId, weekNumber, dayNumber])
   @@map("training_program_workouts")
 }
 
@@ -165,6 +165,8 @@ model TrainingProgramAssignment {
   @@unique([versionId, athleteId], where: raw("status = 'ACTIVE'"), map: "training_program_assignments_one_active_version_key")
   @@index([trainerAthleteId, status])
   @@index([athleteId, status, assignedAt])
+  // Matches unfiltered athlete assignment pages: assignedAt DESC, id DESC.
+  @@index([athleteId, assignedAt(sort: Desc), id(sort: Desc)])
   @@index([versionId])
   @@index([assignedById])
   @@index([endedById])

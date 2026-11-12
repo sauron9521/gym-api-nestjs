@@ -249,7 +249,7 @@ jobs:
       - name: Test query benchmark safety and SQL plans
         run: |
           npm run perf:queries:test
-          npm run perf:queries -- --rows=100
+          npm run perf:queries -- --rows=2000
 
       - name: Unit tests
         run: |

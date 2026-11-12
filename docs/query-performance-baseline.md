@@ -39,7 +39,7 @@ The script:
 5. **Always rolls back** seeded data on success or failure.
 
 The tool accepts `--rows=N` in the 1–20,000 range (default 2,000).
-CI smoke-checks it with 100 rows **after migrations**, and tests its guard
+CI smoke-checks it with 2,000 rows **after migrations**, and tests its guard
 rails without a database. No timing-based CI failure threshold is enforced:
 GitHub-hosted runners are noisy, and elapsed latency must be assessed on a
 consistent/staging machine with representative row counts.
@@ -64,3 +64,58 @@ consistent/staging machine with representative row counts.
 - The benchmark's rollback avoids persistent fixtures; it still performs
   normal test-database queries and may temporarily consume resources.
   Do not run it against production credentials or a shared service.
+
+## PR #151: targeted indexes and validation
+
+The initial CI baseline from PR #150
+([run 43168907107](https://github.com/sauron9521/gym-api-nestjs/actions/runs/43168907107))
+used only **100 rows**. PostgreSQL selected sequential scans and sorts on
+some queries, with observed execution times below 0.4 ms on that small fixture.
+That does **not** prove an index would make those small queries faster.
+
+Two new nonunique B-tree indexes match stable page ordering and filtering:
+
+- `workouts_athlete_id_created_at_id_idx`: `athlete_id, created_at DESC, id DESC`.
+- `training_program_assignments_athlete_id_assigned_at_id_idx`:
+  `athlete_id, assigned_at DESC, id DESC`.
+
+The existing `(athlete_id, status, assigned_at)` assignment index stays: the
+`status` middle column makes it useful for differently filtered workloads.
+Trainer assignment queries join program ownership, so neither new index
+guarantees improvement for that path. The `training_program_workouts`
+nonunique index on `(version_id, week_number, day_number)` is removed because
+the surviving unique index has the same key order.
+
+Each index operation lives in its **own** migration file and uses
+`CONCURRENTLY`, with no explicit `BEGIN/COMMIT`. This is intentional:
+PostgreSQL cannot run concurrent index builds/drops inside a transaction block.
+CI's `prisma migrate deploy` and the integration test verify the physical
+result. Do not combine these operations into one SQL migration.
+
+### Staging / production deployment checklist
+
+1. First verify backup/restore readiness, disk space, migration state,
+   and a maintenance/monitoring window even though concurrent index builds
+   do not normally block ongoing inserts or updates.
+2. Apply the three migrations in committed order using
+   `npm run db:migrate:deploy` (configured for Prisma ORM 7).
+   Do not apply schema changes with `db push` in production.
+3. Check `pg_index.indisvalid` and `pg_index.indisready` for the new indexes
+   and confirm the old duplicate index is gone.
+4. Re-run `npm run perf:queries -- --rows=2000` and optionally 10k/20k on
+   a dedicated, migrated **test** database; compare query plans at the same
+   size, not just elapsed time from different runners.
+5. Monitor writes, disk consumption, query plans and workload-level p95
+   response latency; adding indexes increases write and storage overhead.
+
+**Failure recovery:** Concurrent index creation can leave behind an
+`INVALID` index. If that happens, stop rollout; inspect the catalog and
+the `_prisma_migrations` failure. With DBA approval, drop the invalid index
+using `DROP INDEX CONCURRENTLY`, then use the documented Prisma
+`migrate resolve --rolled-back` recovery procedure before retrying. Do not
+edit an already applied migration, blindly rerun `IF NOT EXISTS`, or
+delete a valid unique constraint index. The test suite checks that the
+unique workout slot index is still present.
+
+These are **query-shape optimizations**, not yet measured production speedups.
+The benchmark is SQL-based, not full Prisma/HTTP request profiling.
