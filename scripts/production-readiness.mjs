@@ -120,6 +120,7 @@ export function verifyReleaseEvidence(input) {
     schemaVersion: 1,
     kind: 'release-readiness-evidence',
     releaseEvidence: 'VERIFIED',
+    verifiedAt: new Date().toISOString(),
     decision: 'NO-GO',
     decisionScope: 'PRODUCTION_DEPLOYMENT',
     reasons: [
@@ -154,6 +155,12 @@ function idPresent(value) {
 export function evaluateOperatorApproval(releaseReport, approval, env, now = new Date()) {
   const reasons = [];
   const fail = (message) => reasons.push(message);
+  const reportTimestamp = Date.parse(releaseReport?.verifiedAt ?? '');
+  const age = now.getTime() - reportTimestamp;
+  if (!(Number.isFinite(reportTimestamp) && age >= 0 &&
+    age <= 7 * 24 * 60 * 60 * 1000)) {
+    fail('GitHub release review receipt is missing or older than seven days');
+  }
   if (releaseReport?.kind !== 'release-readiness-evidence' ||
       releaseReport.releaseEvidence !== 'VERIFIED' ||
       releaseReport.decision !== 'NO-GO' ||
