@@ -1,0 +1,8 @@
+# Opt-in only: merge with compose.prod.yml; never build local source during digest deploy.
+services:
+  api:
+    image: ${DEPLOY_RUNTIME_IMAGE:?Verified runtime GHCR digest required}
+    build: !reset null
+  migrate:
+    image: ${DEPLOY_MIGRATE_IMAGE:?Verified migration GHCR digest required}
+    build: !reset null
