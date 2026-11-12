@@ -79,7 +79,7 @@ node scripts/production-digest-guard.mjs images
 
 # An explicit expected current image prevents silently replacing an unknown
 # manually deployed container, including a local-build instance.
-current_id="$("${compose[@]}" ps -q api)"
+current_id="$("${compose[@]}" ps --all -q api)"
 current_image=none
 if [[ -n "$current_id" ]]; then
   current_image="$(docker inspect --format '{{.Config.Image}}' "$current_id")"
