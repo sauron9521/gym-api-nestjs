@@ -1,0 +1,27 @@
+# OPT-IN. This service has DB backup credentials and Docker access: root-only.
+# Install only on a trusted host after provisioning a private backup directory.
+[Unit]
+Description=Gym API verified daily PostgreSQL and avatar backup
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/gym-api
+EnvironmentFile=/etc/gym-api/backup.env
+ExecStart=/usr/bin/bash /opt/gym-api/scripts/backup-production.sh /srv/private/gym-backups
+ExecStartPost=/usr/bin/bash /opt/gym-api/scripts/verify-backup-freshness.sh /srv/private/gym-backups
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=-/srv/private/gym-backups
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+TimeoutStartSec=2h

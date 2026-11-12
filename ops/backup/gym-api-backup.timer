@@ -1,0 +1,13 @@
+# OPT-IN. Check timer and alert routing manually before enabling.
+[Unit]
+Description=Daily Gym API verified backup at 03:30 host-local time
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=15min
+Unit=gym-api-backup.service
+
+[Install]
+WantedBy=timers.target
