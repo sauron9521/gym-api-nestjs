@@ -60,7 +60,7 @@ export function renderCoverageSummary(summary) {
     '',
     '> Coverage tracks source files instrumented by the unit-test run; integration/E2E tests run separately.',
     '',
-  ].join('\\n');
+  ].join('\n');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
