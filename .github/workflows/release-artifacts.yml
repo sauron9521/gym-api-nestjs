@@ -1,0 +1,185 @@
+name: Release candidate images and signed provenance
+
+on:
+  workflow_dispatch:
+
+# Never run on pull_request; untrusted PR source is not entitled to attest.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build and attest immutable release candidate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+
+    steps:
+      - name: Checkout exact source commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Require a successful main-branch CI gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          count="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "CI / required gates" and .status == "completed" and .conclusion == "success")] | length')"
+          test "$count" -ge 1 || {
+            echo "Cannot package a commit before its required main CI gate passed" >&2
+            exit 1
+          }
+
+      # Capture the resolved immutable base image, not the moving Node tag.
+      - name: Resolve digest-pinned Node base image
+        id: base
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 node:22-bookworm-slim
+          base_image="$(docker image inspect --format '{{index .RepoDigests 0}}' node:22-bookworm-slim)"
+          [[ "$base_image" == *@sha256:* ]] || exit 1
+          echo "ref=$base_image" >> "$GITHUB_OUTPUT"
+
+      - name: Build versioned runtime and migration images
+        env:
+          BASE_IMAGE: ${{ steps.base.outputs.ref }}
+        run: |
+          set -euo pipefail
+          runtime="gym-api:runtime-$GITHUB_SHA"
+          migrate="gym-api:migrate-$GITHUB_SHA"
+          docker build --platform linux/amd64 --target runtime \
+            --build-arg NODE_BASE_IMAGE="$BASE_IMAGE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            -t "$runtime" .
+          docker build --platform linux/amd64 --target migrate \
+            --build-arg NODE_BASE_IMAGE="$BASE_IMAGE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            -t "$migrate" .
+          test "$(docker image inspect --format '{{.Config.User}}' "$runtime")" = node
+          test "$(docker image inspect --format '{{.Config.User}}' "$migrate")" = node
+
+      - name: Package and locally verify image archive and manifest
+        env:
+          BASE_IMAGE: ${{ steps.base.outputs.ref }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 release
+          docker save "gym-api:runtime-$GITHUB_SHA" "gym-api:migrate-$GITHUB_SHA" \
+            | gzip -n -6 > release/images.tar.gz
+          runtime_id="$(docker image inspect --format '{{.Id}}' "gym-api:runtime-$GITHUB_SHA")"
+          migrate_id="$(docker image inspect --format '{{.Id}}' "gym-api:migrate-$GITHUB_SHA")"
+          node scripts/release-bundle.mjs create \
+            --archive release/images.tar.gz --manifest release/manifest.json \
+            --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" --runtime-id "$runtime_id" \
+            --migrate-id "$migrate_id" --base-image "$BASE_IMAGE"
+          node scripts/release-bundle.mjs verify \
+            --archive release/images.tar.gz --manifest release/manifest.json \
+            --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID"
+          node scripts/release-bundle.mjs verify-images \
+            --manifest release/manifest.json --commit "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
+
+      # GitHub-issued OIDC certificate + Sigstore signature over BOTH files.
+      # This is supply-chain provenance, not a claim of bitwise-reproducible builds.
+      - name: Attest release archive and manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            release/images.tar.gz
+            release/manifest.json
+
+      - name: Upload immutable short-lived release candidate bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: gym-api-release-${{ github.sha }}-${{ github.run_id }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  verify:
+    name: Re-download, verify provenance and reload images
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      attestations: read
+      actions: read
+
+    steps:
+      - name: Checkout verifier from source commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Download immutable release candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: gym-api-release-${{ github.sha }}-${{ github.run_id }}
+          path: release/
+
+      - name: Check archive hash and manifest identity
+        run: |
+          set -euo pipefail
+          node scripts/release-bundle.mjs verify \
+            --archive release/images.tar.gz --manifest release/manifest.json \
+            --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID"
+
+      # Both files must be signed by THIS repository's release workflow and
+      # THIS exact SHA on main; an arbitrary repository attestation is insufficient.
+      - name: Verify signed SLSA provenance from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for file in release/images.tar.gz release/manifest.json; do
+            gh attestation verify "$file" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-artifacts.yml" \
+              --source-ref refs/heads/main \
+              --source-digest "$GITHUB_SHA"
+          done
+
+      - name: Reload archive and compare content-addressed image IDs
+        run: |
+          set -euo pipefail
+          docker load -i release/images.tar.gz
+          node scripts/release-bundle.mjs verify-images \
+            --manifest release/manifest.json --commit "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
+          {
+            echo "### Release candidate verified"
+            echo "Source commit: $GITHUB_SHA"
+            echo "Archive, manifest signatures and runtime/migration image IDs: verified."
+            echo "This workflow does not push images, create a GitHub Release or deploy."
+          } >> "$GITHUB_STEP_SUMMARY"
