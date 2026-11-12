@@ -58,6 +58,8 @@ model Workout {
   @@index([athleteId, status, scheduledAt])
   @@index([athleteId, status, completedAt(sort: Desc)])
   @@index([createdById, createdAt])
+  // Matches athlete workout pages: createdAt DESC, id DESC.
+  @@index([athleteId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("workouts")
 }
 
