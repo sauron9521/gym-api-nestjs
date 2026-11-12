@@ -32,7 +32,7 @@ export function validateTestDatabaseUrl(value) {
 
 export function parseRows(argumentsList) {
   if (argumentsList.length === 0) return DEFAULT_ROWS;
-  if (argumentsList.length !== 1 || !/^--rows=\\d+$/.test(argumentsList[0])) {
+  if (argumentsList.length !== 1 || !/^--rows=\d+$/.test(argumentsList[0])) {
     throw new Error('Usage: npm run perf:queries -- --rows=2000');
   }
   const rows = Number(argumentsList[0].slice('--rows='.length));
@@ -84,7 +84,7 @@ export function formatResults(results, rows) {
     '',
     'Execution times are observations, not pass/fail budgets; compare plans at the same row count.',
     'Queries model SQL filters and sorting, not Prisma relation hydration or HTTP serialization.',
-  ].join('\\n');
+  ].join('\n');
 }
 
 const sampleQueries = [
@@ -244,10 +244,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const rows = parseRows(process.argv.slice(2));
     const result = await runBenchmark(process.env.TEST_DATABASE_URL, rows);
-    process.stdout.write(`${result}\\n`);
+    process.stdout.write(`${result}\n`);
     if (process.env.GITHUB_STEP_SUMMARY) {
       const { appendFileSync } = await import('node:fs');
-      appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${result}\\n`);
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${result}\n`);
     }
   } catch (error) {
     console.error(error);
