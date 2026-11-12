@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Explicit, opt-in synthetic Alertmanager delivery drill. Never called by CI.
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,11 +39,15 @@ export function validateOrigin(input) {
   return url.origin;
 }
 
-export function drillAlert(nowMs = Date.now()) {
+export function drillAlert(nowMs = Date.now(), drillId) {
   if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
     throw new Error('Invalid drill time');
   }
-  return [{
+  if (drillId !== undefined &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(drillId)) {
+    throw new Error('Invalid synthetic drill identifier');
+  }
+  const alert = {
     labels: {
       alertname: 'GymApiMonitoringDeliveryDrill',
       severity: 'warning',
@@ -52,12 +57,17 @@ export function drillAlert(nowMs = Date.now()) {
     annotations: { summary: 'Authorized synthetic monitoring notification drill' },
     startsAt: new Date(nowMs).toISOString(),
     endsAt: new Date(nowMs + 180_000).toISOString(),
-  }];
+  };
+  if (drillId !== undefined) {
+    alert.labels.drill_id = drillId;
+    alert.annotations.summary += ' [' + drillId + ']';
+  }
+  return [alert];
 }
 
-export async function deliverDrill(origin, nowMs = Date.now(), fetchFn = fetch) {
+export async function deliverDrill(origin, nowMs = Date.now(), fetchFn = fetch, drillId) {
   const base = validateOrigin(origin);
-  const body = JSON.stringify(drillAlert(nowMs));
+  const body = JSON.stringify(drillAlert(nowMs, drillId));
   let response;
   try {
     response = await fetchFn(new URL('/api/v2/alerts', base), {
@@ -74,14 +84,18 @@ export async function deliverDrill(origin, nowMs = Date.now(), fetchFn = fetch) 
     throw new Error('Alertmanager drill was not accepted');
   }
   // A 2xx response confirms API acceptance, not delivery to a human.
-  return { submitted: true, notificationConfirmed: false };
+  return {
+    submitted: true,
+    notificationConfirmed: false,
+    ...(drillId !== undefined ? { drillId } : {}),
+  };
 }
 
 async function main() {
   try {
     const { origin, send } = parseDrillArgs(process.argv.slice(2));
     const result = send
-      ? await deliverDrill(origin)
+      ? await deliverDrill(origin, Date.now(), fetch, randomUUID())
       : { submitted: false, notificationConfirmed: false,
         alert: drillAlert()[0] };
     process.stdout.write(JSON.stringify(result) + '\n');
