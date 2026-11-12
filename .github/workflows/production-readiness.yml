@@ -26,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-evidence-review-${ github.run_id }}
+  group: production-evidence-review-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -42,10 +42,10 @@ jobs:
       packages: read
       attestations: read
     env:
-      GH_TOKEN: ${ github.token }}
-      PUBLISH_RUN_ID: ${ inputs.publisher_run_id }}
-      STAGING_RUN_ID: ${ inputs.staging_run_id }}
-      CONFIRM_REVIEW: ${ inputs.confirm_review }}
+      GH_TOKEN: ${{ github.token }}
+      PUBLISH_RUN_ID: ${{ inputs.publisher_run_id }}
+      STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+      CONFIRM_REVIEW: ${{ inputs.confirm_review }}
 
     steps:
       - name: Checkout trusted readiness validator on main
@@ -129,7 +129,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v7
         with:
-          name: release-readiness-${ github.run_id }}-${ github.run_attempt }}
+          name: release-readiness-${{ github.run_id }}-${{ github.run_attempt }}
           path: readiness/output/release-evidence.json
           if-no-files-found: error
           retention-days: 30
