@@ -94,13 +94,22 @@ jobs:
             --dir readiness/input
           test -s readiness/input/upgrade-evidence.json
 
-      - name: Read target source CI results from the exact staging receipt SHA
+      - name: Resolve exact successful main CI run from the signed target source
         run: |
           set -euo pipefail
           source_sha="$(node -p 'JSON.parse(require("node:fs").readFileSync("readiness/input/upgrade-evidence.json")).target.sourceSha')"
           [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
-          gh api "repos/$GITHUB_REPOSITORY/commits/$source_sha/check-runs?per_page=100" \
-            > readiness/input/checks.json
+          # A commit's aggregated check-runs can include stale/inconsistent
+          # status=IN_PROGRESS with conclusion=SUCCESS. Bind to a single
+          # trusted push CI workflow run and its four actual job conclusions.
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$source_sha&per_page=100" \
+            > readiness/input/ci-runs.json
+          ci_run_id="$(node scripts/production-readiness.mjs select-ci)"
+          [[ "$ci_run_id" =~ ^[1-9][0-9]{0,15}$ ]] || exit 1
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ci_run_id" \
+            > readiness/input/ci-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ci_run_id/jobs?filter=latest&per_page=100" \
+            > readiness/input/ci-jobs.json
 
       - name: Cryptographically verify target runtime and migrations OCI provenance and SPDX
         run: |

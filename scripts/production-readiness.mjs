@@ -64,9 +64,55 @@ export function validateReadOnlyRequest(env) {
   };
 }
 
+export function selectSuccessfulSourceCI(runs, sourceSha, publisher) {
+  assert.match(sourceSha ?? '', SHA, 'Source SHA invalid');
+  assert.ok(Array.isArray(runs?.workflow_runs), 'CI run listing missing');
+  assert.equal(publisher?.conclusion, 'success');
+  assert.equal(publisher?.status, 'completed');
+  const candidates = runs.workflow_runs.filter(run =>
+    run?.repository?.full_name === REPO &&
+    run?.path === '.github/workflows/ci.yml' &&
+    run?.event === 'push' &&
+    run?.head_branch === 'main' &&
+    run?.head_sha === sourceSha &&
+    run?.status === 'completed' &&
+    run?.conclusion === 'success' &&
+    Number.isSafeInteger(run?.id) && run.id > 0 &&
+    Number.isFinite(Date.parse(run?.created_at ?? '')) &&
+    Date.parse(run.created_at) <= Date.parse(publisher?.created_at ?? '')
+  );
+  assert.ok(candidates.length > 0, 'No trusted completed source CI workflow');
+  candidates.sort((a, b) => b.id - a.id);
+  return candidates[0];
+}
+
+export function verifySourceCI(ciRun, ciJobs, sourceSha, publisher) {
+  assert.equal(ciRun?.repository?.full_name, REPO, 'Wrong CI repository');
+  assert.equal(ciRun?.path, '.github/workflows/ci.yml', 'Wrong CI workflow');
+  assert.equal(ciRun?.event, 'push', 'CI must run from a main push');
+  assert.equal(ciRun?.head_branch, 'main', 'Wrong CI branch');
+  assert.equal(ciRun?.head_sha, sourceSha, 'CI source commit mismatch');
+  assert.equal(ciRun?.status, 'completed', 'CI workflow not complete');
+  assert.equal(ciRun?.conclusion, 'success', 'CI workflow did not succeed');
+  assert.ok(Number.isSafeInteger(ciRun?.id) && ciRun.id > 0);
+  assert.ok(Number.isFinite(Date.parse(ciRun?.created_at ?? '')));
+  assert.ok(Date.parse(ciRun.created_at) <= Date.parse(publisher?.created_at ?? ''),
+    'CI ran after publication');
+  assert.ok(Array.isArray(ciJobs?.jobs), 'Missing CI jobs');
+  for (const name of REQUIRED_CHECKS) {
+    const matches = ciJobs.jobs.filter(job =>
+      job?.name === name && job?.run_id === ciRun.id);
+    assert.equal(matches.length, 1, 'Missing or duplicate trusted CI job: ' + name);
+    assert.equal(matches[0].conclusion, 'success', 'Required CI job failed: ' + name);
+    // A completed, successful workflow with successful job conclusions is
+    // authoritative. GitHub can return inconsistent check/job statuses.
+  }
+  return true;
+}
+
 export function verifyReleaseEvidence(input) {
   const { publisherRunId, stagingRunId } = input.request;
-  const { publisher, staging, checks, publishDigests, stagingReceipt } = input;
+  const { publisher, staging, ciRun, ciJobs, publishDigests, stagingReceipt } = input;
   requireRun(publisher, publisherRunId, 'publisher',
     '.github/workflows/publish-ghcr.yml');
   requireRun(staging, stagingRunId, 'staging',
@@ -103,16 +149,7 @@ export function verifyReleaseEvidence(input) {
     'Published migrations digest does not match staging');
 
   const sourceSha = stagingReceipt.target.sourceSha;
-  assert.ok(Array.isArray(checks?.check_runs), 'Missing main checks');
-  for (const name of REQUIRED_CHECKS) {
-    assert.ok(checks.check_runs.some(check =>
-      check.name === name &&
-      check.head_sha === sourceSha &&
-      check.status === 'completed' &&
-      check.conclusion === 'success' &&
-      check.app?.slug === 'github-actions'),
-      'Missing successful required CI gate: ' + name);
-  }
+  verifySourceCI(ciRun, ciJobs, sourceSha, publisher);
 
   const source = stagingReceipt.target;
   const previous = stagingReceipt.previous;
@@ -129,7 +166,7 @@ export function verifyReleaseEvidence(input) {
       'TLS, alert routing, migration approval and on-call acknowledgements missing',
       'No production operator approval or change window',
     ],
-    publisherRunId, stagingRunId,
+    publisherRunId, stagingRunId, ciRunId: ciRun.id,
     sourceSha: source.sourceSha,
     publisherSha: source.publishSha,
     runtime: source.runtime,
@@ -261,15 +298,21 @@ async function main() {
     if (mode === 'identity') {
       validateReadOnlyRequest(process.env);
       process.stdout.write('Manual read-only production readiness review authorized\n');
+    } else if (mode === 'select-ci') {
+      const publisher = JSON.parse(await readFile('readiness/input/publisher.json', 'utf8'));
+      const evidence = JSON.parse(await readFile('readiness/input/upgrade-evidence.json', 'utf8'));
+      const runs = JSON.parse(await readFile('readiness/input/ci-runs.json', 'utf8'));
+      const ciRun = selectSuccessfulSourceCI(runs, evidence?.target?.sourceSha, publisher);
+      process.stdout.write(String(ciRun.id) + '\n');
     } else if (mode === 'assess') {
       const request = validateReadOnlyRequest(process.env);
-      const files = ['publisher.json', 'staging.json', 'checks.json',
-        'ghcr-digests.json', 'upgrade-evidence.json'];
+      const files = ['publisher.json', 'staging.json', 'ci-run.json',
+        'ci-jobs.json', 'ghcr-digests.json', 'upgrade-evidence.json'];
       const values = await Promise.all(files.map(x =>
         readFile('readiness/input/' + x, 'utf8').then(JSON.parse)));
-      const [publisher, staging, checks, publishDigests, stagingReceipt] = values;
+      const [publisher, staging, ciRun, ciJobs, publishDigests, stagingReceipt] = values;
       const report = verifyReleaseEvidence({
-        request, publisher, staging, checks, publishDigests, stagingReceipt,
+        request, publisher, staging, ciRun, ciJobs, publishDigests, stagingReceipt,
       });
       await mkdir('readiness/output', { recursive: true, mode: 0o700 });
       await writeFile('readiness/output/release-evidence.json',

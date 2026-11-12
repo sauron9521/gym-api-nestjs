@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { PHASES } from './staging-upgrade-rollback.mjs';
 import {
   validateReadOnlyRequest, verifyReleaseEvidence, evaluateOperatorApproval,
+  selectSuccessfulSourceCI, verifySourceCI,
 } from './production-readiness.mjs';
 
 const runtime = 'ghcr.io/sauron9521/gym-api-nestjs@sha256:' + 'a'.repeat(64);
@@ -30,14 +31,22 @@ const staging = {
   path: '.github/workflows/staging-upgrade-rollback.yml',
   created_at: '2026-11-12T18:57:51Z',
 };
-const checks = { check_runs: [
+const ciRun = {
+  ...run, id: 43278936773, event: 'push',
+  path: '.github/workflows/ci.yml', head_sha: sourceSha,
+  created_at: '2026-11-12T18:21:15Z',
+};
+const ciJobs = { total_count: 4, jobs: [
   'CI / required gates',
   'Lint, build and tests',
   'Dependency vulnerability audit',
   'Docker production build and HTTP smoke',
 ].map(name => ({
-  name, head_sha: sourceSha, status: 'completed',
-  conclusion: 'success', app: { slug: 'github-actions' },
+  name, run_id: ciRun.id,
+  // Real GitHub returned an inconsistent status for this successful job:
+  // "in_progress" while its conclusion and parent run were "success".
+  status: name === 'Dependency vulnerability audit' ? 'in_progress' : 'completed',
+  conclusion: 'success',
 })) };
 const previous = {
   sourceSha: olderSha, publishSha: olderPublisher,
@@ -54,7 +63,7 @@ const stagingReceipt = {
   productionContacted: false, deployedToPersistentHost: false,
   productionReleaseApproval: false, authenticatedFunctionalChecks: true,
 };
-const candidate = { request, publisher, staging, checks,
+const candidate = { request, publisher, staging, ciRun, ciJobs,
   publishDigests: { runtime, migrate }, stagingReceipt };
 const clone = value => structuredClone(value);
 
@@ -81,6 +90,7 @@ test('verified release evidence is always production NO-GO before private host a
   assert.equal(report.decision, 'NO-GO');
   assert.equal(report.decisionScope, 'PRODUCTION_DEPLOYMENT');
   assert.equal(report.publisherRunId, request.publisherRunId);
+  assert.equal(report.ciRunId, ciRun.id);
   assert.equal(report.stagingRunId, request.stagingRunId);
   assert.equal(report.runtime, runtime);
   assert.equal(report.migrate, migrate);
@@ -118,15 +128,59 @@ test('fail closed for wrong digest, stale/failed stage or untrusted publisher', 
     x => { x.stagingReceipt.databaseDowngradePerformed = true; },
     x => { x.stagingReceipt.productionContacted = true; },
     x => { x.stagingReceipt.authenticatedFunctionalChecks = false; },
-    x => { x.checks.check_runs[0].conclusion = 'failure'; },
-    x => { x.checks.check_runs[2].head_sha = olderSha; },
-    x => { x.checks.check_runs[1].app.slug = 'untrusted'; },
+    x => { x.ciRun.conclusion = 'failure'; },
+    x => { x.ciRun.status = 'in_progress'; },
+    x => { x.ciRun.path = '.github/workflows/fake-ci.yml'; },
+    x => { x.ciRun.event = 'workflow_dispatch'; },
+    x => { x.ciRun.head_sha = olderSha; },
+    x => { x.ciRun.head_branch = 'feature'; },
+    x => { x.ciRun.repository.full_name = 'another/repo'; },
+    x => { x.ciRun.created_at = '2026-11-12T19:00:00Z'; },
+    x => { x.ciJobs.jobs[0].conclusion = 'failure'; },
+    x => { x.ciJobs.jobs[2].run_id = 1; },
+    x => { x.ciJobs.jobs.splice(1, 1); },
+    x => { x.ciJobs.jobs.push(structuredClone(x.ciJobs.jobs[0])); },
   ];
   for (const tamper of mutation) {
     const x = clone(candidate);
     tamper(x);
     assert.throws(() => verifyReleaseEvidence(x));
   }
+});
+
+test('choose only completed successful main-push CI for the correct source SHA', () => {
+  const valid = structuredClone(ciRun);
+  const invalid = [
+    { ...valid, id: 1, event: 'pull_request' },
+    { ...valid, id: 2, head_branch: 'other' },
+    { ...valid, id: 3, head_sha: olderSha },
+    { ...valid, id: 4, status: 'in_progress' },
+    { ...valid, id: 5, conclusion: 'failure' },
+    { ...valid, id: 6, created_at: '2026-11-12T19:00:00Z' },
+    { ...valid, id: 7, path: '.github/workflows/untrusted.yml' },
+    { ...valid, id: 8, repository: { full_name: 'wrong/repo' } },
+  ];
+  assert.equal(selectSuccessfulSourceCI({ workflow_runs: [...invalid, valid] },
+    sourceSha, publisher).id, valid.id);
+  assert.throws(() => selectSuccessfulSourceCI({ workflow_runs: invalid },
+    sourceSha, publisher));
+  assert.throws(() => selectSuccessfulSourceCI({ workflow_runs: [valid] },
+    olderSha, publisher));
+});
+
+test('inconsistent job status is allowed only when the parent CI workflow concluded successfully', () => {
+  // Real GitHub #43278936773: dependency job says in_progress/success;
+  // completed, successful parent run and all four successful conclusions win.
+  assert.equal(verifySourceCI(ciRun, ciJobs, sourceSha, publisher), true);
+  assert.equal(verifyReleaseEvidence(candidate).releaseEvidence, 'VERIFIED');
+  assert.throws(() => verifySourceCI({ ...ciRun, status: 'in_progress' },
+    ciJobs, sourceSha, publisher));
+  assert.throws(() => verifySourceCI({ ...ciRun, conclusion: 'failure' },
+    ciJobs, sourceSha, publisher));
+  assert.throws(() => verifySourceCI(ciRun, {
+    jobs: ciJobs.jobs.map(x => x.name === 'Dependency vulnerability audit'
+      ? { ...x, conclusion: null } : x),
+  }, sourceSha, publisher));
 });
 
 const time = new Date('2026-11-12T19:00:00Z');
@@ -227,6 +281,10 @@ test('read-only GitHub review cannot deploy, and apply requires both private pro
   assert.match(workflow, /--signer-workflow "\$GITHUB_REPOSITORY\/\.github\/workflows\/publish-ghcr\.yml"/);
   assert.match(workflow, /node scripts\/production-readiness\.mjs assess/);
   assert.match(workflow, /staging-two-release-\$STAGING_RUN_ID-\$attempt/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$source_sha/);
+  assert.match(workflow, /node scripts\/production-readiness\.mjs select-ci/);
+  assert.match(workflow, /actions\/runs\/\$ci_run_id\/jobs\?filter=latest/);
+  assert.doesNotMatch(workflow, /\/commits\/\$source_sha\/check-runs/);
   assert.match(workflow, /ghcr-digests-/);
   assert.match(workflow, /NO-GO/);
   assert.doesNotMatch(workflow,
