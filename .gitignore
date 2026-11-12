@@ -111,3 +111,9 @@ uploads/
 # Runner-only two-release staging rehearsal progress and safe evidence.
 /staging/upgrade-phase-state.json
 /staging/upgrade-evidence.json
+
+# Private release readiness review inputs, outputs and operator approvals.
+/readiness/
+*.private-production-change-approval.json
+*.production-release-evidence.json
+*.production-operator-approval.json

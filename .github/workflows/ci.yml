@@ -225,6 +225,7 @@ jobs:
           node --test scripts/staging-smoke.test.mjs
           node --test scripts/staging-functional-smoke.test.mjs
           node --test scripts/staging-upgrade-rollback.test.mjs
+          node --test scripts/production-readiness.test.mjs
           node --test scripts/ghcr-retention-plan.test.mjs
           node --test scripts/production-digest-guard.test.mjs
           node --test scripts/docker-base-policy.test.mjs
