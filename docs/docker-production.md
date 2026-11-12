@@ -141,3 +141,18 @@ already-used SHA+run tags and records **registry @sha256 digests**; it never
 rebuilds, runs migrations or deploys. Production Compose remains
 unmodified. For the procedure and limits, see
 [verified GHCR promotion](ghcr-promotion.md).
+
+
+## Manual, digest-only production deployment (PR #157)
+
+A separate **opt-in** Compose override removes both local `build`
+declarations and replaces tags with fully-qualified, digest-pinned
+GHCR runtime/migration images. A host-side script performs fail-closed
+attestation checks and comparison to the current image before any
+change; it can optionally apply forward Prisma migrations **only after**
+an operator supplies a verified backup directory and explicit approval.
+It then waits for Docker readiness. It does **not** connect to any
+server from GitHub Actions. See
+[immutable digest deployment and rollback](production-digest-deployment.md).
+
+The existing `compose.prod.yml` local-build workflow remains unchanged.
