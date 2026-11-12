@@ -37,10 +37,25 @@ test('Grype reports contain scanner identity and well-formed results', () => {
     findings: 1, severities: { critical: 0, high: 1, medium: 0, low: 0, unknown: 0 },
   });
   assert.equal(validateGrype({ ...makeGrype(), matches: [] }).findings, 0);
+  // Actual Grype v0.110 JSON omits ignoredMatches, while retaining
+  // matches, source, distro and descriptor. Regress release #43212588160.
+  const { ignoredMatches: _unused, ...grype110 } = makeGrype();
+  assert.deepEqual(validateGrype({
+    ...grype110,
+    descriptor: { name: 'grype', version: '0.110.0' },
+    source: { type: 'sbom' }, distro: { name: 'debian', version: '13' },
+  }), {
+    findings: 1, severities: { critical: 0, high: 1, medium: 0, low: 0, unknown: 0 },
+  });
+  assert.throws(() => validateGrype({
+    ...grype110,
+    matches: [{ vulnerability: { id: 'CVE-2026-5450', severity: 'Critical' } }],
+  }), /Critical Grype vulnerabilities present/);
   for (const invalid of [
     {}, { ...makeGrype(), descriptor: { name: 'fake' } },
     { ...makeGrype(), matches: [{ vulnerability: {} }] },
     { ...makeGrype(), ignoredMatches: null },
+    { ...makeGrype(), ignoredMatches: 'not-a-list' },
   ]) assert.throws(() => validateGrype(invalid));
 });
 

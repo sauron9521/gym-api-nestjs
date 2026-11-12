@@ -179,3 +179,29 @@ create a **new** signed Release Candidate, then run manual publication
 with its **new run ID and source SHA**. Preserve the earlier failure
 report and audit trail. No severity downgrade, CVE suppression or
 automatic registry overwrite has been introduced.
+
+
+## Grype report compatibility fix (GHCR publishing run #43212588160)
+
+After the Debian 13 remediation, **both Syft inventories and both Grype
+critical-vulnerability checks succeeded**. The additional local
+`release-supply-chain.mjs validate` step incorrectly required the
+optional `ignoredMatches` JSON field to be present. Grype 0.110.0
+omits that field in real scanner output when it has no ignored entries.
+
+The local format check now accepts the field **only when absent** or
+when it is an actual array, while still rejecting `null`, invalid
+types, missing `matches`, forged scanner identity, malformed
+vulnerability records, **and any critical findings**. The independent
+`anchore/scan-action` critical threshold remains unchanged.
+This is a JSON schema compatibility correction, **not** a vulnerability
+exemption or reduction in the blocking severity threshold.
+
+The failed release run stopped **before** GHCR authentication or push.
+The previously signed release archive may be reused by the corrected
+manual publishing workflow **if** its source CI and release-run
+signatures still pass, it is within the 7-day artifact retention window,
+and GHCR tag-existence preflight confirms both exact tags are absent.
+The publisher must always use trusted `main` scripts and a fresh
+manual authorization. In case of any doubt about tag state, stop and
+inspect rather than retrying or overwriting.
