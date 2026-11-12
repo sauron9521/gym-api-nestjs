@@ -175,3 +175,30 @@ There is no production server or verified production backup associated
 with the current GitHub Actions runs in this repository. Until one is
 provisioned and its evidence is reviewed, **the actual deployment
 decision remains NO-GO**.
+
+### Why the 12 November first review failed
+
+[Production readiness review #43291771208](https://github.com/sauron9521/gym-api-nestjs/actions/runs/43291771208)
+verified the publisher, both GHCR digest receipts, all OCI SLSA/SPDX
+attestations and the successful staging artifact, but failed at the final
+source-CI evidence validation. The aggregated commit checks for source
+`fc355286347181e0498fd7709417de7b8ff600b5` returned the
+`Dependency vulnerability audit` job with `conclusion=success` but
+`status=in_progress` — an inconsistent status pair even though the
+trusted **CI workflow run #43278936773 itself is completed and successful**.
+
+The read-only validator now requires a **specific successful CI push run on
+`main` for the exact signed source commit, completed before publication**.
+It verifies all four required jobs belong to **that one CI run** and have
+`conclusion=success`. A failed, queued, untrusted, wrong-source, or wrong-
+repository parent CI run remains **NO-GO**. A single inconsistent historical
+job-status field can no longer incorrectly override successful final job
+conclusions when the parent CI run itself conclusively completed.
+
+After merging this fix and confirming CI on `main`, start a **new**
+`Review signed release evidence for production readiness` run with the
+**same** publisher `43280626086` and staging `43285235000` IDs and
+`REVIEW_RELEASE_EVIDENCE`. Do not rerun the failed job on its older
+source code. No new images or production deploy are required. The
+expected **production decision is still NO-GO** without real host backup,
+restore, monitoring and independently approved operator evidence.
