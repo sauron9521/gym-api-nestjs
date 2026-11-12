@@ -71,3 +71,35 @@ existing global/auth/workouts floors or change production behavior.
 The new repository edge-case tests focus on draft creation defaults, custom
 ordering and pagination, and the locked versus unlocked paths of version
 duration updates. CI remains the authority for confirming all thresholds.
+
+## Inventorying source files not covered by the unit run
+
+CI now also runs `node scripts/coverage-inventory.mjs` **after** the existing
+`npm run test:cov` step. The script compares the source tree against
+`coverage/coverage-summary.json` and produces:
+
+- A per-feature table in the GitHub Actions step summary counting eligible
+  production source files, files present in the V8 unit coverage report, and
+  files absent from that report.
+- A list of up to 40 absent paths in the step summary.
+- The full machine-readable `coverage/source-inventory.json` in the already
+  uploaded `coverage-report` artifact.
+
+The inventory excludes generated files, index barrels, test fixtures/specs,
+declaration files and explicitly type-only directories/files. The same source
+filter is tested independently with Node's built-in test runner:
+
+    node --test scripts/coverage-inventory.test.mjs
+
+**Important distinctions:** "absent" means there is no entry for that file
+in the unit V8 summary. It does **not** mean the file has a measured 0%
+coverage score: it could be a bootstrap entrypoint, unused source, or a
+runtime-empty DTO. Unit coverage does not include E2E execution, and neither
+the file counts nor the numbers in the inventory are line-coverage percentages.
+
+This is a **measurement-only** first step toward explicit `coverage.include`.
+It does not change any coverage thresholds, unit-test instrumentation or
+production code. The next stage is to choose a small set of genuinely
+executable absent files, add corresponding unit tests or justified exclusions,
+then adopt explicit `coverage.include` in a separately measured change without
+concealing regressions in existing critical modules.
