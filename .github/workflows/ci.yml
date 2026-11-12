@@ -283,13 +283,13 @@ jobs:
 
           docker run --rm --network host -e PGPASSWORD=postgres \
             postgres:17-alpine psql -h 127.0.0.1 -U postgres -d postgres \
-            -v ON_ERROR_STOP=1 -c 'CREATE DATABASE gym_restore_drill_test'
+            -v ON_ERROR_STOP=1 -c 'CREATE DATABASE gym_restore_test'
 
           docker run --rm --network host \
             --mount "type=bind,src=$work/backup,dst=/backup,readonly" \
             --mount "type=bind,src=$PWD/scripts,dst=/scripts,readonly" \
             -e DATABASE_URL \
-            -e RESTORE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/gym_restore_drill_test \
+            -e RESTORE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/gym_restore_test \
             -e RESTORE_DRILL_CONFIRM=I_ACKNOWLEDGE_ISOLATED_RESTORE \
             postgres:17-alpine sh /scripts/restore-drill.sh /backup
 

@@ -14,7 +14,7 @@ of database and files.
   26 hours old, has valid SHA256 hashes, a readable `pg_restore --list`
   dump, and a readable avatar tar archive.
 - CI mock failure-path tests and a **real PostgreSQL 17 dump/restore**
-  exercise into a disposable, empty `gym_restore_drill_test` database.
+  exercise into a disposable, empty `gym_restore_test` database.
   CI also extracts avatars into a temporary Docker volume and deletes it.
 - A reusable **guarded** restore script for an already created, empty
   `*_restore_test` database, with an explicit confirmation variable.
