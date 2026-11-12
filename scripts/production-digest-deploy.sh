@@ -91,7 +91,7 @@ if [[ "$mode" = preflight ]]; then
   exit 0
 fi
 
-if [[ "$mode" = apply && "$RUN_DB_MIGRATIONS" = yes ]]; then
+if [[ "$mode" = apply && "${RUN_DB_MIGRATIONS:-no}" = yes ]]; then
   # Forward-only Prisma migrations. The previous runtime remains running
   # until the one-shot operation succeeds. No automatic database rollback.
   "${compose[@]}" --profile ops run --rm --no-deps --pull never migrate
