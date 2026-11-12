@@ -116,3 +116,53 @@ independently verified backups and reviewed schema compatibility.
 
 This is a staging **rehearsal**, not a release approval or a production
 deployment. The already published OCI digests are not modified.
+
+
+## Extended functional, migration and restart rehearsal (PR #161)
+
+After the basic signed-digest staging smoke succeeds, the **same
+manual runner-only** workflow now exercises the API over real HTTP,
+using generated **synthetic credentials** in the disposable database:
+
+- Unauthenticated `GET /users/me` must reject access with HTTP 401.
+- `POST /auth/register` creates a new synthetic user. It must return
+  HTTP 201, a non-sensitive response and a session cookie. SMTP points
+  to `smtps://127.0.0.1:4465` **inside the isolated API container**:
+  its connection is deliberately refused. The registration endpoint
+  should still succeed with `verificationEmailStatus=RETRY_REQUIRED`,
+  not turn persisted registration into HTTP 500. **No real email is sent**.
+- `POST /auth/login` accepts the synthetic credentials, then
+  `POST /auth/token` issues an access/refresh pair. `GET /users/me`
+  must accept the bearer access token, and `PATCH /users/me` updates
+  a safe synthetic `firstName` and exact decimal weight `81.25`.
+  Refreshing the token must rotate it, and the new bearer token must
+  still read the updated profile.
+- The **same signed migrate digest** is invoked a second time against
+  the **populated disposable database**. The test reauthenticates and
+  verifies the synthetic account, weight and profile survive.
+  This only establishes that *re-running the current forward migration
+  sequence does not remove this synthetic data*.
+- The **same signed runtime digest** is stopped gracefully and then
+  restarted. Healthchecks must recover and the previously created
+  account/profile must remain readable. This demonstrates restart
+  recovery and persistent data, **not an upgrade or version rollback**.
+- A separate `staging/functional-evidence.json` file records only
+  safe pass/fail assertions, OCI image identities, and a mandatory
+  `rollbackAcrossDifferentVersions: not-tested` statement. Generated
+  email/password/access/refresh tokens are **never** included.
+  Private `staging/functional-state.json` is ignored by Git and
+  deleted before artifact upload; the isolated runner is destroyed.
+
+**Limitations:** testing migration replay on the same source is not a
+backward/forward compatibility test between two application versions.
+An actual controlled upgrade and runtime-only rollback requires **two
+distinct, verified and signed OCI runtime digests**, an independently
+reviewed compatible DB migration, authorized approvals and a backup.
+None of these are bypassed, and this workflow cannot be interpreted
+as a completed production rollback drill or green-light for launch.
+
+If a functional step fails, the GitHub Actions job is **red** even if
+its earlier basic `staging/evidence.json` had reported passing
+readiness. Inspect the **final job conclusion** and the separate
+functional evidence receipt; absence of a success receipt means that
+functional validation did not complete.
