@@ -1,0 +1,192 @@
+name: Manual staging smoke of verified GHCR images
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime_digest:
+        description: "Full immutable runtime GHCR ref (ghcr.io/...@sha256:...)"
+        required: true
+        type: string
+      migrate_digest:
+        description: "Full immutable Prisma migration GHCR ref (ghcr.io/...@sha256:...)"
+        required: true
+        type: string
+      source_sha:
+        description: "Full SHA of signed release-candidate image source"
+        required: true
+        type: string
+      publish_sha:
+        description: "Full main SHA that signed and published the OCI attestations"
+        required: true
+        type: string
+      confirm_staging:
+        description: "Explicit authorization for disposable runner-only rehearsal"
+        required: true
+        default: NO_STAGING_RUN
+        type: choice
+        options:
+          - NO_STAGING_RUN
+          - RUN_EPHEMERAL_STAGING
+
+# Not triggered by push, pull_request, release or schedules.
+# No write permissions, production environment, secrets or remote deploy.
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-rehearsal-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    name: Signed GHCR images on disposable PostgreSQL and Redis
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEPLOY_RUNTIME_IMAGE: ${{ inputs.runtime_digest }}
+      DEPLOY_MIGRATE_IMAGE: ${{ inputs.migrate_digest }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      PUBLISH_SHA: ${{ inputs.publish_sha }}
+      CONFIRM_STAGING: ${{ inputs.confirm_staging }}
+      STAGING_NETWORK: gym-stage-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_DB: gym-stage-postgres-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_REDIS: gym-stage-redis-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_API: gym-stage-api-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_AVATARS: gym-stage-avatars-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_DATABASE_URL: postgresql://postgres:staging_only_ephemeral@staging-postgres:5432/gym_app_staging_test?schema=public
+      STAGING_REDIS_URL: redis://staging-redis:6379
+
+    steps:
+      - name: Checkout trusted smoke script from main
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Validate manual confirmation and source identities
+        run: node scripts/staging-smoke.mjs identity
+
+      - name: Verify signed OCI provenance and SPDX inventory for both exact digests
+        run: |
+          set -euo pipefail
+          for ref in "$DEPLOY_RUNTIME_IMAGE" "$DEPLOY_MIGRATE_IMAGE"; do
+            for predicate in https://slsa.dev/provenance/v1 https://spdx.dev/Document/v2.3; do
+              gh attestation verify "oci://$ref" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-ghcr.yml" \
+                --source-ref refs/heads/main \
+                --source-digest "$PUBLISH_SHA" \
+                --predicate-type "$predicate" >/dev/null
+            done
+          done
+
+      - name: Authenticate and pull exact published digests without rebuilding
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+          docker pull --platform linux/amd64 "$DEPLOY_RUNTIME_IMAGE" >/dev/null
+          docker pull --platform linux/amd64 "$DEPLOY_MIGRATE_IMAGE" >/dev/null
+          node scripts/staging-smoke.mjs images
+
+      - name: Start disposable isolated PostgreSQL and Redis containers
+        run: |
+          set -euo pipefail
+          docker network create "$STAGING_NETWORK" >/dev/null
+          docker volume create "$STAGING_AVATARS" >/dev/null
+          docker run -d --name "$STAGING_DB" \
+            --network "$STAGING_NETWORK" --network-alias staging-postgres \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=staging_only_ephemeral \
+            -e POSTGRES_DB=gym_app_staging_test \
+            postgres:17-alpine >/dev/null
+          docker run -d --name "$STAGING_REDIS" \
+            --network "$STAGING_NETWORK" --network-alias staging-redis \
+            --cap-drop ALL --security-opt no-new-privileges \
+            redis:7-alpine >/dev/null
+          ready=0
+          for _ in $(seq 1 40); do
+            if docker exec "$STAGING_DB" pg_isready -U postgres -d gym_app_staging_test >/dev/null 2>&1 \
+              && test "$(docker exec "$STAGING_REDIS" redis-cli ping 2>/dev/null)" = PONG; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo "Disposable DB or Redis did not become ready" >&2; exit 1; }
+
+      - name: Apply forward Prisma migrations against disposable staging database
+        run: |
+          set -euo pipefail
+          docker run --rm --network "$STAGING_NETWORK" \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e DATABASE_URL="$STAGING_DATABASE_URL" -e NODE_ENV=production \
+            "$DEPLOY_MIGRATE_IMAGE"
+          echo "Disposable staging database migrations succeeded." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Start signed runtime with production container security restrictions
+        run: |
+          set -euo pipefail
+          ephemeral_jwt="$(openssl rand -hex 48)"
+          echo "::add-mask::$ephemeral_jwt"
+          docker run -d --name "$STAGING_API" --init \
+            --network "$STAGING_NETWORK" -p 127.0.0.1:31848:3000 \
+            --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --memory 1g --memory-swap 1g --cpus 2 --pids-limit 256 \
+            --mount "type=volume,src=$STAGING_AVATARS,dst=/app/uploads/avatars" \
+            -e DATABASE_URL="$STAGING_DATABASE_URL" \
+            -e REDIS_URL="$STAGING_REDIS_URL" \
+            -e NODE_ENV=production -e PORT=3000 \
+            -e JWT_SECRET="$ephemeral_jwt" \
+            -e JWT_ISSUER=https://api.example.test \
+            -e APP_URL=https://app.example.test \
+            -e CORS_ORIGINS=https://app.example.test \
+            -e SMTP_URL=smtps://staging.invalid:465 \
+            -e MAIL_FROM="Gym Staging <no-reply@example.test>" \
+            -e ENABLE_OPENAPI=false \
+            "$DEPLOY_RUNTIME_IMAGE" >/dev/null
+          ready=0
+          for _ in $(seq 1 50); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' "$STAGING_API" 2>/dev/null || true)"
+            if [ "$status" = healthy ]; then ready=1; break; fi
+            test "$(docker inspect --format '{{.State.Running}}' "$STAGING_API" 2>/dev/null || true)" = true || break
+            sleep 2
+          done
+          test "$ready" = 1 || { echo "Disposable staging API did not become healthy" >&2; exit 1; }
+
+      - name: Probe HTTP live and ready, record signed digest evidence
+        run: node scripts/staging-smoke.mjs probe
+
+      - name: Record safe failure receipt
+        if: failure()
+        run: node scripts/staging-smoke.mjs failed
+
+      - name: Archive staging smoke evidence without credentials
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: staging/evidence.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Destroy disposable API, database, Redis, network and avatar volume
+        if: always()
+        run: |
+          set +e
+          docker rm -f "$STAGING_API" "$STAGING_DB" "$STAGING_REDIS" >/dev/null 2>&1
+          docker volume rm -f "$STAGING_AVATARS" >/dev/null 2>&1
+          docker network rm "$STAGING_NETWORK" >/dev/null 2>&1
+          echo "Disposable GitHub-hosted staging resources cleaned up." >> "$GITHUB_STEP_SUMMARY"
