@@ -1,0 +1,294 @@
+name: Manual two-release staging upgrade and runtime rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_runtime_digest:
+        description: "Previous signed API runtime @sha256 digest"
+        required: true
+        type: string
+      previous_migrate_digest:
+        description: "Previous signed migration @sha256 digest"
+        required: true
+        type: string
+      previous_source_sha:
+        description: "Previous release source SHA (40 characters)"
+        required: true
+        type: string
+      previous_publish_sha:
+        description: "Previous publisher signer main SHA"
+        required: true
+        type: string
+      target_runtime_digest:
+        description: "New signed API runtime @sha256 digest"
+        required: true
+        type: string
+      target_migrate_digest:
+        description: "New signed migration @sha256 digest"
+        required: true
+        type: string
+      target_source_sha:
+        description: "New release source SHA (40 characters)"
+        required: true
+        type: string
+      target_publish_sha:
+        description: "New publisher signer main SHA"
+        required: true
+        type: string
+      confirm_upgrade:
+        description: "Explicit authorization for runner-only two-release rehearsal"
+        required: true
+        type: choice
+        default: NO_REHEARSAL
+        options:
+          - NO_REHEARSAL
+          - REHEARSE_SIGNED_UPGRADE_ROLLBACK
+
+# Never started by a push/PR/schedule and never deploys to a remote host.
+# Run ONLY in a disposable GitHub-hosted runner, with synthetic credentials.
+permissions:
+  contents: read
+
+concurrency:
+  group: two-release-staging-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  upgrade-and-rollback:
+    name: Two signed digests with data preservation and runtime-only rollback
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIOUS_RUNTIME_IMAGE: ${{ inputs.previous_runtime_digest }}
+      PREVIOUS_MIGRATE_IMAGE: ${{ inputs.previous_migrate_digest }}
+      PREVIOUS_SOURCE_SHA: ${{ inputs.previous_source_sha }}
+      PREVIOUS_PUBLISH_SHA: ${{ inputs.previous_publish_sha }}
+      TARGET_RUNTIME_IMAGE: ${{ inputs.target_runtime_digest }}
+      TARGET_MIGRATE_IMAGE: ${{ inputs.target_migrate_digest }}
+      TARGET_SOURCE_SHA: ${{ inputs.target_source_sha }}
+      TARGET_PUBLISH_SHA: ${{ inputs.target_publish_sha }}
+      CONFIRM_UPGRADE: ${{ inputs.confirm_upgrade }}
+      STAGING_NETWORK: gym-upgrade-net-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_DB: gym-upgrade-pg-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_REDIS: gym-upgrade-redis-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_API: gym-upgrade-api-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_AVATARS: gym-upgrade-avatars-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_DATABASE_URL: postgresql://postgres:staging_only_ephemeral@staging-postgres:5432/gym_app_staging_test?schema=public
+      STAGING_REDIS_URL: redis://staging-redis:6379
+
+    steps:
+      - name: Checkout trusted test-only staging scripts from main
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Require distinct signed releases and manual operator approval
+        run: node scripts/staging-upgrade-rollback.mjs identity
+
+      - name: Verify previous source is an ancestor of target source
+        run: |
+          set -euo pipefail
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$PREVIOUS_SOURCE_SHA...$TARGET_SOURCE_SHA" --jq '.status')"
+          test "$status" = ahead || {
+            echo "Previous release must be an ancestor of target release on main" >&2
+            exit 1
+          }
+
+      - name: Verify four OCI SLSA and SPDX attestations with individual publisher identities
+        run: |
+          set -euo pipefail
+          for phase in previous target; do
+            if [ "$phase" = previous ]; then
+              publisher="$PREVIOUS_PUBLISH_SHA"
+              runtime="$PREVIOUS_RUNTIME_IMAGE"
+              migrate="$PREVIOUS_MIGRATE_IMAGE"
+            else
+              publisher="$TARGET_PUBLISH_SHA"
+              runtime="$TARGET_RUNTIME_IMAGE"
+              migrate="$TARGET_MIGRATE_IMAGE"
+            fi
+            for ref in "$runtime" "$migrate"; do
+              for predicate in https://slsa.dev/provenance/v1 https://spdx.dev/Document/v2.3; do
+                gh attestation verify "oci://$ref" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-ghcr.yml" \
+                  --source-ref refs/heads/main \
+                  --source-digest "$publisher" \
+                  --predicate-type "$predicate" >/dev/null
+              done
+            done
+          done
+
+      - name: Pull and inspect four immutable signed GHCR digests
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+          for ref in "$PREVIOUS_RUNTIME_IMAGE" "$PREVIOUS_MIGRATE_IMAGE" \
+            "$TARGET_RUNTIME_IMAGE" "$TARGET_MIGRATE_IMAGE"; do
+            docker pull --platform linux/amd64 "$ref" >/dev/null
+          done
+          node scripts/staging-upgrade-rollback.mjs images
+
+      - name: Start disposable isolated PostgreSQL and Redis containers
+        run: |
+          set -euo pipefail
+          docker network create "$STAGING_NETWORK" >/dev/null
+          docker volume create "$STAGING_AVATARS" >/dev/null
+          docker run -d --name "$STAGING_DB" \
+            --network "$STAGING_NETWORK" --network-alias staging-postgres \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=staging_only_ephemeral \
+            -e POSTGRES_DB=gym_app_staging_test \
+            postgres:17-alpine >/dev/null
+          docker run -d --name "$STAGING_REDIS" \
+            --network "$STAGING_NETWORK" --network-alias staging-redis \
+            redis:7-alpine >/dev/null
+          ready=0
+          for _ in $(seq 1 40); do
+            if docker exec "$STAGING_DB" pg_isready -U postgres -d gym_app_staging_test >/dev/null 2>&1 \
+              && test "$(docker exec "$STAGING_REDIS" redis-cli ping 2>/dev/null)" = PONG; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo "Disposable DB or Redis did not become ready" >&2; exit 1; }
+
+      - name: Generate private, per-run synthetic runtime signing key
+        run: |
+          set -euo pipefail
+          secret="$(openssl rand -hex 48)"
+          echo "::add-mask::$secret"
+          (umask 077; printf '%s' "$secret" > "$RUNNER_TEMP/staging-upgrade-jwt")
+
+      - name: Apply previous signed Prisma migrations to empty disposable PostgreSQL
+        run: |
+          set -euo pipefail
+          docker run --rm --pull never --network "$STAGING_NETWORK" \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e DATABASE_URL="$STAGING_DATABASE_URL" -e NODE_ENV=production \
+            "$PREVIOUS_MIGRATE_IMAGE"
+          node scripts/staging-upgrade-rollback.mjs mark previous-migrated
+
+      - name: Start previous signed runtime on isolated loopback port
+        run: bash scripts/staging-upgrade-run.sh start-previous
+
+      - name: Create synthetic account and verify old authentication contract
+        env:
+          DEPLOY_RUNTIME_IMAGE: ${{ inputs.previous_runtime_digest }}
+          DEPLOY_MIGRATE_IMAGE: ${{ inputs.previous_migrate_digest }}
+          SOURCE_SHA: ${{ inputs.previous_source_sha }}
+          PUBLISH_SHA: ${{ inputs.previous_publish_sha }}
+          CONFIRM_STAGING: RUN_EPHEMERAL_STAGING
+        run: |
+          set -euo pipefail
+          node scripts/staging-functional-smoke.mjs exercise
+          node scripts/staging-upgrade-rollback.mjs mark previous-authenticated
+
+      - name: Verify private test-only PostgreSQL backup before forward migration
+        run: |
+          set -euo pipefail
+          (umask 077; docker exec "$STAGING_DB" \
+            pg_dump -U postgres -d gym_app_staging_test --format=custom \
+            > "$RUNNER_TEMP/staging-pre-upgrade.dump")
+          test -s "$RUNNER_TEMP/staging-pre-upgrade.dump"
+          docker exec -i "$STAGING_DB" pg_restore --list \
+            < "$RUNNER_TEMP/staging-pre-upgrade.dump" >/dev/null
+          (cd "$RUNNER_TEMP"; sha256sum staging-pre-upgrade.dump \
+            > staging-pre-upgrade.sha256)
+          (cd "$RUNNER_TEMP"; sha256sum --check --status staging-pre-upgrade.sha256)
+          node scripts/staging-upgrade-rollback.mjs mark backup-verified
+
+      - name: Apply new signed Prisma migrations without stopping previous API
+        run: |
+          set -euo pipefail
+          docker run --rm --pull never --network "$STAGING_NETWORK" \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e DATABASE_URL="$STAGING_DATABASE_URL" -e NODE_ENV=production \
+            "$TARGET_MIGRATE_IMAGE"
+          node scripts/staging-upgrade-rollback.mjs mark target-migrated
+
+      - name: Check previous API still authenticates after target schema migration
+        env:
+          DEPLOY_RUNTIME_IMAGE: ${{ inputs.previous_runtime_digest }}
+          DEPLOY_MIGRATE_IMAGE: ${{ inputs.previous_migrate_digest }}
+          SOURCE_SHA: ${{ inputs.previous_source_sha }}
+          PUBLISH_SHA: ${{ inputs.previous_publish_sha }}
+          CONFIRM_STAGING: RUN_EPHEMERAL_STAGING
+        run: |
+          set -euo pipefail
+          node scripts/staging-upgrade-rollback.mjs probe previous
+          node scripts/staging-functional-smoke.mjs verify-data
+          node scripts/staging-upgrade-rollback.mjs mark previous-compatible-with-target-schema
+
+      - name: Switch to newly signed runtime and verify test account and health
+        env:
+          DEPLOY_RUNTIME_IMAGE: ${{ inputs.target_runtime_digest }}
+          DEPLOY_MIGRATE_IMAGE: ${{ inputs.target_migrate_digest }}
+          SOURCE_SHA: ${{ inputs.target_source_sha }}
+          PUBLISH_SHA: ${{ inputs.target_publish_sha }}
+          CONFIRM_STAGING: RUN_EPHEMERAL_STAGING
+        run: |
+          set -euo pipefail
+          bash scripts/staging-upgrade-run.sh switch-target
+          node scripts/staging-functional-smoke.mjs verify-data
+          node scripts/staging-upgrade-rollback.mjs mark target-authenticated
+
+      # Deliberately NEVER execute previous migrations or database restore here.
+      - name: Roll back runtime only, preserve new schema and verify old API
+        env:
+          DEPLOY_RUNTIME_IMAGE: ${{ inputs.previous_runtime_digest }}
+          DEPLOY_MIGRATE_IMAGE: ${{ inputs.previous_migrate_digest }}
+          SOURCE_SHA: ${{ inputs.previous_source_sha }}
+          PUBLISH_SHA: ${{ inputs.previous_publish_sha }}
+          CONFIRM_STAGING: RUN_EPHEMERAL_STAGING
+        run: |
+          set -euo pipefail
+          bash scripts/staging-upgrade-run.sh rollback-previous
+          node scripts/staging-functional-smoke.mjs verify-data
+          node scripts/staging-upgrade-rollback.mjs mark previous-restored-without-schema-rollback
+
+      - name: Record success only after all seven ordered compatibility gates
+        run: node scripts/staging-upgrade-rollback.mjs finish
+
+      - name: Record safe incomplete-upgrade result
+        if: failure()
+        run: node scripts/staging-upgrade-rollback.mjs failed
+
+      - name: Erase synthetic credentials and private database backup
+        if: always()
+        run: |
+          rm -f staging/functional-state.json staging/upgrade-phase-state.json
+          rm -f "$RUNNER_TEMP/staging-pre-upgrade.dump" \
+            "$RUNNER_TEMP/staging-pre-upgrade.sha256" \
+            "$RUNNER_TEMP/staging-upgrade-jwt"
+
+      - name: Retain credential-free two-release staging evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-two-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: staging/upgrade-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Destroy disposable API, database, Redis, network and avatar volume
+        if: always()
+        run: |
+          set +e
+          docker rm -fv "$STAGING_API" "$STAGING_DB" "$STAGING_REDIS" >/dev/null 2>&1
+          docker volume rm -f "$STAGING_AVATARS" >/dev/null 2>&1
+          docker network rm "$STAGING_NETWORK" >/dev/null 2>&1
+          echo "Disposable GitHub-hosted staging resources cleaned up." >> "$GITHUB_STEP_SUMMARY"
