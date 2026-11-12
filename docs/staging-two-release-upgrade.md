@@ -142,3 +142,35 @@ The previous **unsigned** GHCR publication before PR #156 is unsuitable
 for the preceding-release slot. If a second signed candidate is
 unavailable, this test remains deliberately unrun rather than
 presenting a same-image restart as a real between-version rollback.
+
+
+## 12 November 2026: rollback smoke and Redis rate-limiting
+
+[Run #43281859866](https://github.com/sauron9521/gym-api-nestjs/actions/runs/43281859866)
+successfully completed the first six compatibility gates: signed image
+identity, old migrations, profile creation, test DB backup, new migrations,
+old-runtime compatibility on the new schema, and the new runtime's functional
+checks. The **old runtime itself returned healthy after the final rollback**,
+but `staging-functional-smoke.mjs verify-data` then failed.
+
+The failure was not logged with an HTTP status. The strongest supported
+explanation is the runner's fourth `POST /auth/token` in about 17 seconds:
+this endpoint has an intentional **3/minute Redis rate limit**, and that
+counter persists across image swaps. The script's generic error handler
+prevents absolute confirmation that the final response was HTTP 429.
+
+The harness now issues a credential pair only during first registration,
+retains the **rotated refresh token** in a private runner-only file, and
+rotates that token at each subsequent compatibility checkpoint through
+`POST /auth/token/refresh` (20/minute). This **tests refresh-family
+survival across old → new → old**, without disabling a production security
+control, resetting Redis, sleeping for arbitrary time, or logging tokens.
+The original synthetic password is no longer stored. Failure to refresh
+or receive a new token fails the workflow with a **status-only** diagnostic.
+
+The signed OCI images and their source code have **not changed**. Once
+this harness fix is merged and main CI is green, repeat a *new*
+`workflow_dispatch` on updated `main` with the **same two verified
+GHCR image pairs and signer SHAs**. Do not rerun the old failed workflow
+job on its earlier code. The prior evidence remains failed and must not
+be counted as successful production rollback.

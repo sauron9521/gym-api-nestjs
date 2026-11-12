@@ -52,6 +52,21 @@ export function verifyFunctionalResponse(name, status, body) {
   return true;
 }
 
+// The signed API rate-limits POST /auth/token to 3 per minute. For staging
+// cross-version rehearsals, rotate the existing refresh family (20/min) instead
+// of reissuing four independent credential token pairs in under 60 seconds.
+// Check the new and old refresh-token format across upgrade AND rollback.
+export function verifyRefreshRotation(previous, status, body) {
+  assert.equal(status, 200,
+    'Staging refresh endpoint returned HTTP ' + status);
+  verifyFunctionalResponse('refresh', status, body);
+  assert.ok(typeof previous === 'string' && previous.length > 20,
+    'Missing prior staging refresh token');
+  assert.notEqual(body.refreshToken, previous,
+    'Staging refresh-token rotation failed');
+  return body;
+}
+
 export function verifyPersistedProfile(body, state) {
   verifyFunctionalResponse('profilePreserved', 200, body);
   assert.match(state?.userId ?? '', UUID);
@@ -163,9 +178,7 @@ async function createSyntheticAccount(request) {
   const refresh = await http('POST', '/auth/token/refresh', {
     refreshToken: token.body.refreshToken,
   });
-  verifyFunctionalResponse('refresh', refresh.status, refresh.body);
-  assert.notEqual(refresh.body.refreshToken, token.body.refreshToken,
-    'Refresh token was not rotated');
+  verifyRefreshRotation(token.body.refreshToken, refresh.status, refresh.body);
 
   const rotated = await http('GET', '/users/me',
     undefined, refresh.body.accessToken);
@@ -175,7 +188,11 @@ async function createSyntheticAccount(request) {
   });
 
   // Never put email/password/tokens in the public Actions evidence artifact.
-  const state = { email, password, userId: registered.body.id };
+  // Do not retain the synthetic password after initial login. The rotated
+  // refresh token is only runner-local, never uploaded to Action artifacts.
+  const state = {
+    email, userId: registered.body.id, refreshToken: refresh.body.refreshToken,
+  };
   await mkdir('staging', { recursive: true, mode: 0o700 });
   await writeFile(STATE, JSON.stringify(state), { flag: 'wx', mode: 0o600 });
   return true;
@@ -185,15 +202,22 @@ async function verifySyntheticAccount(request, final) {
   const state = JSON.parse(await readFile(STATE, 'utf8'));
   assert.match(state.email ?? '', EMAIL_RE);
   assert.match(state.userId ?? '', UUID);
-  assert.equal(typeof state.password, 'string');
-  const token = await http('POST', '/auth/token', {
-    email: state.email, password: state.password,
+  assert.ok(!Object.hasOwn(state, 'password'),
+    'Staging state should never persist the synthetic password');
+  assert.ok(typeof state.refreshToken === 'string' &&
+    state.refreshToken.length > 20, 'Missing staging refresh token');
+  const refresh = await http('POST', '/auth/token/refresh', {
+    refreshToken: state.refreshToken,
   });
-  verifyFunctionalResponse('tokenIssued', token.status, token.body);
+  verifyRefreshRotation(state.refreshToken, refresh.status, refresh.body);
   const profile = await http('GET', '/users/me',
-    undefined, token.body.accessToken);
+    undefined, refresh.body.accessToken);
   assert.equal(profile.status, 200);
   verifyPersistedProfile(profile.body, state);
+  // Persist only the spent token's rotated successor. No additional
+  // /auth/token credential issuance is required in the same Redis window.
+  state.refreshToken = refresh.body.refreshToken;
+  await writeFile(STATE, JSON.stringify(state), { mode: 0o600 });
   if (final) {
     const evidence = makeFunctionalEvidence(request, 'passed');
     await writeFile(EVIDENCE, JSON.stringify(evidence, null, 2) + '\n',
