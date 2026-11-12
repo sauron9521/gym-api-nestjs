@@ -1,0 +1,135 @@
+name: Review signed release evidence for production readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      publisher_run_id:
+        description: "Successful verified GHCR publisher workflow run ID"
+        required: true
+        type: string
+      staging_run_id:
+        description: "Successful two-release staging upgrade and rollback run ID"
+        required: true
+        type: string
+      confirm_review:
+        description: "Explicit consent to a read-only release evidence review"
+        required: true
+        type: choice
+        default: NO_REVIEW
+        options:
+          - NO_REVIEW
+          - REVIEW_RELEASE_EVIDENCE
+
+# No production environment, SSH, secrets, schedule, or deploy permissions.
+# A green job only verifies RELEASE evidence and always reports production NO-GO.
+permissions:
+  contents: read
+
+concurrency:
+  group: production-evidence-review-${ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: Verify provenance, source CI, GHCR digests and seven staging gates
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      packages: read
+      attestations: read
+    env:
+      GH_TOKEN: ${ github.token }}
+      PUBLISH_RUN_ID: ${ inputs.publisher_run_id }}
+      STAGING_RUN_ID: ${ inputs.staging_run_id }}
+      CONFIRM_REVIEW: ${ inputs.confirm_review }}
+
+    steps:
+      - name: Checkout trusted readiness validator on main
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Verify read-only review was explicitly requested
+        run: node scripts/production-readiness.mjs identity
+
+      - name: Fetch real publisher and staging workflow metadata
+        run: |
+          set -euo pipefail
+          mkdir -p readiness/input
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID" \
+            > readiness/input/publisher.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN_ID" \
+            > readiness/input/staging.json
+
+      - name: Download the published OCI manifest digest receipt
+        run: |
+          set -euo pipefail
+          mapfile -t names < <(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired == false and (.name | startswith("ghcr-digests-"))) | .name')
+          test "${#names[@]}" -eq 1 || {
+            echo "Expected precisely one current GHCR digest receipt" >&2
+            exit 1
+          }
+          gh run download "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "${names[0]}" --dir readiness/input
+          test -s readiness/input/ghcr-digests.json
+
+      - name: Download staging evidence for the precise successful attempt
+        run: |
+          set -euo pipefail
+          attempt="$(node -p 'JSON.parse(require("node:fs").readFileSync("readiness/input/staging.json")).run_attempt')"
+          [[ "$attempt" =~ ^[1-9][0-9]{0,5}$ ]] || exit 1
+          gh run download "$STAGING_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "staging-two-release-$STAGING_RUN_ID-$attempt" \
+            --dir readiness/input
+          test -s readiness/input/upgrade-evidence.json
+
+      - name: Read target source CI results from the exact staging receipt SHA
+        run: |
+          set -euo pipefail
+          source_sha="$(node -p 'JSON.parse(require("node:fs").readFileSync("readiness/input/upgrade-evidence.json")).target.sourceSha')"
+          [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          gh api "repos/$GITHUB_REPOSITORY/commits/$source_sha/check-runs?per_page=100" \
+            > readiness/input/checks.json
+
+      - name: Cryptographically verify target runtime and migrations OCI provenance and SPDX
+        run: |
+          set -euo pipefail
+          runtime="$(node -p 'JSON.parse(require("node:fs").readFileSync("readiness/input/ghcr-digests.json")).runtime')"
+          migrate="$(node -p 'JSON.parse(require("node:fs").readFileSync("readiness/input/ghcr-digests.json")).migrate')"
+          publisher_sha="$(node -p 'JSON.parse(require("node:fs").readFileSync("readiness/input/publisher.json")).head_sha')"
+          [[ "$runtime" =~ ^ghcr\.io/sauron9521/gym-api-nestjs@sha256:[a-f0-9]{64}$ ]] || exit 1
+          [[ "$migrate" =~ ^ghcr\.io/sauron9521/gym-api-nestjs-migrate@sha256:[a-f0-9]{64}$ ]] || exit 1
+          [[ "$publisher_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          for ref in "$runtime" "$migrate"; do
+            for predicate in https://slsa.dev/provenance/v1 https://spdx.dev/Document/v2.3; do
+              gh attestation verify "oci://$ref" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-ghcr.yml" \
+                --source-ref refs/heads/main \
+                --source-digest "$publisher_sha" \
+                --predicate-type "$predicate" >/dev/null
+            done
+          done
+
+      - name: Validate all evidence and report production NO-GO without host approval
+        run: node scripts/production-readiness.mjs assess
+
+      - name: Upload limited release-evidence report, never secrets or host data
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-readiness-${ github.run_id }}-${ github.run_attempt }}
+          path: readiness/output/release-evidence.json
+          if-no-files-found: error
+          retention-days: 30
