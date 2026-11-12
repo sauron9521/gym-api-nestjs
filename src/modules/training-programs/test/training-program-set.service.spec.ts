@@ -139,11 +139,11 @@ describe('TrainingProgramSetService', () => {
   });
 
   it.each([
-    [] as string[],
-    ['set-1'],
-    ['set-1', 'set-1'],
-    ['set-1', 'foreign'],
-  ])('rejects incomplete, duplicate or foreign set order %j', async (setIds) => {
+    { setIds: [] as string[] },
+    { setIds: ['set-1'] },
+    { setIds: ['set-1', 'set-1'] },
+    { setIds: ['set-1', 'foreign'] },
+  ])('rejects incomplete, duplicate or foreign set order %j', async ({ setIds }) => {
     await expect(service.reorderSets(actor, ...ids, { setIds }))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(repository.reorderProgramSets).not.toHaveBeenCalled();

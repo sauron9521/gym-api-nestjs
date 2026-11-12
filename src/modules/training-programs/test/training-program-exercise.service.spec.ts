@@ -133,11 +133,11 @@ describe('TrainingProgramExerciseService', () => {
   });
 
   it.each([
-    [] as string[],
-    ['program-exercise-1'],
-    ['program-exercise-1', 'program-exercise-1'],
-    ['program-exercise-1', 'foreign'],
-  ])('rejects an incomplete, duplicate or foreign reorder %j', async (exerciseIds) => {
+    { exerciseIds: [] as string[] },
+    { exerciseIds: ['program-exercise-1'] },
+    { exerciseIds: ['program-exercise-1', 'program-exercise-1'] },
+    { exerciseIds: ['program-exercise-1', 'foreign'] },
+  ])('rejects an incomplete, duplicate or foreign reorder %j', async ({ exerciseIds }) => {
     await expect(service.reorderExercises(actor, ...ids, { exerciseIds }))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(repository.reorderProgramExercises).not.toHaveBeenCalled();
