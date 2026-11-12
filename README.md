@@ -75,6 +75,7 @@ container, a separate migration image and optional managed Redis.
 - [Blocking CI gate and branch protection](docs/ci-required-gates.md)
 - [Signed, immutable release candidate artifacts (manual)](docs/release-artifacts.md)
 - [GHCR publication of verified release candidates (manual)](docs/ghcr-promotion.md)
+- [GHCR image SBOMs, vulnerability gates, OCI provenance and retention](docs/ghcr-supply-chain.md)
 
 `GET /health/live` only checks API process health.
 `GET /health/ready` checks PostgreSQL and, if `REDIS_URL` is configured,

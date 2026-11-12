@@ -76,3 +76,14 @@ to GHCR or pushes images. The promotion run itself rechecks that the
 source commit passed `CI / required gates` and that the signed release
 candidate's separate verification job completed successfully.
 See [GHCR promotion](ghcr-promotion.md).
+
+
+## Manual GHCR vulnerability scan and OCI attestations (PR #156)
+
+The operator-authorized registry workflow uses Syft SPDX inventories,
+blocking Grype **critical** vulnerability scans before publication,
+and signing/verification of exact registry digests and their SBOMs.
+PR CI runs **offline tests only** for schemas, source-digest identity,
+workflow gates and a read-only 90-day retention candidate planner.
+No PR job has GHCR publish/sign/delete privileges. See
+[ghcr-supply-chain.md](ghcr-supply-chain.md).
