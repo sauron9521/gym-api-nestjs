@@ -122,3 +122,18 @@ No production tokens, registry credentials or deployment secrets are
 used. No remote image push, GitHub release publication or production
 migration is performed. This workflow is intentionally manual to
 separate code review from release authorization.
+
+
+## Explicit GHCR promotion (PR #155)
+
+The separate manual workflow `.github/workflows/publish-ghcr.yml` can
+promote a completed and signed release archive to GHCR **without
+rebuilding** either Docker image. It verifies the successful source run,
+SHA-256 checksums, both GitHub attestations, non-root image IDs, and
+existing remote tags before publishing. After upload it re-pulls both
+images and reports **registry digest references** to use for deployment.
+See [verified GHCR promotion](ghcr-promotion.md).
+
+Do not promote until the release candidate workflow has finished with
+both jobs green. **Pull by @sha256 digest**, not by a mutable GHCR tag.
+No production deployment is performed by either workflow.

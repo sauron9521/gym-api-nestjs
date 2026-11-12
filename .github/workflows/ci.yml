@@ -218,7 +218,9 @@ jobs:
       # Release workflow itself is manual and runs only from protected main.
       # CI verifies manifest integrity checks without signing/uploading files.
       - name: Validate release bundle and manual provenance workflow
-        run: node --test scripts/release-bundle.test.mjs
+        run: |
+          node --test scripts/release-bundle.test.mjs
+          node --test scripts/ghcr-promotion.test.mjs
 
       - name: Validate application test environment
         run: npm run config:validate
