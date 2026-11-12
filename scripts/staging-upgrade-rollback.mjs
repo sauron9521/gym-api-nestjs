@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { verifyPulledImage } from './staging-smoke.mjs';
+import { verifyPulledImage, verifyHealthResponse } from './staging-smoke.mjs';
 
 const RUNTIME = /^ghcr\.io\/sauron9521\/gym-api-nestjs@sha256:[a-f0-9]{64}$/;
 const MIGRATE = /^ghcr\.io\/sauron9521\/gym-api-nestjs-migrate@sha256:[a-f0-9]{64}$/;
@@ -162,6 +162,30 @@ async function main() {
       assert.notEqual(IDs[0], IDs[2], 'Identical runtime image config IDs');
       assert.notEqual(IDs[1], IDs[3], 'Identical migration image config IDs');
       process.stdout.write('Four exact OCI digests and source labels verified\n');
+    } else if (mode === 'probe') {
+      assert.ok(['previous', 'target'].includes(phase),
+        'Invalid staging image phase');
+      const ref = request[phase].runtime;
+      const inspectRaw = execFileSync('docker', [
+        'inspect', '--format', '{{json .}}', process.env.STAGING_API,
+      ], { encoding: 'utf8', timeout: 20_000,
+        stdio: ['ignore', 'pipe', 'ignore'] });
+      const container = JSON.parse(inspectRaw);
+      assert.equal(container?.Config?.Image, ref,
+        'Active container is not the signed expected digest');
+      assert.equal(container?.State?.Running, true,
+        'API container is not running');
+      assert.equal(container?.State?.Health?.Status, 'healthy',
+        'Docker healthcheck not ready');
+      for (const endpoint of ['live', 'ready']) {
+        const response = await fetch(
+          'http://127.0.0.1:31848/health/' + endpoint, {
+            signal: AbortSignal.timeout(5_000), redirect: 'error',
+          });
+        const body = await response.json();
+        verifyHealthResponse(endpoint, response.status, body);
+      }
+      process.stdout.write('Exact runtime digest and both HTTP health probes passed\n');
     } else if (mode === 'mark') {
       const current = await readProgress(request, true);
       const next = advanceProgress(current, phase, request);
