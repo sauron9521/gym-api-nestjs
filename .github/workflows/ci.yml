@@ -246,6 +246,11 @@ jobs:
       - name: Seed test database
         run: npm run db:seed
 
+      - name: Test query benchmark safety and SQL plans
+        run: |
+          npm run perf:queries:test
+          npm run perf:queries -- --rows=100
+
       - name: Unit tests
         run: |
           node --test scripts/coverage-report.test.mjs
