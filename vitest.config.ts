@@ -27,14 +27,33 @@ export default defineConfig({
     exclude: ['**/*.e2e-spec.ts'],
     coverage: {
       exclude: ['**/generated/**', '**/index.ts'],
-      // Baseline on main before PR #36:
-      // statements 68.49%, branches 59.55%, functions 65.32%, lines 68.98%.
-      // Enforce an initial regression floor; raise it as coverage improves.
+      reporter: ['text', 'html', 'clover', 'json', 'json-summary'],
+      // Measured from successful main CI run 43107255423 (2026-11-11):
+      // statements 79.11%, branches 69.96%, functions 77.05%, lines 79.53%.
+      // Critical-module floors are calculated from the same coverage report.
       thresholds: {
-        statements: 65,
-        branches: 55,
-        functions: 60,
-        lines: 65,
+        statements: 77,
+        branches: 68,
+        functions: 75,
+        lines: 77,
+        'src/modules/auth/**/*.ts': {
+          statements: 73,
+          branches: 61,
+          functions: 61,
+          lines: 73,
+        },
+        'src/modules/workouts/**/*.ts': {
+          statements: 77,
+          branches: 66,
+          functions: 80,
+          lines: 78,
+        },
+        'src/modules/training-programs/**/*.ts': {
+          statements: 61,
+          branches: 50,
+          functions: 60,
+          lines: 62,
+        },
       },
     },
   },
