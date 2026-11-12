@@ -95,6 +95,25 @@ This preflight may pull images to the operator's Docker cache; it does
 **not** create or replace containers, run migrations, push images or
 modify the database.
 
+## Mandatory private production approval for apply
+
+The release review and operator gate introduced in PR #165 are
+documented in [production-readiness-approval.md](production-readiness-approval.md).
+The existing `preflight` remains read-only; however, an `apply`
+now additionally requires both absolute, private evidence file paths:
+
+- `PRODUCTION_RELEASE_REPORT`: a recent verified GitHub release
+  evidence report from the read-only manual review workflow.
+- `PRODUCTION_OPERATOR_APPROVAL_FILE`: the actual host/operator change
+  approval with independently reviewed backup/restore, TLS, monitoring,
+  migration compatibility, on-call and change-window evidence IDs.
+
+A missing, stale or inconsistent document blocks `apply` before any
+Prisma migration or API replacement. A JSON claim is **not proof of
+a real restore or TLS check**; the accountable humans must verify
+the underlying private records. Do not copy operational approvals
+to GitHub Actions or into this repository.
+
 ## 4. Explicitly authorized deployment
 
 Only after reviewing the preflight, backup and migration compatibility

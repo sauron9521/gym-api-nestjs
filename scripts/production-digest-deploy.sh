@@ -56,6 +56,13 @@ if [[ "$mode" != preflight ]]; then
     (cd "$BACKUP_DIR"; sha256sum --check --status SHA256SUMS)
     pg_restore --list "$BACKUP_DIR/postgres.dump" >/dev/null
     tar -tzf "$BACKUP_DIR/avatars.tar.gz" >/dev/null
+    # Release provenance alone never authorizes deploying to a real host.
+    # Require a private, current operator change approval bound to the exact
+    # digest pair, current image, verified backup and maintenance window.
+    # The actual backup archives are independently checked above.
+    : "${PRODUCTION_RELEASE_REPORT:?Read-only verified release evidence file required}"
+    : "${PRODUCTION_OPERATOR_APPROVAL_FILE:?Private host and operator approval required}"
+    node scripts/production-readiness.mjs operator-gate
   else
     [[ "$CONFIRM_DEPLOY" = ROLLBACK_RUNTIME_ONLY ]] || { echo "Invalid rollback approval" >&2; exit 1; }
     [[ "${RUN_DB_MIGRATIONS:-no}" = no ]] || { echo "Rollback must never run migrations" >&2; exit 1; }
