@@ -205,6 +205,10 @@ jobs:
         if: failure()
         run: node scripts/staging-smoke.mjs failed
 
+      - name: Record incomplete functional rehearsal without credentials
+        if: failure()
+        run: node scripts/staging-functional-smoke.mjs failed
+
       - name: Remove private synthetic account credentials
         if: always()
         run: rm -f staging/functional-state.json

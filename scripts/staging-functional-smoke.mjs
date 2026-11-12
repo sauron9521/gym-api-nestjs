@@ -92,6 +92,25 @@ export function makeFunctionalEvidence(request, stage) {
   };
 }
 
+export function makeFunctionalFailureEvidence(env) {
+  const id = validateStagingRequest(env);
+  return {
+    schemaVersion: 1,
+    kind: 'isolated-functional-migration-recovery',
+    status: 'failed',
+    runId: id.runId,
+    sourceSha: id.sourceSha,
+    publisherSha: id.publisherSha,
+    runtime: id.runtime,
+    migrate: id.migrate,
+    checks: { functionalStatus: 'not-completed' },
+    rollbackAcrossDifferentVersions: 'not-tested',
+    productionContacted: false,
+    productionSchemaDowngraded: false,
+    persistentStagingDeployment: false,
+  };
+}
+
 async function http(method, path, body, bearer) {
   assert.match(path, /^\/(?:auth|users)\/[a-z0-9/-]+$/, 'Unexpected API path');
   const headers = { accept: 'application/json' };
@@ -199,6 +218,18 @@ async function main() {
     } else if (mode === 'verify-data' || mode === 'verify-restarted') {
       await verifySyntheticAccount(process.env, mode === 'verify-restarted');
       process.stdout.write('Synthetic account and decimal profile preserved\n');
+    } else if (mode === 'failed') {
+      // Do not replace a success receipt; if a later job step fails,
+      // the job conclusion still takes precedence over this evidence.
+      try {
+        await readFile(EVIDENCE, 'utf8');
+      } catch {
+        await mkdir('staging', { recursive: true, mode: 0o700 });
+        await writeFile(EVIDENCE,
+          JSON.stringify(makeFunctionalFailureEvidence(process.env), null, 2) + '\n',
+          { flag: 'wx', mode: 0o600 });
+      }
+      process.stdout.write('Safe incomplete-functional-rehearsal receipt recorded\n');
     } else {
       throw new Error('Unknown functional staging mode');
     }

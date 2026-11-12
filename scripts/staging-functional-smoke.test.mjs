@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
   verifyFunctionalResponse, verifyPersistedProfile, makeFunctionalEvidence,
+  makeFunctionalFailureEvidence,
 } from './staging-functional-smoke.mjs';
 
 const runtime = 'ghcr.io/sauron9521/gym-api-nestjs@sha256:' + 'a'.repeat(64);
@@ -81,6 +82,11 @@ test('functional evidence contains only safe assertions and admits no real rollb
   assert.equal(evidence.productionContacted, false);
   assert.ok(!JSON.stringify(evidence).includes(email));
   assert.ok(!JSON.stringify(evidence).includes('password'));
+  const failed = makeFunctionalFailureEvidence(baseEnv);
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.checks.functionalStatus, 'not-completed');
+  assert.equal(failed.rollbackAcrossDifferentVersions, 'not-tested');
+  assert.ok(!JSON.stringify(failed).includes(email));
   assert.throws(() => makeFunctionalEvidence(baseEnv, 'failed'));
   assert.throws(() => makeFunctionalEvidence({ ...baseEnv,
     CONFIRM_STAGING: 'NO_STAGING_RUN' }, 'passed'));
@@ -107,6 +113,7 @@ test('manual workflow executes functional checks between first ready and evidenc
     restart < final && final < artifact && artifact < cleanup);
   assert.match(workflow, /-e SMTP_URL=smtps:\/\/127\.0\.0\.1:4465/);
   assert.match(workflow, /staging\/functional-evidence\.json/);
+  assert.match(workflow, /node scripts\/staging-functional-smoke\.mjs failed/);
   assert.match(workflow, /rm -f staging\/functional-state\.json/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(ci, /node --test scripts\/staging-functional-smoke\.test\.mjs/);
