@@ -103,3 +103,7 @@ uploads/
 
 # Local ephemeral staging evidence; never commit a private run receipt.
 /staging/evidence.json
+
+# Private synthetic staging credentials must never enter Git/artifacts.
+/staging/functional-state.json
+/staging/functional-evidence.json

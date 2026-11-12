@@ -197,7 +197,7 @@ async function main() {
       await createSyntheticAccount(id);
       process.stdout.write('Synthetic functional API contracts passed\n');
     } else if (mode === 'verify-data' || mode === 'verify-restarted') {
-      await verifySyntheticAccount(id, mode === 'verify-restarted');
+      await verifySyntheticAccount(process.env, mode === 'verify-restarted');
       process.stdout.write('Synthetic account and decimal profile preserved\n');
     } else {
       throw new Error('Unknown functional staging mode');

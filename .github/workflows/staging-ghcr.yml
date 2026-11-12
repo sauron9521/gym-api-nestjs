@@ -151,7 +151,7 @@ jobs:
             -e JWT_ISSUER=https://api.example.test \
             -e APP_URL=https://app.example.test \
             -e CORS_ORIGINS=https://app.example.test \
-            -e SMTP_URL=smtps://staging.invalid:465 \
+            -e SMTP_URL=smtps://127.0.0.1:4465 \
             -e MAIL_FROM="Gym Staging <no-reply@example.test>" \
             -e ENABLE_OPENAPI=false \
             "$DEPLOY_RUNTIME_IMAGE" >/dev/null
@@ -167,16 +167,56 @@ jobs:
       - name: Probe HTTP live and ready, record signed digest evidence
         run: node scripts/staging-smoke.mjs probe
 
+      - name: Exercise registration, credentials, JWT, refresh, and profile over HTTP
+        run: node scripts/staging-functional-smoke.mjs exercise
+
+      # Rerun the exact signed migration image on already populated data.
+      # Proves forward migration idempotence, NOT version-to-version compatibility.
+      - name: Replay signed Prisma migrations on populated disposable database
+        run: |
+          set -euo pipefail
+          docker run --rm --network "$STAGING_NETWORK" \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e DATABASE_URL="$STAGING_DATABASE_URL" -e NODE_ENV=production \
+            "$DEPLOY_MIGRATE_IMAGE"
+          node scripts/staging-functional-smoke.mjs verify-data
+
+      # Same-digest recovery drill, deliberately NOT a two-version rollback.
+      - name: Gracefully restart same signed runtime and recheck persisted data
+        run: |
+          set -euo pipefail
+          test "$(docker inspect --format '{{.Config.Image}}' "$STAGING_API")" = "$DEPLOY_RUNTIME_IMAGE"
+          docker stop --time 25 "$STAGING_API" >/dev/null
+          test "$(docker inspect --format '{{.State.Running}}' "$STAGING_API")" = false
+          docker start "$STAGING_API" >/dev/null
+          healthy=0
+          for attempt in $(seq 1 50); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' "$STAGING_API" 2>/dev/null || true)"
+            if [ "$status" = healthy ]; then healthy=1; break; fi
+            test "$(docker inspect --format '{{.State.Running}}' "$STAGING_API" 2>/dev/null || true)" = true || break
+            sleep 2
+          done
+          test "$healthy" = 1 || { echo "Signed runtime failed to recover" >&2; exit 1; }
+          test "$(docker inspect --format '{{.Config.Image}}' "$STAGING_API")" = "$DEPLOY_RUNTIME_IMAGE"
+          node scripts/staging-functional-smoke.mjs verify-restarted
+          node scripts/staging-smoke.mjs images
+
       - name: Record safe failure receipt
         if: failure()
         run: node scripts/staging-smoke.mjs failed
+
+      - name: Remove private synthetic account credentials
+        if: always()
+        run: rm -f staging/functional-state.json
 
       - name: Archive staging smoke evidence without credentials
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: staging-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
-          path: staging/evidence.json
+          path: |
+            staging/evidence.json
+            staging/functional-evidence.json
           if-no-files-found: warn
           retention-days: 30
 

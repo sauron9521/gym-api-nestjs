@@ -223,6 +223,7 @@ jobs:
           node --test scripts/ghcr-promotion.test.mjs
           node --test scripts/release-supply-chain.test.mjs
           node --test scripts/staging-smoke.test.mjs
+          node --test scripts/staging-functional-smoke.test.mjs
           node --test scripts/ghcr-retention-plan.test.mjs
           node --test scripts/production-digest-guard.test.mjs
           node --test scripts/docker-base-policy.test.mjs
