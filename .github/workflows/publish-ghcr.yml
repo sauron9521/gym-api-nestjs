@@ -39,7 +39,9 @@ jobs:
       contents: read
       actions: read
       checks: read
-      attestations: read
+      attestations: write
+      id-token: write
+      artifact-metadata: write
       packages: write
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
@@ -119,6 +121,70 @@ jobs:
             --manifest release/manifest.json --commit "$SOURCE_SHA" \
             --repository "$GITHUB_REPOSITORY" --run-id "$RELEASE_RUN_ID"
 
+      # Generate inventories from the exact signed image archive, never source
+      # directory or a mutable remote tag. The existing image-ID check is above.
+      - name: Generate runtime SPDX SBOM from archived image
+        uses: anchore/sbom-action@v0
+        with:
+          image: gym-api:runtime-${{ inputs.source_sha }}
+          format: spdx-json
+          output-file: release/runtime.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate migration SPDX SBOM from archived image
+        uses: anchore/sbom-action@v0
+        with:
+          image: gym-api:migrate-${{ inputs.source_sha }}
+          format: spdx-json
+          output-file: release/migrate.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      # A critical finding blocks image publication. Scanner or DB failures
+      # are also fatal, rather than silently marked as zero vulnerabilities.
+      - name: Scan runtime SBOM for critical vulnerabilities
+        uses: anchore/scan-action@v7
+        with:
+          sbom: release/runtime.spdx.json
+          fail-build: true
+          severity-cutoff: critical
+          output-format: json
+          output-file: release/runtime.grype.json
+
+      - name: Scan migration SBOM for critical vulnerabilities
+        uses: anchore/scan-action@v7
+        with:
+          sbom: release/migrate.spdx.json
+          fail-build: true
+          severity-cutoff: critical
+          output-format: json
+          output-file: release/migrate.grype.json
+
+      - name: Validate both security reports and summarize inventory
+        run: |
+          set -euo pipefail
+          node scripts/release-supply-chain.mjs validate \
+            release/runtime.spdx.json release/migrate.spdx.json \
+            release/runtime.grype.json release/migrate.grype.json \
+            | tee release/security-summary.json
+
+      # Keep scanner evidence even when the critical-vulnerability gate fails.
+      # Do not upload the large image archive, credentials or registry tokens.
+      - name: Upload pre-publish SBOM and vulnerability evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ghcr-security-${{ inputs.source_sha }}-${{ inputs.release_run_id }}
+          path: |
+            release/runtime.spdx.json
+            release/migrate.spdx.json
+            release/runtime.grype.json
+            release/migrate.grype.json
+            release/security-summary.json
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Authenticate and refuse previously published tags
         env:
           GH_TOKEN: ${{ github.token }}
@@ -131,6 +197,7 @@ jobs:
             --release-run-id "$RELEASE_RUN_ID"
 
       - name: Publish both verified images without rebuilding
+        id: published
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -159,6 +226,7 @@ jobs:
             --manifest release/manifest.json \
             > "$RUNNER_TEMP/ghcr-digests.json"
           cp "$RUNNER_TEMP/ghcr-digests.json" release/ghcr-digests.json
+          node scripts/release-supply-chain.mjs digest-outputs             release/ghcr-digests.json "$GITHUB_REPOSITORY" "$GITHUB_OUTPUT"
           node -e '
             const fs = require("node:fs");
             const refs = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
@@ -172,6 +240,60 @@ jobs:
             ];
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
           ' "$RUNNER_TEMP/ghcr-digests.json"
+
+      # The two SLSA attestations identify this *publishing* workflow as
+      # signer, not the original image builder (whose signed archive was
+      # independently verified above). Bind them to exact registry manifests.
+      - name: Sign runtime OCI digest publication provenance
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.published.outputs.runtime_name }}
+          subject-digest: ${{ steps.published.outputs.runtime_digest }}
+          push-to-registry: true
+
+      - name: Sign migration OCI digest publication provenance
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.published.outputs.migrate_name }}
+          subject-digest: ${{ steps.published.outputs.migrate_digest }}
+          push-to-registry: true
+
+      - name: Sign runtime OCI SPDX SBOM attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.published.outputs.runtime_name }}
+          subject-digest: ${{ steps.published.outputs.runtime_digest }}
+          sbom-path: release/runtime.spdx.json
+          push-to-registry: true
+
+      - name: Sign migration OCI SPDX SBOM attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.published.outputs.migrate_name }}
+          subject-digest: ${{ steps.published.outputs.migrate_digest }}
+          sbom-path: release/migrate.spdx.json
+          push-to-registry: true
+
+      # Each exact OCI digest must have both signed SLSA (publish provenance)
+      # and signed SPDX attestations from this trusted, manually run workflow.
+      - name: Verify signed OCI provenance and both SBOM attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNTIME_REF: ${{ steps.published.outputs.runtime_name }}@${{ steps.published.outputs.runtime_digest }}
+          MIGRATE_REF: ${{ steps.published.outputs.migrate_name }}@${{ steps.published.outputs.migrate_digest }}
+        run: |
+          set -euo pipefail
+          for ref in "$RUNTIME_REF" "$MIGRATE_REF"; do
+            for predicate in https://slsa.dev/provenance/v1 https://spdx.dev/Document/v2.3; do
+              gh attestation verify "oci://$ref" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-ghcr.yml" \
+                --source-ref refs/heads/main \
+                --source-digest "$GITHUB_SHA" \
+                --predicate-type "$predicate"
+            done
+          done
+          echo "Signed promotion provenance and SPDX SBOMs verified for both OCI digests." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Preserve digest-only publication receipt
         uses: actions/upload-artifact@v7
