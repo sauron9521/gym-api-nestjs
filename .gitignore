@@ -100,3 +100,6 @@ uploads/
 *.slo-policy-signature
 *.slo-key-root.pem
 *.slo-key-policy-pin.json
+
+# Local ephemeral staging evidence; never commit a private run receipt.
+/staging/evidence.json
