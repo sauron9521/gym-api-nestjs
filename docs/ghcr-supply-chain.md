@@ -151,3 +151,31 @@ automation requires separate explicit approval and dedicated tests.
 - [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
 - [Syft](https://github.com/anchore/syft) and [Grype](https://github.com/anchore/grype)
 - [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+
+
+## Security remediation: Debian 12 to Debian 13 (CVE-2026-5450)
+
+On 2026-11-12, the first publication under the new Grype policy
+stopped **before the registry push** because the signed runtime image
+based on `node:22-bookworm-slim` contained two critical findings
+for `CVE-2026-5450`: `libc6` and `libc-bin`, both at
+`2.36-9+deb12u14`.
+
+The [Debian Security Tracker](https://security-tracker.debian.org/tracker/CVE-2026-5450)
+still reports Debian 12 Bookworm as vulnerable, while Debian 13
+Trixie has fixed glibc starting at `2.41-12+deb13u4`.
+Accordingly, we switched the **common Node 22 builder and runtime**
+to `node:22-trixie-slim`. The release workflow continues to resolve
+an immutable base digest at build time, and both images use that base.
+CI checks the effective distro and installed `libc6` package version
+on **both** images. It also scans both actual CI images with Grype,
+blocking on critical findings before PR merge. The GHCR promotion scan
+remains the final gate, as the vulnerability database and base-image
+digest can change between CI and manual publication.
+
+**Do not retry the blocked release archive:** it preserves the
+unpatched Bookworm packages. After this PR merges and main CI is green,
+create a **new** signed Release Candidate, then run manual publication
+with its **new run ID and source SHA**. Preserve the earlier failure
+report and audit trail. No severity downgrade, CVE suppression or
+automatic registry overwrite has been introduced.
