@@ -215,6 +215,11 @@ jobs:
           systemd-analyze verify ops/backup/gym-api-backup.service ops/backup/gym-api-backup.timer
           systemd-analyze calendar '*-*-* 03:30:00'
 
+      # Release workflow itself is manual and runs only from protected main.
+      # CI verifies manifest integrity checks without signing/uploading files.
+      - name: Validate release bundle and manual provenance workflow
+        run: node --test scripts/release-bundle.test.mjs
+
       - name: Validate application test environment
         run: npm run config:validate
 

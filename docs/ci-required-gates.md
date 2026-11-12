@@ -51,3 +51,16 @@ historical workflow result.
 4. Confirm the job summary prints all three results, including on failure.
 5. On merge, verify a fresh push-to-main run; do not declare green based
    solely on the previous PR workflow.
+
+
+## Signed release candidates (PR #154)
+
+`.github/workflows/release-artifacts.yml` is a **separate manual**
+`workflow_dispatch` workflow, not a required pull-request check or
+a production deploy. It refuses non-`main` refs and requires that
+the exact source SHA already has a successful `CI / required gates`
+check on `main` before building/attesting images. PR CI verifies the
+release manifest/safety logic offline; actual signing and the
+cross-job archive reload are exercised only when an operator starts a
+release-candidate run from the checked `main` commit. See
+[release-artifacts.md](release-artifacts.md).

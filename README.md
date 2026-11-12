@@ -73,6 +73,7 @@ container, a separate migration image and optional managed Redis.
 - [Health, request IDs and safe logs](docs/observability-health.md)
 - [Rate limiting, Redis and proxy trust](docs/rate-limiting-and-proxies.md)
 - [Blocking CI gate and branch protection](docs/ci-required-gates.md)
+- [Signed, immutable release candidate artifacts (manual)](docs/release-artifacts.md)
 
 `GET /health/live` only checks API process health.
 `GET /health/ready` checks PostgreSQL and, if `REDIS_URL` is configured,
