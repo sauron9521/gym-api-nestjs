@@ -336,7 +336,7 @@ jobs:
 
       - name: Unit tests
         run: |
-          node --test scripts/coverage-report.test.mjs
+          node --test scripts/coverage-report.test.mjs scripts/coverage-inventory.test.mjs
           npm test
 
       - name: Health and request correlation smoke tests
@@ -355,6 +355,17 @@ jobs:
             node scripts/coverage-report.mjs
           else
             echo 'Coverage report unavailable; inspect preceding job steps.' >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      # Report source files not instrumented by the unit suite. This is
+      # inventory-only: do not relax existing coverage thresholds.
+      - name: Inventory production source missing from unit coverage
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node scripts/coverage-inventory.mjs
+          else
+            echo 'Coverage inventory unavailable; no coverage summary was produced.' >> "${GITHUB_STEP_SUMMARY}"
           fi
 
       - name: Upload coverage report
