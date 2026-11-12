@@ -247,7 +247,9 @@ jobs:
         run: npm run db:seed
 
       - name: Unit tests
-        run: npm test
+        run: |
+          node --test scripts/coverage-report.test.mjs
+          npm test
 
       - name: Health and request correlation smoke tests
         run: npm run test:e2e -- test/health.e2e-spec.ts
@@ -257,6 +259,15 @@ jobs:
 
       - name: Test coverage
         run: npm run test:cov
+
+      - name: Summarize coverage by critical module
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node scripts/coverage-report.mjs
+          else
+            echo 'Coverage report unavailable; inspect preceding job steps.' >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
       - name: Upload coverage report
         if: always()
