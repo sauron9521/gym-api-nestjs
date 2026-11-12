@@ -106,14 +106,12 @@ jobs:
           docker volume create "$STAGING_AVATARS" >/dev/null
           docker run -d --name "$STAGING_DB" \
             --network "$STAGING_NETWORK" --network-alias staging-postgres \
-            --cap-drop ALL --security-opt no-new-privileges \
             -e POSTGRES_USER=postgres \
             -e POSTGRES_PASSWORD=staging_only_ephemeral \
             -e POSTGRES_DB=gym_app_staging_test \
             postgres:17-alpine >/dev/null
           docker run -d --name "$STAGING_REDIS" \
             --network "$STAGING_NETWORK" --network-alias staging-redis \
-            --cap-drop ALL --security-opt no-new-privileges \
             redis:7-alpine >/dev/null
           ready=0
           for _ in $(seq 1 40); do
@@ -186,7 +184,7 @@ jobs:
         if: always()
         run: |
           set +e
-          docker rm -f "$STAGING_API" "$STAGING_DB" "$STAGING_REDIS" >/dev/null 2>&1
+          docker rm -fv "$STAGING_API" "$STAGING_DB" "$STAGING_REDIS" >/dev/null 2>&1
           docker volume rm -f "$STAGING_AVATARS" >/dev/null 2>&1
           docker network rm "$STAGING_NETWORK" >/dev/null 2>&1
           echo "Disposable GitHub-hosted staging resources cleaned up." >> "$GITHUB_STEP_SUMMARY"
