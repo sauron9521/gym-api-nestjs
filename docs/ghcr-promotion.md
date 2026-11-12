@@ -117,11 +117,10 @@ the uploaded artifact expires in 30 days.
   release candidate**; create a separate release candidate run on
   `main` before promotion.
 - Only `linux/amd64` images are provided. There is no multiarch
-  manifest, image signature in GHCR, production deployment approval,
-  runtime rollout or automatic rollback in this PR. GitHub artifact
-  attestations apply to the downloaded archive and manifest; the
-  **new GHCR manifest digest is bound to those verified image config IDs
-  via post-push inspection**, not directly attested as an OCI subject.
+  manifest, production deployment approval, runtime rollout or automatic
+  rollback. The signed release archive is validated before publication;
+  promotion additionally signs the exact OCI digest and its SPDX SBOM.
+  The release and promotion signer workflows serve distinct purposes.
 - GitHub Actions workflow and GHCR package access must be limited to
   trusted maintainers. Protect `main`, audit package permissions, and
   pin the digests in any future production deployment.
@@ -129,3 +128,24 @@ the uploaded artifact expires in 30 days.
 Primary references:
 [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 and [verifying artifact attestations](https://cli.github.com/manual/gh_attestation_verify).
+
+
+## Additional release supply-chain checks (PR #156)
+
+Before publishing, Syft generates independent SPDX 2.3 SBOMs from the
+two **already verified local Docker images**, then Grype scans each SBOM.
+**Critical vulnerabilities, scanner failures and malformed evidence
+block the push.** Both inventories and scan reports are retained for
+30 days, including partial evidence when scanning fails.
+
+Following publication and remote image-ID verification, GitHub
+Attestations signs two artifact types **per exact GHCR manifest digest**:
+promotion-workflow SLSA provenance and the SPDX SBOM. The workflow
+re-verifies both attestation types with an exact repository, workflow
+signer, main ref and execution commit. This publishing-workflow
+signature **does not replace** the release-build archive signature.
+
+GHCR cleanup remains opt-in, **read-only and human-reviewed**. See
+[GHCR supply-chain verification and retention](ghcr-supply-chain.md)
+for details, the 90-day/10-newest proposal, and an offline candidate
+planner. No GHCR deletion permissions or automation are added.
