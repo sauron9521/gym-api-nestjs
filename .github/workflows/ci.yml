@@ -223,6 +223,8 @@ jobs:
           node --test scripts/ghcr-promotion.test.mjs
           node --test scripts/release-supply-chain.test.mjs
           node --test scripts/ghcr-retention-plan.test.mjs
+          node --test scripts/production-digest-guard.test.mjs
+          bash -n scripts/production-digest-deploy.sh
 
       - name: Validate application test environment
         run: npm run config:validate
@@ -393,6 +395,20 @@ jobs:
 
       - name: Validate production Compose syntax
         run: docker compose -f compose.prod.yml --profile ops config --quiet
+
+      # Digest-only operator deployment is never run here: validate the merged
+      # Compose model with mock refs and the same public CI test values.
+      - name: Validate immutable digest production Compose override
+        env:
+          DEPLOY_RUNTIME_IMAGE: ghcr.io/sauron9521/gym-api-nestjs@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          DEPLOY_MIGRATE_IMAGE: ghcr.io/sauron9521/gym-api-nestjs-migrate@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          SOURCE_SHA: cccccccccccccccccccccccccccccccccccccccc
+          PUBLISH_SHA: dddddddddddddddddddddddddddddddddddddddd
+          EXPECTED_CURRENT_IMAGE: none
+        run: |
+          set -euo pipefail
+          node scripts/production-digest-guard.mjs refs
+          docker compose -f compose.prod.yml -f compose.digest.prod.yml --profile ops             config --format json | node scripts/production-digest-guard.mjs compose
 
       - name: Verify production Compose resource and restart contracts
         run: |

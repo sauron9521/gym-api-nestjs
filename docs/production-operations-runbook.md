@@ -190,3 +190,18 @@ The separately-built migration image applies **forward Prisma migrations**.
 There is no automatic Prisma down-migration or general roll-back of data.
 Document RPO/RTO objectives and test them against real backup sizes before
 public launch. Production restore authorization stays with the operator.
+
+
+## 6. Operator-driven digest deployment / runtime-only rollback (PR #157)
+
+`scripts/production-digest-deploy.sh` adds an opt-in preflight and
+explicitly authorized production operation using registry
+`@sha256` digests, original release revision and promotion-workflow
+signed provenance. It never builds a local image, pushes registry
+content, performs automatic rollout from CI or reverses database
+migrations. The operator must verify the latest backup and
+backward-compatible schema migrations before invoking `apply`.
+
+For the required environment variables, safe first-deploy assumptions,
+preflight, image lock, readiness and rollback instructions, see
+[manual production digest deployment](production-digest-deployment.md).

@@ -76,6 +76,7 @@ container, a separate migration image and optional managed Redis.
 - [Signed, immutable release candidate artifacts (manual)](docs/release-artifacts.md)
 - [GHCR publication of verified release candidates (manual)](docs/ghcr-promotion.md)
 - [GHCR image SBOMs, vulnerability gates, OCI provenance and retention](docs/ghcr-supply-chain.md)
+- [Manual immutable-digest deployment and runtime-only rollback](docs/production-digest-deployment.md)
 
 `GET /health/live` only checks API process health.
 `GET /health/ready` checks PostgreSQL and, if `REDIS_URL` is configured,
