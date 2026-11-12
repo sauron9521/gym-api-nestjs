@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
   verifyFunctionalResponse, verifyPersistedProfile, makeFunctionalEvidence,
-  makeFunctionalFailureEvidence,
+  makeFunctionalFailureEvidence, verifyRefreshRotation,
 } from './staging-functional-smoke.mjs';
 
 const runtime = 'ghcr.io/sauron9521/gym-api-nestjs@sha256:' + 'a'.repeat(64);
@@ -57,6 +57,25 @@ test('registration, anonymous denial, credentials, JWT and refresh contracts are
   }
 });
 
+test('cross-version staging rotates refresh tokens without repeatedly issuing credential pairs', () => {
+  const predecessor = 'staging-prior-refresh-token-123456789';
+  const replacement = {
+    accessToken: 'staging-access-token-1234567890123456',
+    refreshToken: 'staging-next-refresh-token-1234567890',
+  };
+  assert.equal(verifyRefreshRotation(predecessor, 200, replacement), replacement);
+  assert.throws(() => verifyRefreshRotation(predecessor, 429, replacement),
+    /Staging refresh endpoint returned HTTP 429/);
+  assert.throws(() => verifyRefreshRotation(predecessor, 401, replacement),
+    /Staging refresh endpoint returned HTTP 401/);
+  assert.throws(() => verifyRefreshRotation(predecessor, 200, {
+    ...replacement, refreshToken: predecessor,
+  }), /rotation failed/);
+  assert.throws(() => verifyRefreshRotation(predecessor, 200, {
+    ...replacement, accessToken: '',
+  }));
+});
+
 test('profile data and fractional weight must survive migration replay and restart', () => {
   assert.equal(verifyPersistedProfile(profile, { userId, email }), true);
   for (const [value, state] of [
@@ -97,6 +116,8 @@ test('manual workflow executes functional checks between first ready and evidenc
     new URL('../.github/workflows/staging-ghcr.yml', import.meta.url), 'utf8');
   const ci = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
   const ignore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8');
+  const functional = await readFile(new URL('./staging-functional-smoke.mjs', import.meta.url), 'utf8');
+  const upgrade = await readFile(new URL('../.github/workflows/staging-upgrade-rollback.yml', import.meta.url), 'utf8');
   assert.match(workflow, /^on:\n  workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+(pull_request|push|schedule):/m);
   assert.doesNotMatch(workflow, /docker push|docker build|secrets\./);
@@ -119,4 +140,14 @@ test('manual workflow executes functional checks between first ready and evidenc
   assert.match(ci, /node --test scripts\/staging-functional-smoke\.test\.mjs/);
   assert.match(ignore, /^\/staging\/functional-state\.json$/m);
   assert.match(ignore, /^\/staging\/functional-evidence\.json$/m);
+  // Four closely spaced credential issuances exceed POST /auth/token's
+  // 3/minute Redis rate limiter, including across container recreation.
+  // The first synthetic login still uses credentials, but each later phase
+  // uses its previously rotated refresh token (20/min) instead.
+  assert.equal((functional.match(/http\('POST', '\/auth\/token'/g) ?? []).length, 1);
+  assert.match(functional, /http\('POST', '\/auth\/token\/refresh'/);
+  assert.match(functional, /state\.refreshToken = refresh\.body\.refreshToken/);
+  assert.match(functional, /state = \{[\s\S]*refreshToken: refresh\.body\.refreshToken/);
+  assert.doesNotMatch(functional, /state = \{ email, password/);
+  assert.equal((upgrade.match(/node scripts\/staging-functional-smoke\.mjs verify-data/g) ?? []).length, 3);
 });
