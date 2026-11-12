@@ -24,6 +24,13 @@ class PublicController {
   noMetadata() {}
 }
 
+// Reflect.get returns the original handler without triggering unbound-method
+// lint warnings; binding a method would lose its decorator metadata.
+const trainerHandler = (key: keyof TrainerController): () => void =>
+  Reflect.get(TrainerController.prototype, key) as () => void;
+const publicHandler = (): () => void =>
+  Reflect.get(PublicController.prototype, 'noMetadata') as () => void;
+
 describe('RolesGuard', () => {
   const guard = new RolesGuard(new Reflector());
 
@@ -51,17 +58,17 @@ describe('RolesGuard', () => {
     ]);
     expect(reflector.get<Role[]>(
       ROLES_KEY,
-      TrainerController.prototype.athleteOnly,
+      trainerHandler('athleteOnly'),
     )).toEqual([Role.ATHLETE]);
     expect(reflector.get<Role[]>(
       ROLES_KEY,
-      TrainerController.prototype.publiclyOverridden,
+      trainerHandler('publiclyOverridden'),
     )).toEqual([]);
   });
 
   it('allows endpoints without role metadata without touching the request', () => {
     const { context, switchToHttp } = makeContext(
-      PublicController.prototype.noMetadata,
+      publicHandler(),
       PublicController,
     );
     expect(guard.canActivate(context)).toBe(true);
@@ -70,7 +77,7 @@ describe('RolesGuard', () => {
 
   it('enforces class-level roles on methods without an override', () => {
     const { context } = makeContext(
-      TrainerController.prototype.trainerOnly,
+      trainerHandler('trainerOnly'),
       TrainerController,
       { id: 'trainer-1', role: Role.TRAINER },
     );
@@ -83,7 +90,7 @@ describe('RolesGuard', () => {
     { description: 'admin instead of trainer', user: { id: 'admin-1', role: Role.ADMIN } },
   ])('rejects $description on a trainer-only route', ({ user }) => {
     const { context, getRequest } = makeContext(
-      TrainerController.prototype.trainerOnly,
+      trainerHandler('trainerOnly'),
       TrainerController,
       user,
     );
@@ -95,7 +102,7 @@ describe('RolesGuard', () => {
 
   it('prefers method metadata over the controller role for athletes', () => {
     const { context } = makeContext(
-      TrainerController.prototype.athleteOnly,
+      trainerHandler('athleteOnly'),
       TrainerController,
       { id: 'athlete-1', role: Role.ATHLETE },
     );
@@ -104,7 +111,7 @@ describe('RolesGuard', () => {
 
   it('does not fall back to the class-level trainer role if a method requires an athlete', () => {
     const { context } = makeContext(
-      TrainerController.prototype.athleteOnly,
+      trainerHandler('athleteOnly'),
       TrainerController,
       { id: 'trainer-1', role: Role.TRAINER },
     );
@@ -114,7 +121,7 @@ describe('RolesGuard', () => {
 
   it('honors an explicitly empty method-level roles override', () => {
     const { context, switchToHttp } = makeContext(
-      TrainerController.prototype.publiclyOverridden,
+      trainerHandler('publiclyOverridden'),
       TrainerController,
     );
     expect(guard.canActivate(context)).toBe(true);
@@ -123,7 +130,7 @@ describe('RolesGuard', () => {
 
   it.each([Role.TRAINER, Role.ADMIN])('allows a listed role %s', (role) => {
     const { context } = makeContext(
-      TrainerController.prototype.trainerOrAdmin,
+      trainerHandler('trainerOrAdmin'),
       TrainerController,
       { id: 'actor-1', role },
     );
@@ -132,7 +139,7 @@ describe('RolesGuard', () => {
 
   it('denies a principal outside the declared multi-role policy', () => {
     const { context } = makeContext(
-      TrainerController.prototype.trainerOrAdmin,
+      trainerHandler('trainerOrAdmin'),
       TrainerController,
       { id: 'athlete-1', role: Role.ATHLETE },
     );
