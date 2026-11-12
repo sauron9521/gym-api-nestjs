@@ -193,10 +193,14 @@ jobs:
             prom/prometheus@sha256:23031bfe0e74a13004252caaa74eccd0d62b6c6e7a04711d5b8bf5b7e113adc7 \
             test rules /rules/http-slo-migration.test.yml
 
-      - name: Validate backup tooling without production credentials
+      - name: Validate backup schedule, freshness checks, and restore safeguards
         run: |
-          bash -n scripts/backup-production.sh scripts/test-backup-production.sh
+          bash -n scripts/backup-production.sh scripts/test-backup-production.sh scripts/verify-backup-freshness.sh scripts/test-backup-readiness.sh
+          sh -n scripts/restore-drill.sh
           bash scripts/test-backup-production.sh
+          bash scripts/test-backup-readiness.sh
+          systemd-analyze verify ops/backup/gym-api-backup.service ops/backup/gym-api-backup.timer
+          systemd-analyze calendar '*-*-* 03:30:00'
 
       - name: Validate application test environment
         run: npm run config:validate
@@ -250,6 +254,54 @@ jobs:
         run: |
           npm run perf:queries:test
           npm run perf:queries -- --rows=2000
+
+      # Dockerized PostgreSQL 17 client matches the server major version.
+      # Restore writes only to a NEW disposable *_restore_test database;
+      # production credentials, mounts and backups are never used in CI.
+      - name: Rehearse PostgreSQL and avatar restore in disposable targets
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/gym-api-restore-drill"
+          mkdir -p "$work/backup" "$work/avatars"
+          volume="gym-api-ci-avatar-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker volume rm -f "$volume" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+          printf 'sample-avatar\n' > "$work/avatars/sample.png"
+
+          docker run --rm --network host \
+            --mount "type=bind,src=$work/backup,dst=/backup" \
+            -e DATABASE_URL postgres:17-alpine sh -ec \
+            'pg_dump --format=custom --no-owner --no-acl --dbname="$DATABASE_URL" --file=/backup/postgres.dump'
+
+          tar -czf "$work/backup/avatars.tar.gz" -C "$work/avatars" .
+          (
+            cd "$work/backup"
+            sha256sum postgres.dump avatars.tar.gz > SHA256SUMS
+            printf 'created_utc=%s\navatar_volume=disposable-ci\n' \
+              "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > MANIFEST.txt
+          )
+
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            postgres:17-alpine psql -h 127.0.0.1 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -c 'CREATE DATABASE gym_restore_drill_test'
+
+          docker run --rm --network host \
+            --mount "type=bind,src=$work/backup,dst=/backup,readonly" \
+            --mount "type=bind,src=$PWD/scripts,dst=/scripts,readonly" \
+            -e DATABASE_URL \
+            -e RESTORE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/gym_restore_drill_test \
+            -e RESTORE_DRILL_CONFIRM=I_ACKNOWLEDGE_ISOLATED_RESTORE \
+            postgres:17-alpine sh /scripts/restore-drill.sh /backup
+
+          docker volume create "$volume" >/dev/null
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --mount "type=volume,src=$volume,dst=/avatars" \
+            --mount "type=bind,src=$work/backup,dst=/backup,readonly" \
+            alpine:3.21 tar -xzf /backup/avatars.tar.gz -C /avatars
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --mount "type=volume,src=$volume,dst=/avatars,readonly" \
+            alpine:3.21 test -s /avatars/sample.png
 
       - name: Unit tests
         run: |

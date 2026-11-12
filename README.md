@@ -68,6 +68,7 @@ container, a separate migration image and optional managed Redis.
 - [Docker production deployment](docs/docker-production.md)
 - [Production environment and secrets](docs/production-configuration.md)
 - [Backup, isolated restore, monitoring and incident runbook](docs/production-operations-runbook.md)
+- [Opt-in daily backup scheduling and safe restore rehearsals](docs/backup-automation-restore-drill.md)
 - [Health, request IDs and safe logs](docs/observability-health.md)
 - [Rate limiting, Redis and proxy trust](docs/rate-limiting-and-proxies.md)
 - [Blocking CI gate and branch protection](docs/ci-required-gates.md)

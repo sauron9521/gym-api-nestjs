@@ -3,7 +3,10 @@
 This is the **single-host** production deployment defined in
 [`compose.prod.yml`](../compose.prod.yml) with an externally managed
 PostgreSQL database and local Docker volume `gym-api_avatars`.
-It is not a high-availability design or an automatic backup scheduler.
+It is not a high-availability design. An optional host-side **daily backup
+timer** and isolated restore-drill tooling are described in
+[backup automation and disaster recovery](backup-automation-restore-drill.md).
+These templates are **disabled until an operator installs and enables them**.
 
 ## 1. Preflight and access
 
@@ -62,9 +65,12 @@ is more than 24 hours old, and rehearse restore monthly. These are
 
 ## 3. Restore drill — isolated environment only
 
-This is a **manual** runbook. The repository intentionally provides no
-automatic destructive restore command. Never point the following commands
-at the production `DATABASE_URL`.
+This is a **manual** runbook for full staging recovery. A guarded,
+non-destructive PostgreSQL-only rehearsal is now available via
+`scripts/restore-drill.sh` and runs in CI against a separately created,
+empty `*_restore_test` database. It never creates/drops databases and is
+not a production restore tool. Never point any restore command at the
+production `DATABASE_URL`.
 
 1. Provision an *empty, isolated* PostgreSQL database and new dedicated
    avatar volume. Set `RESTORE_DATABASE_URL` to that database and
