@@ -1,4 +1,4 @@
-# Production readiness: verified release evidence and human-authorized host approval (PR #165)
+# Production readiness: verified release evidence and human-authorized host approval (PR #166)
 
 Production deployment is **never triggered by merging, CI, a green GitHub
 Actions review, or generating this report**. We separate what can be
