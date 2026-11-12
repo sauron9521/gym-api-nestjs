@@ -130,3 +130,14 @@ Release, run migrations or deploy to production. The existing local
 `docker compose up --build` flow is unchanged; for deployment use
 a verified immutable registry digest or an explicitly reviewed archive
 promotion process. Do not rely solely on mutable tags.
+
+
+## Verified GHCR release publishing (PR #155)
+
+After green `main` CI and a successful **manual signed release candidate**
+workflow, an operator can explicitly publish its exact runtime/migrate
+images to GHCR. The new workflow verifies the signed archives, refuses
+already-used SHA+run tags and records **registry @sha256 digests**; it never
+rebuilds, runs migrations or deploys. Production Compose remains
+unmodified. For the procedure and limits, see
+[verified GHCR promotion](ghcr-promotion.md).

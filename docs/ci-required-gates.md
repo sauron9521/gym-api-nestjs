@@ -64,3 +64,15 @@ release manifest/safety logic offline; actual signing and the
 cross-job archive reload are exercised only when an operator starts a
 release-candidate run from the checked `main` commit. See
 [release-artifacts.md](release-artifacts.md).
+
+
+## Explicit registry promotion (PR #155)
+
+Promotion of a completed and attested release archive is handled by
+`.github/workflows/publish-ghcr.yml`, a **manual-only** workflow on
+protected `main`. CI runs mock regression tests of GHCR run validation,
+tag preflight and post-push digest verification, but never authenticates
+to GHCR or pushes images. The promotion run itself rechecks that the
+source commit passed `CI / required gates` and that the signed release
+candidate's separate verification job completed successfully.
+See [GHCR promotion](ghcr-promotion.md).
